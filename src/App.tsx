@@ -12,6 +12,9 @@ import StudentDashboard from "./pages/StudentDashboard";
 import TeacherDashboard from "./pages/TeacherDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import Chat from "./pages/Chat";
+import AIMentor from "./pages/AIMentor";
+import Quiz from "./pages/Quiz";
+import ScriptAnalyzer from "./pages/ScriptAnalyzer";
 import AssignmentDetail from "./pages/AssignmentDetail";
 import Unauthorized from "./pages/Unauthorized";
 import NotFound from "./pages/NotFound";
@@ -33,6 +36,9 @@ const App = () => (
             <Route path="/teacher/dashboard" element={<TeacherDashboard />} />
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
             <Route path="/chat" element={<Chat />} />
+            <Route path="/ai-mentor" element={<AIMentor />} />
+            <Route path="/quiz" element={<Quiz />} />
+            <Route path="/script-analyzer" element={<ScriptAnalyzer />} />
             <Route path="/assignment/:id" element={<AssignmentDetail />} />
             <Route path="/unauthorized" element={<Unauthorized />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

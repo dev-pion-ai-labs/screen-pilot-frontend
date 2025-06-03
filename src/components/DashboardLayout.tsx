@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { LogOut, User, BookOpen, MessageSquare, Users, Settings } from 'lucide-react';
+import { LogOut, User, BookOpen, MessageSquare, Users, Settings, Brain, FileText } from 'lucide-react';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -49,7 +49,9 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         return [
           ...baseItems,
           { name: 'Assignments', href: '/student/assignments', icon: BookOpen },
-          { name: 'AI Mentor', href: '/chat', icon: MessageSquare }
+          { name: 'AI Mentor', href: '/ai-mentor', icon: MessageSquare },
+          { name: 'Quiz Tool', href: '/quiz', icon: Brain },
+          { name: 'Script Analyzer', href: '/script-analyzer', icon: FileText }
         ];
       default:
         return baseItems;

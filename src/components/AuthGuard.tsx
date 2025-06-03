@@ -16,23 +16,31 @@ export const AuthGuard = ({ children, allowedRoles, requireAuth = true }: AuthGu
   const location = useLocation();
 
   useEffect(() => {
-    if (!loading) {
-      if (requireAuth && !user) {
-        navigate('/login', { state: { from: location } });
-        return;
-      }
+    if (loading) return; // Don't do anything while loading
+    
+    console.log('AuthGuard state:', { user: !!user, profile, loading, requireAuth, location: location.pathname });
 
-      if (user && profile && allowedRoles && !allowedRoles.includes(profile.role)) {
-        navigate('/unauthorized');
-        return;
+    if (requireAuth && !user) {
+      // User needs to be authenticated but isn't
+      if (location.pathname !== '/login' && location.pathname !== '/signup') {
+        navigate('/login', { state: { from: location }, replace: true });
       }
+      return;
+    }
 
-      // Redirect authenticated users to their dashboard from login/signup pages
-      if (user && profile && (location.pathname === '/login' || location.pathname === '/signup')) {
+    if (!requireAuth && user && profile) {
+      // User is authenticated but on a public page (login/signup)
+      if (location.pathname === '/login' || location.pathname === '/signup') {
         const dashboardPath = `/${profile.role}/dashboard`;
-        navigate(dashboardPath);
-        return;
+        navigate(dashboardPath, { replace: true });
       }
+      return;
+    }
+
+    if (user && profile && allowedRoles && !allowedRoles.includes(profile.role)) {
+      // User doesn't have the required role
+      navigate('/unauthorized', { replace: true });
+      return;
     }
   }, [user, profile, loading, navigate, location, allowedRoles, requireAuth]);
 
@@ -44,12 +52,26 @@ export const AuthGuard = ({ children, allowedRoles, requireAuth = true }: AuthGu
     );
   }
 
-  if (requireAuth && !user) {
-    return null;
+  // For public pages (login/signup), show content if user is not authenticated
+  if (!requireAuth) {
+    if (user && profile) {
+      // Will redirect in useEffect
+      return (
+        <div className="min-h-screen flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+      );
+    }
+    return <>{children}</>;
+  }
+
+  // For protected pages, only show if user is authenticated
+  if (!user) {
+    return null; // Will redirect in useEffect
   }
 
   if (allowedRoles && profile && !allowedRoles.includes(profile.role)) {
-    return null;
+    return null; // Will redirect in useEffect
   }
 
   return <>{children}</>;

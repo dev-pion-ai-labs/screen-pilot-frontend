@@ -42,26 +42,47 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    console.log('Auth provider initializing...');
+    
+    // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log('Auth state change:', event, session?.user?.email);
         setSession(session);
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          // Fetch user profile
-          const { data: profileData } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .single();
-          
-          // Type cast the role to ensure it matches our Profile interface
-          if (profileData) {
-            setProfile({
-              ...profileData,
-              role: profileData.role as 'admin' | 'teacher' | 'student'
-            });
-          }
+          // Fetch user profile with timeout to prevent hanging
+          const fetchProfile = async () => {
+            try {
+              const { data: profileData, error } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', session.user.id)
+                .single();
+              
+              if (error) {
+                console.error('Error fetching profile:', error);
+                setProfile(null);
+                return;
+              }
+              
+              // Type cast the role to ensure it matches our Profile interface
+              if (profileData) {
+                setProfile({
+                  ...profileData,
+                  role: profileData.role as 'admin' | 'teacher' | 'student'
+                });
+                console.log('Profile loaded:', profileData.role);
+              }
+            } catch (error) {
+              console.error('Error in fetchProfile:', error);
+              setProfile(null);
+            }
+          };
+
+          // Use setTimeout to prevent blocking the auth state change
+          setTimeout(fetchProfile, 0);
         } else {
           setProfile(null);
         }
@@ -70,13 +91,29 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
     );
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    // Check for existing session
+    const getInitialSession = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) {
+          console.error('Error getting session:', error);
+        }
+        
+        if (!session) {
+          setLoading(false);
+        }
+        // If there is a session, the onAuthStateChange will handle it
+      } catch (error) {
+        console.error('Error in getInitialSession:', error);
+        setLoading(false);
+      }
+    };
 
-    return () => subscription.unsubscribe();
+    getInitialSession();
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signUp = async (email: string, password: string, fullName: string, role: string) => {

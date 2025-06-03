@@ -46,7 +46,13 @@ export default function Chat() {
         .eq('user_id', profile?.id)
         .order('timestamp', { ascending: true });
 
-      setMessages(data || []);
+      // Type cast the role to ensure it matches our Message interface
+      const typedMessages: Message[] = (data || []).map(msg => ({
+        ...msg,
+        role: msg.role as 'user' | 'assistant'
+      }));
+
+      setMessages(typedMessages);
     } catch (error) {
       console.error('Error fetching chat history:', error);
     } finally {
@@ -66,7 +72,13 @@ export default function Chat() {
         .select()
         .single();
 
-      return data;
+      if (data) {
+        return {
+          ...data,
+          role: data.role as 'user' | 'assistant'
+        } as Message;
+      }
+      return null;
     } catch (error) {
       console.error('Error saving message:', error);
       return null;

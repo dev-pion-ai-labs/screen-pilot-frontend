@@ -55,7 +55,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             .eq('id', session.user.id)
             .single();
           
-          setProfile(profileData);
+          // Type cast the role to ensure it matches our Profile interface
+          if (profileData) {
+            setProfile({
+              ...profileData,
+              role: profileData.role as 'admin' | 'teacher' | 'student'
+            });
+          }
         } else {
           setProfile(null);
         }

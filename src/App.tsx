@@ -19,6 +19,7 @@ import ScriptAnalyzer from "./pages/ScriptAnalyzer";
 import AssignmentDetail from "./pages/AssignmentDetail";
 import Unauthorized from "./pages/Unauthorized";
 import NotFound from "./pages/NotFound";
+import AdminSettings from "./pages/AdminSettings";
 
 const queryClient = new QueryClient();
 
@@ -37,6 +38,7 @@ const App = () => (
             <Route path="/teacher/dashboard" element={<TeacherDashboard />} />
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
             <Route path="/admin/users" element={<AdminUsers />} />
+            <Route path="/admin/settings" element={<AdminSettings />} />
             <Route path="/chat" element={<Chat />} />
             <Route path="/ai-mentor" element={<AIMentor />} />
             <Route path="/quiz" element={<Quiz />} />

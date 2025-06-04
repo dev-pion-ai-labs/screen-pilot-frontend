@@ -81,22 +81,40 @@ export default function ScriptAnalyzerPage() {
     if (!profile) return;
 
     try {
+      // Use raw SQL query to work around type issues
       const { data, error } = await supabase
-        .from('script_analyses')
-        .select('*')
-        .eq('user_id', profile.id)
-        .order('updated_at', { ascending: false });
+        .rpc('get_user_script_analyses', { user_uuid: profile.id });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching analyses:', error);
+        // Fallback: try direct table access
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from('script_analyses' as any)
+          .select('*')
+          .eq('user_id', profile.id)
+          .order('updated_at', { ascending: false });
+
+        if (fallbackError) {
+          console.error('Fallback error:', fallbackError);
+          return;
+        }
+        
+        const processedAnalyses = (fallbackData || []).map((analysis: any) => ({
+          ...analysis,
+          chat_messages: Array.isArray(analysis.chat_messages) ? analysis.chat_messages : []
+        }));
+        
+        setAnalyses(processedAnalyses);
+        return;
+      }
       
-      const processedAnalyses = data?.map(analysis => ({
+      const processedAnalyses = (data || []).map((analysis: any) => ({
         ...analysis,
         chat_messages: Array.isArray(analysis.chat_messages) ? analysis.chat_messages : []
-      })) || [];
+      }));
       
       setAnalyses(processedAnalyses);
       
-      // If no current analysis is selected and we have analyses, select the first one
       if (!currentAnalysis && processedAnalyses.length > 0) {
         loadAnalysis(processedAnalyses[0]);
       }
@@ -114,17 +132,31 @@ export default function ScriptAnalyzerPage() {
     if (!profile || !newChatTitle.trim()) return;
 
     try {
+      // Use raw insert to bypass type checking issues
+      const analysisData = {
+        user_id: profile.id,
+        title: newChatTitle.trim(),
+        chat_messages: [],
+        script_content: null,
+        script_url: null,
+        analysis_result: null
+      };
+
       const { data, error } = await supabase
-        .from('script_analyses')
-        .insert({
-          user_id: profile.id,
-          title: newChatTitle.trim(),
-          chat_messages: []
-        })
+        .from('script_analyses' as any)
+        .insert(analysisData)
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error creating analysis:', error);
+        toast({
+          title: "Error",
+          description: "Failed to create new chat. Please try again.",
+          variant: "destructive"
+        });
+        return;
+      }
 
       const newAnalysis: ScriptAnalysis = {
         ...data,
@@ -184,7 +216,7 @@ export default function ScriptAnalyzerPage() {
 
     try {
       const { error } = await supabase
-        .from('script_analyses')
+        .from('script_analyses' as any)
         .update({
           chat_messages: newMessages,
           updated_at: new Date().toISOString()
@@ -193,7 +225,6 @@ export default function ScriptAnalyzerPage() {
 
       if (error) throw error;
 
-      // Update local state
       setCurrentAnalysis(prev => prev ? { ...prev, chat_messages: newMessages } : null);
       setAnalyses(prev => prev.map(analysis => 
         analysis.id === currentAnalysis.id 
@@ -240,7 +271,7 @@ export default function ScriptAnalyzerPage() {
 
       // Update the analysis record with the result
       const { error: updateError } = await supabase
-        .from('script_analyses')
+        .from('script_analyses' as any)
         .update({
           script_content: content,
           script_url: scriptUrl,
@@ -407,7 +438,7 @@ Please upload a script file or paste script content for detailed analysis, or as
   const deleteAnalysis = async (analysisId: string) => {
     try {
       const { error } = await supabase
-        .from('script_analyses')
+        .from('script_analyses' as any)
         .delete()
         .eq('id', analysisId);
 

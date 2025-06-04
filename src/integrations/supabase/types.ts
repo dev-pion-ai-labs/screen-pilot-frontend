@@ -136,6 +136,42 @@ export type Database = {
         }
         Relationships: []
       }
+      script_analyses: {
+        Row: {
+          analysis_result: Json | null
+          chat_messages: Json | null
+          created_at: string
+          id: string
+          script_content: string | null
+          script_url: string | null
+          title: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          analysis_result?: Json | null
+          chat_messages?: Json | null
+          created_at?: string
+          id?: string
+          script_content?: string | null
+          script_url?: string | null
+          title?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          analysis_result?: Json | null
+          chat_messages?: Json | null
+          created_at?: string
+          id?: string
+          script_content?: string | null
+          script_url?: string | null
+          title?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       submissions: {
         Row: {
           ai_feedback: Json | null

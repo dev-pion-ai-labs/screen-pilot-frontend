@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { AuthGuard } from '@/components/AuthGuard';
-import { DashboardLayout } from '@/components/DashboardLayout';
+import { ModernDashboardLayout } from '@/components/ModernDashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -61,68 +61,72 @@ export default function StudentDashboard() {
 
   return (
     <AuthGuard allowedRoles={['student']}>
-      <DashboardLayout>
-        <div className="px-4 py-6 sm:px-0">
-          <div className="mb-8">
+      <ModernDashboardLayout>
+        <div className="space-y-6">
+          <div>
             <h1 className="text-3xl font-bold text-gray-900">Welcome back, {profile?.full_name}!</h1>
-            <p className="mt-2 text-gray-600">Track your assignments and learning tools</p>
+            <p className="mt-2 text-gray-600">Access your learning tools and track your progress</p>
           </div>
 
-          <h2 className="text-xl font-bold text-gray-900 mb-4">Learning Tools</h2>
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-3 lg:grid-cols-3 mb-8">
-            <Card className="hover:shadow-md transition-shadow">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-lg font-medium">AI Mentor</CardTitle>
-                <MessageSquare className="h-5 w-5 text-blue-600" />
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-gray-600 mb-4">
-                  Get personalized guidance and support from your AI mentor
-                </p>
-                <Link to="/ai-mentor">
-                  <Button size="sm" className="w-full">
-                    Start Chat
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
+          {/* Learning Tools */}
+          <div>
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Learning Tools</h2>
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
+              <Card className="hover:shadow-md transition-shadow">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-lg font-medium">AI Mentor</CardTitle>
+                  <MessageSquare className="h-5 w-5 text-blue-600" />
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Get personalized guidance and support from your AI mentor
+                  </p>
+                  <Link to="/ai-mentor">
+                    <Button size="sm" className="w-full">
+                      Start Chat
+                    </Button>
+                  </Link>
+                </CardContent>
+              </Card>
 
-            <Card className="hover:shadow-md transition-shadow">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-lg font-medium">Quiz Tool</CardTitle>
-                <Brain className="h-5 w-5 text-purple-600" />
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-gray-600 mb-4">
-                  Test your knowledge with interactive quizzes on any topic
-                </p>
-                <Link to="/quiz">
-                  <Button size="sm" className="w-full bg-purple-600 hover:bg-purple-700">
-                    Take Quiz
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
+              <Card className="hover:shadow-md transition-shadow">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-lg font-medium">Quiz Tool</CardTitle>
+                  <Brain className="h-5 w-5 text-purple-600" />
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Test your knowledge with interactive quizzes on any topic
+                  </p>
+                  <Link to="/quiz">
+                    <Button size="sm" className="w-full bg-purple-600 hover:bg-purple-700">
+                      Take Quiz
+                    </Button>
+                  </Link>
+                </CardContent>
+              </Card>
 
-            <Card className="hover:shadow-md transition-shadow">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-lg font-medium">Script Analyzer</CardTitle>
-                <FileText className="h-5 w-5 text-green-600" />
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-gray-600 mb-4">
-                  Get detailed analysis and feedback on your scripts
-                </p>
-                <Link to="/script-analyzer">
-                  <Button size="sm" className="w-full bg-green-600 hover:bg-green-700">
-                    Analyze Script
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
+              <Card className="hover:shadow-md transition-shadow">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-lg font-medium">Script Analyzer</CardTitle>
+                  <FileText className="h-5 w-5 text-green-600" />
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Get detailed analysis and feedback on your scripts
+                  </p>
+                  <Link to="/script-analyzer">
+                    <Button size="sm" className="w-full bg-green-600 hover:bg-green-700">
+                      Analyze Script
+                    </Button>
+                  </Link>
+                </CardContent>
+              </Card>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+          {/* Stats */}
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total Assignments</CardTitle>
@@ -159,19 +163,20 @@ export default function StudentDashboard() {
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">AI Mentor</CardTitle>
+                <CardTitle className="text-sm font-medium">Quick Access</CardTitle>
                 <MessageSquare className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <Link to="/ai-mentor">
                   <Button size="sm" className="w-full">
-                    Start Chat
+                    AI Mentor
                   </Button>
                 </Link>
               </CardContent>
             </Card>
           </div>
 
+          {/* Assignments */}
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-2xl font-bold text-gray-900">Your Assignments</h2>
@@ -226,7 +231,7 @@ export default function StudentDashboard() {
             )}
           </div>
         </div>
-      </DashboardLayout>
+      </ModernDashboardLayout>
     </AuthGuard>
   );
 }

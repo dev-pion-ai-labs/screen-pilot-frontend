@@ -11,6 +11,7 @@ import Signup from "./pages/Signup";
 import StudentDashboard from "./pages/StudentDashboard";
 import TeacherDashboard from "./pages/TeacherDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
+import AdminUsers from "./pages/AdminUsers";
 import Chat from "./pages/Chat";
 import AIMentor from "./pages/AIMentor";
 import Quiz from "./pages/Quiz";
@@ -35,6 +36,7 @@ const App = () => (
             <Route path="/student/dashboard" element={<StudentDashboard />} />
             <Route path="/teacher/dashboard" element={<TeacherDashboard />} />
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
+            <Route path="/admin/users" element={<AdminUsers />} />
             <Route path="/chat" element={<Chat />} />
             <Route path="/ai-mentor" element={<AIMentor />} />
             <Route path="/quiz" element={<Quiz />} />

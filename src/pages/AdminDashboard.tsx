@@ -2,10 +2,12 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { AuthGuard } from '@/components/AuthGuard';
-import { DashboardLayout } from '@/components/DashboardLayout';
+import { ModernDashboardLayout } from '@/components/ModernDashboardLayout';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
-import { Users, BookOpen, FileText, TrendingUp } from 'lucide-react';
+import { Users, BookOpen, FileText, TrendingUp, UserPlus, Settings, BarChart3 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 interface Stats {
   totalUsers: number;
@@ -62,20 +64,79 @@ export default function AdminDashboard() {
 
   return (
     <AuthGuard allowedRoles={['admin']}>
-      <DashboardLayout>
-        <div className="px-4 py-6 sm:px-0">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-            <p className="mt-2 text-gray-600">Platform overview and statistics</p>
+      <ModernDashboardLayout>
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
+              <p className="mt-2 text-gray-600">Platform overview and management</p>
+            </div>
+            
+            <div className="flex gap-2">
+              <Link to="/admin/users">
+                <Button>
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Manage Users
+                </Button>
+              </Link>
+            </div>
           </div>
 
+          {/* Quick Actions */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Link to="/admin/users">
+              <Card className="hover:shadow-md transition-shadow cursor-pointer">
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <Users className="h-6 w-6 text-blue-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold">User Management</h3>
+                      <p className="text-sm text-gray-600">Create and manage accounts</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+
+            <Card className="hover:shadow-md transition-shadow cursor-pointer">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                    <BarChart3 className="h-6 w-6 text-green-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">System Reports</h3>
+                    <p className="text-sm text-gray-600">View platform analytics</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="hover:shadow-md transition-shadow cursor-pointer">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                    <Settings className="h-6 w-6 text-purple-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">Platform Settings</h3>
+                    <p className="text-sm text-gray-600">Configure system settings</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Stats Cards */}
           {loading ? (
             <div className="text-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
               <p className="mt-2 text-gray-600">Loading statistics...</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">Total Users</CardTitle>
@@ -126,6 +187,7 @@ export default function AdminDashboard() {
             </div>
           )}
 
+          {/* Detailed Overview */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card>
               <CardHeader>
@@ -153,25 +215,33 @@ export default function AdminDashboard() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Quick Actions</CardTitle>
+                <CardTitle>Administrative Actions</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <p className="text-sm text-muted-foreground">
-                  Use the navigation menu to access user management, system settings, and detailed reports.
+                  Manage your Screen Pilot platform with these administrative tools.
                 </p>
-                <div className="space-y-2">
-                  <div className="text-sm">
-                    <strong>Users:</strong> Manage student and teacher accounts
-                  </div>
-                  <div className="text-sm">
-                    <strong>Settings:</strong> Configure platform settings
-                  </div>
+                <div className="space-y-3">
+                  <Link to="/admin/users">
+                    <Button variant="outline" className="w-full justify-start">
+                      <Users className="h-4 w-4 mr-2" />
+                      User Management
+                    </Button>
+                  </Link>
+                  <Button variant="outline" className="w-full justify-start">
+                    <BarChart3 className="h-4 w-4 mr-2" />
+                    System Reports
+                  </Button>
+                  <Button variant="outline" className="w-full justify-start">
+                    <Settings className="h-4 w-4 mr-2" />
+                    Platform Settings
+                  </Button>
                 </div>
               </CardContent>
             </Card>
           </div>
         </div>
-      </DashboardLayout>
+      </ModernDashboardLayout>
     </AuthGuard>
   );
 }

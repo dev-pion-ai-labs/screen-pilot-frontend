@@ -1,122 +1,234 @@
+"use client"
 
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { useAuth } from '@/hooks/useAuth';
-import { AuthGuard } from '@/components/AuthGuard';
-import { ModernDashboardLayout } from '@/components/ModernDashboardLayout';
-import { Button } from '@/components/ui/button';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { supabase } from '@/integrations/supabase/client';
-import { BookOpen, MessageSquare, Clock, CheckCircle, AlertCircle, Brain, FileText } from 'lucide-react';
-import { format } from 'date-fns';
+import { useState, useEffect } from "react"
+import { Link } from "react-router-dom"
+import { useAuth } from "@/hooks/useAuth"
+import { AuthGuard } from "@/components/AuthGuard"
+import { ModernDashboardLayout } from "@/components/ModernDashboardLayout"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { supabase } from "@/integrations/supabase/client"
+import {
+  BookOpen,
+  MessageSquare,
+  Clock,
+  CheckCircle,
+  AlertCircle,
+  Brain,
+  FileText,
+  TrendingUp,
+  Target,
+  Zap,
+  Calendar,
+  Award,
+  PlayCircle,
+} from "lucide-react"
+import { format } from "date-fns"
 
 interface Assignment {
-  id: string;
-  title: string;
-  description: string;
-  due_date: string;
-  submissions?: any[];
+  id: string
+  title: string
+  description: string
+  due_date: string
+  submissions?: any[]
 }
 
 export default function StudentDashboard() {
-  const { profile } = useAuth();
-  const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { profile } = useAuth()
+  const [assignments, setAssignments] = useState<Assignment[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetchAssignments();
-  }, []);
+    fetchAssignments()
+  }, [])
 
   const fetchAssignments = async () => {
     try {
       const { data: assignmentsData } = await supabase
-        .from('assignments')
+        .from("assignments")
         .select(`
           *,
           submissions!inner(*)
         `)
-        .order('due_date', { ascending: true });
+        .order("due_date", { ascending: true })
 
-      setAssignments(assignmentsData || []);
+      setAssignments(assignmentsData || [])
     } catch (error) {
-      console.error('Error fetching assignments:', error);
+      console.error("Error fetching assignments:", error)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   const getAssignmentStatus = (assignment: Assignment) => {
-    const hasSubmission = assignment.submissions && assignment.submissions.length > 0;
-    const isOverdue = new Date(assignment.due_date) < new Date();
+    const hasSubmission = assignment.submissions && assignment.submissions.length > 0
+    const isOverdue = new Date(assignment.due_date) < new Date()
 
     if (hasSubmission) {
-      return { status: 'submitted', color: 'bg-green-100 text-green-800', icon: CheckCircle };
+      return { status: "submitted", color: "bg-emerald-100 text-emerald-700 border-emerald-200", icon: CheckCircle }
     } else if (isOverdue) {
-      return { status: 'overdue', color: 'bg-red-100 text-red-800', icon: AlertCircle };
+      return { status: "overdue", color: "bg-red-100 text-red-700 border-red-200", icon: AlertCircle }
     } else {
-      return { status: 'pending', color: 'bg-yellow-100 text-yellow-800', icon: Clock };
+      return { status: "pending", color: "bg-amber-100 text-amber-700 border-amber-200", icon: Clock }
     }
-  };
+  }
+
+  const submittedCount = assignments.filter((a) => a.submissions && a.submissions.length > 0).length
+  const pendingCount = assignments.filter((a) => !a.submissions || a.submissions.length === 0).length
+  const completionRate = assignments.length > 0 ? Math.round((submittedCount / assignments.length) * 100) : 0
 
   return (
-    <AuthGuard allowedRoles={['student']}>
+    <AuthGuard allowedRoles={["student"]}>
       <ModernDashboardLayout>
-        <div className="space-y-6">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Welcome back, {profile?.full_name}!</h1>
-            <p className="mt-2 text-gray-600">Access your learning tools and track your progress</p>
+        <div className="space-y-8">
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 p-8 text-white">
+            <div className="relative z-10">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="text-4xl font-bold mb-2">Welcome back, {profile?.full_name?.split(" ")[0]}! 🎬</h1>
+                  <p className="text-xl text-white/90 mb-6">Ready to continue your screenwriting journey?</p>
+                  <div className="flex items-center gap-6">
+                    <div className="flex items-center gap-2">
+                      <Award className="h-5 w-5 text-yellow-300" />
+                      <span className="font-medium">{completionRate}% Complete</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Target className="h-5 w-5 text-green-300" />
+                      <span className="font-medium">{submittedCount} Submitted</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="hidden lg:block">
+                  <div className="w-32 h-32 bg-white/10 rounded-full flex items-center justify-center backdrop-blur-sm">
+                    <Brain className="h-16 w-16 text-white/80" />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full -translate-y-48 translate-x-48"></div>
+            <div className="absolute bottom-0 left-0 w-64 h-64 bg-white/5 rounded-full translate-y-32 -translate-x-32"></div>
           </div>
 
-          {/* Learning Tools */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-50 to-blue-100">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-blue-600 mb-1">Total Assignments</p>
+                    <p className="text-3xl font-bold text-blue-900">{assignments.length}</p>
+                  </div>
+                  <div className="p-3 bg-blue-500 rounded-xl">
+                    <BookOpen className="h-6 w-6 text-white" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-lg bg-gradient-to-br from-emerald-50 to-emerald-100">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-emerald-600 mb-1">Completed</p>
+                    <p className="text-3xl font-bold text-emerald-900">{submittedCount}</p>
+                  </div>
+                  <div className="p-3 bg-emerald-500 rounded-xl">
+                    <CheckCircle className="h-6 w-6 text-white" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-lg bg-gradient-to-br from-amber-50 to-amber-100">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-amber-600 mb-1">Pending</p>
+                    <p className="text-3xl font-bold text-amber-900">{pendingCount}</p>
+                  </div>
+                  <div className="p-3 bg-amber-500 rounded-xl">
+                    <Clock className="h-6 w-6 text-white" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-lg bg-gradient-to-br from-purple-50 to-purple-100">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-purple-600 mb-1">Success Rate</p>
+                    <p className="text-3xl font-bold text-purple-900">{completionRate}%</p>
+                  </div>
+                  <div className="p-3 bg-purple-500 rounded-xl">
+                    <TrendingUp className="h-6 w-6 text-white" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+
           <div>
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Learning Tools</h2>
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
-              <Card className="hover:shadow-md transition-shadow">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-lg font-medium">AI Mentor</CardTitle>
-                  <MessageSquare className="h-5 w-5 text-blue-600" />
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-gray-600 mb-4">
-                    Get personalized guidance and support from your AI mentor
-                  </p>
+            <div className="flex items-center gap-3 mb-6">
+              <Zap className="h-6 w-6 text-indigo-600" />
+              <h2 className="text-2xl font-bold text-gray-900">AI-Powered Learning Tools</h2>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <Card className="group hover:shadow-xl transition-all duration-300 border-0 shadow-lg overflow-hidden">
+                <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-6 text-white">
+                  <div className="flex items-center justify-between mb-4">
+                    <MessageSquare className="h-8 w-8" />
+                    <div className="p-2 bg-white/20 rounded-lg">
+                      <PlayCircle className="h-5 w-5" />
+                    </div>
+                  </div>
+                  <h3 className="text-xl font-bold mb-2">AI Mentor</h3>
+                  <p className="text-blue-100">Get personalized guidance and support from your AI mentor</p>
+                </div>
+                <CardContent className="p-6">
                   <Link to="/ai-mentor">
-                    <Button size="sm" className="w-full">
-                      Start Chat
+                    <Button className="w-full bg-blue-600 hover:bg-blue-700 group-hover:scale-105 transition-transform">
+                      Start Conversation
                     </Button>
                   </Link>
                 </CardContent>
               </Card>
 
-              <Card className="hover:shadow-md transition-shadow">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-lg font-medium">Quiz Tool</CardTitle>
-                  <Brain className="h-5 w-5 text-purple-600" />
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-gray-600 mb-4">
-                    Test your knowledge with interactive quizzes on any topic
-                  </p>
+              <Card className="group hover:shadow-xl transition-all duration-300 border-0 shadow-lg overflow-hidden">
+                <div className="bg-gradient-to-br from-purple-500 to-purple-600 p-6 text-white">
+                  <div className="flex items-center justify-between mb-4">
+                    <Brain className="h-8 w-8" />
+                    <div className="p-2 bg-white/20 rounded-lg">
+                      <PlayCircle className="h-5 w-5" />
+                    </div>
+                  </div>
+                  <h3 className="text-xl font-bold mb-2">Quiz Tool</h3>
+                  <p className="text-purple-100">Test your knowledge with interactive quizzes on any topic</p>
+                </div>
+                <CardContent className="p-6">
                   <Link to="/quiz">
-                    <Button size="sm" className="w-full bg-purple-600 hover:bg-purple-700">
+                    <Button className="w-full bg-purple-600 hover:bg-purple-700 group-hover:scale-105 transition-transform">
                       Take Quiz
                     </Button>
                   </Link>
                 </CardContent>
               </Card>
 
-              <Card className="hover:shadow-md transition-shadow">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-lg font-medium">Script Analyzer</CardTitle>
-                  <FileText className="h-5 w-5 text-green-600" />
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-gray-600 mb-4">
-                    Get detailed analysis and feedback on your scripts
-                  </p>
+              <Card className="group hover:shadow-xl transition-all duration-300 border-0 shadow-lg overflow-hidden">
+                <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 p-6 text-white">
+                  <div className="flex items-center justify-between mb-4">
+                    <FileText className="h-8 w-8" />
+                    <div className="p-2 bg-white/20 rounded-lg">
+                      <PlayCircle className="h-5 w-5" />
+                    </div>
+                  </div>
+                  <h3 className="text-xl font-bold mb-2">Script Analyzer</h3>
+                  <p className="text-emerald-100">Get detailed analysis and feedback on your scripts</p>
+                </div>
+                <CardContent className="p-6">
                   <Link to="/script-analyzer">
-                    <Button size="sm" className="w-full bg-green-600 hover:bg-green-700">
+                    <Button className="w-full bg-emerald-600 hover:bg-emerald-700 group-hover:scale-105 transition-transform">
                       Analyze Script
                     </Button>
                   </Link>
@@ -125,107 +237,84 @@ export default function StudentDashboard() {
             </div>
           </div>
 
-          {/* Stats */}
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Assignments</CardTitle>
-                <BookOpen className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{assignments.length}</div>
-              </CardContent>
-            </Card>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Submitted</CardTitle>
-                <CheckCircle className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {assignments.filter(a => a.submissions && a.submissions.length > 0).length}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Pending</CardTitle>
-                <Clock className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {assignments.filter(a => !a.submissions || a.submissions.length === 0).length}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Quick Access</CardTitle>
-                <MessageSquare className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <Link to="/ai-mentor">
-                  <Button size="sm" className="w-full">
-                    AI Mentor
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Assignments */}
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-gray-900">Your Assignments</h2>
+          <div>
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <Calendar className="h-6 w-6 text-indigo-600" />
+                <h2 className="text-2xl font-bold text-gray-900">Your Assignments</h2>
+              </div>
+              {assignments.length > 0 && (
+                <Badge variant="outline" className="text-sm">
+                  {pendingCount} pending
+                </Badge>
+              )}
             </div>
 
             {loading ? (
-              <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                <p className="mt-2 text-gray-600">Loading assignments...</p>
-              </div>
+              <Card className="border-0 shadow-lg">
+                <CardContent className="text-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+                  <p className="text-gray-600 text-lg">Loading your assignments...</p>
+                </CardContent>
+              </Card>
             ) : assignments.length === 0 ? (
-              <Card>
-                <CardContent className="text-center py-8">
-                  <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No assignments yet</h3>
-                  <p className="text-gray-600">New assignments will appear here when they're created.</p>
+              <Card className="border-0 shadow-lg">
+                <CardContent className="text-center py-12">
+                  <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <BookOpen className="h-12 w-12 text-gray-400" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">No assignments yet</h3>
+                  <p className="text-gray-600 max-w-md mx-auto">
+                    New assignments will appear here when they're created by your instructors.
+                  </p>
                 </CardContent>
               </Card>
             ) : (
-              <div className="grid gap-6">
+              <div className="space-y-4">
                 {assignments.map((assignment) => {
-                  const { status, color, icon: StatusIcon } = getAssignmentStatus(assignment);
-                  
+                  const { status, color, icon: StatusIcon } = getAssignmentStatus(assignment)
+                  const isOverdue = new Date(assignment.due_date) < new Date()
+
                   return (
-                    <Card key={assignment.id}>
-                      <CardHeader>
-                        <div className="flex items-center justify-between">
-                          <CardTitle className="text-lg">{assignment.title}</CardTitle>
-                          <Badge className={color}>
-                            <StatusIcon className="h-3 w-3 mr-1" />
-                            {status}
-                          </Badge>
-                        </div>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-gray-600 mb-4">{assignment.description}</p>
-                        <div className="flex items-center justify-between">
-                          <div className="text-sm text-gray-500">
-                            Due: {format(new Date(assignment.due_date), 'PPP')}
+                    <Card key={assignment.id} className="border-0 shadow-lg hover:shadow-xl transition-shadow">
+                      <CardContent className="p-6">
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2">
+                              <h3 className="text-xl font-semibold text-gray-900">{assignment.title}</h3>
+                              <Badge className={`${color} border`}>
+                                <StatusIcon className="h-3 w-3 mr-1" />
+                                {status}
+                              </Badge>
+                            </div>
+                            <p className="text-gray-600 mb-4">{assignment.description}</p>
+                            <div className="flex items-center gap-4 text-sm">
+                              <div
+                                className={`flex items-center gap-1 ${isOverdue ? "text-red-600" : "text-gray-500"}`}
+                              >
+                                <Calendar className="h-4 w-4" />
+                                Due: {format(new Date(assignment.due_date), "PPP")}
+                              </div>
+                            </div>
                           </div>
                           <Link to={`/assignment/${assignment.id}`}>
-                            <Button size="sm">
-                              {assignment.submissions && assignment.submissions.length > 0 ? 'View Submission' : 'Submit Work'}
+                            <Button
+                              className={`ml-4 ${
+                                assignment.submissions && assignment.submissions.length > 0
+                                  ? "bg-emerald-600 hover:bg-emerald-700"
+                                  : "bg-indigo-600 hover:bg-indigo-700"
+                              }`}
+                            >
+                              {assignment.submissions && assignment.submissions.length > 0
+                                ? "View Submission"
+                                : "Submit Work"}
                             </Button>
                           </Link>
                         </div>
                       </CardContent>
                     </Card>
-                  );
+                  )
                 })}
               </div>
             )}
@@ -233,5 +322,5 @@ export default function StudentDashboard() {
         </div>
       </ModernDashboardLayout>
     </AuthGuard>
-  );
+  )
 }

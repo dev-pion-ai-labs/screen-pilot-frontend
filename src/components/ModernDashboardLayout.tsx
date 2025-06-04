@@ -29,11 +29,11 @@ export const ModernDashboardLayout = ({ children }: ModernDashboardLayoutProps) 
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full">
+      <div className="h-screen flex w-full overflow-hidden">
         <AppSidebar />
         <SidebarInset>
-          {/* Header */}
-          <header className="flex h-16 shrink-0 items-center gap-2 border-b bg-white px-4">
+
+          {/* <header className="flex h-16 shrink-0 items-center gap-2 border-b bg-white px-4">
             <SidebarTrigger className="-ml-1" />
             <div className="flex-1 flex items-center justify-between">
               <div>
@@ -75,10 +75,9 @@ export const ModernDashboardLayout = ({ children }: ModernDashboardLayoutProps) 
                 </DropdownMenu>
               </div>
             </div>
-          </header>
+          </header> */}
           
-          {/* Main Content */}
-          <main className="flex-1 overflow-auto p-6">
+          <main className="flex-1 overflow-y-auto p-6">
             {children}
           </main>
         </SidebarInset>
@@ -86,3 +85,4 @@ export const ModernDashboardLayout = ({ children }: ModernDashboardLayoutProps) 
     </SidebarProvider>
   );
 };
+

@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
+import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
@@ -20,18 +20,26 @@ import {
   User,
   Paperclip,
   Download,
-  Star
+  Star,
+  Plus,
+  Trash2,
+  Eye,
+  Calendar,
+  MessageSquare
 } from 'lucide-react';
 
-interface Analysis {
+interface ScriptAnalysis {
   id: string;
-  script_content: string;
+  title: string;
+  script_content: string | null;
+  script_url: string | null;
   analysis_result: any;
+  chat_messages: ChatMessage[];
   created_at: string;
-  script_url?: string;
+  updated_at: string;
 }
 
-interface Message {
+interface ChatMessage {
   id: number;
   type: 'user' | 'agent';
   content: string;
@@ -44,35 +52,22 @@ interface Message {
 
 export default function ScriptAnalyzerPage() {
   const { profile } = useAuth();
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [analyses, setAnalyses] = useState<ScriptAnalysis[]>([]);
+  const [currentAnalysis, setCurrentAnalysis] = useState<ScriptAnalysis | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [analyses, setAnalyses] = useState<Analysis[]>([]);
+  const [showNewChatDialog, setShowNewChatDialog] = useState(false);
+  const [newChatTitle, setNewChatTitle] = useState('');
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    // Initialize with welcome message
-    const welcomeMessage: Message = {
-      id: 1,
-      type: 'agent',
-      content: `Welcome to the Script Analyzer! 📝
-
-I can help you analyze your scripts and provide detailed feedback on:
-• Structure and formatting
-• Character development
-• Dialogue quality
-• Pacing and flow
-• Industry standards compliance
-
-Upload a script file or paste your content to get started.`,
-      timestamp: new Date(),
-    };
-
-    setMessages([welcomeMessage]);
-    fetchAnalyses();
-  }, []);
+    if (profile) {
+      fetchAnalyses();
+    }
+  }, [profile]);
 
   useEffect(() => {
     scrollToBottom();
@@ -90,12 +85,69 @@ Upload a script file or paste your content to get started.`,
         .from('script_analyses')
         .select('*')
         .eq('user_id', profile.id)
-        .order('created_at', { ascending: false });
+        .order('updated_at', { ascending: false });
 
       if (error) throw error;
-      setAnalyses(data || []);
+      
+      const processedAnalyses = data?.map(analysis => ({
+        ...analysis,
+        chat_messages: Array.isArray(analysis.chat_messages) ? analysis.chat_messages : []
+      })) || [];
+      
+      setAnalyses(processedAnalyses);
+      
+      // If no current analysis is selected and we have analyses, select the first one
+      if (!currentAnalysis && processedAnalyses.length > 0) {
+        loadAnalysis(processedAnalyses[0]);
+      }
     } catch (error) {
       console.error('Error fetching analyses:', error);
+    }
+  };
+
+  const loadAnalysis = (analysis: ScriptAnalysis) => {
+    setCurrentAnalysis(analysis);
+    setMessages(analysis.chat_messages || []);
+  };
+
+  const createNewAnalysis = async () => {
+    if (!profile || !newChatTitle.trim()) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('script_analyses')
+        .insert({
+          user_id: profile.id,
+          title: newChatTitle.trim(),
+          chat_messages: []
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      const newAnalysis: ScriptAnalysis = {
+        ...data,
+        chat_messages: []
+      };
+
+      setAnalyses(prev => [newAnalysis, ...prev]);
+      setCurrentAnalysis(newAnalysis);
+      setMessages([]);
+      setShowNewChatDialog(false);
+      setNewChatTitle('');
+
+      toast({
+        title: "New Chat Created",
+        description: "Your new script analysis chat is ready",
+      });
+    } catch (error) {
+      console.error('Error creating analysis:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create new chat",
+        variant: "destructive"
+      });
     }
   };
 
@@ -106,7 +158,6 @@ Upload a script file or paste your content to get started.`,
       const timestamp = new Date().toISOString();
       const scriptFileName = fileName || `script_${timestamp.replace(/[:.]/g, '-')}.txt`;
       
-      // Upload to Supabase Storage
       const { data, error } = await supabase.storage
         .from('scripts')
         .upload(`${profile.id}/${scriptFileName}`, content, {
@@ -128,31 +179,38 @@ Upload a script file or paste your content to get started.`,
     }
   };
 
-  const saveAnalysis = async (scriptContent: string, analysisResult: any, scriptUrl?: string) => {
-    if (!profile) return;
+  const updateAnalysisMessages = async (newMessages: ChatMessage[]) => {
+    if (!currentAnalysis) return;
 
     try {
       const { error } = await supabase
         .from('script_analyses')
-        .insert({
-          user_id: profile.id,
-          script_content: scriptContent,
-          analysis_result: analysisResult,
-          script_url: scriptUrl
-        });
+        .update({
+          chat_messages: newMessages,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', currentAnalysis.id);
 
       if (error) throw error;
-      await fetchAnalyses();
+
+      // Update local state
+      setCurrentAnalysis(prev => prev ? { ...prev, chat_messages: newMessages } : null);
+      setAnalyses(prev => prev.map(analysis => 
+        analysis.id === currentAnalysis.id 
+          ? { ...analysis, chat_messages: newMessages, updated_at: new Date().toISOString() }
+          : analysis
+      ));
     } catch (error) {
-      console.error('Error saving analysis:', error);
+      console.error('Error updating messages:', error);
     }
   };
 
   const analyzeScript = async (content: string, fileName?: string) => {
+    if (!currentAnalysis) return;
+
     setIsLoading(true);
 
     try {
-      // Save script to storage first
       const scriptUrl = await saveScript(content, fileName);
 
       // Simulate AI analysis (replace with actual AI service call)
@@ -161,46 +219,65 @@ Upload a script file or paste your content to get started.`,
       const analysisResult = {
         overall_score: Math.floor(Math.random() * 30) + 70,
         strengths: [
-          "Strong character development",
-          "Engaging dialogue",
-          "Clear story structure"
+          "Strong character development and authentic dialogue",
+          "Engaging story structure with clear three-act progression",
+          "Visual storytelling techniques effectively employed"
         ],
         improvements: [
-          "Consider tightening the second act",
-          "Some scenes could benefit from more visual description",
-          "Character motivations could be clearer"
+          "Consider tightening pacing in the second act",
+          "Some scenes could benefit from more specific visual descriptions",
+          "Character motivations could be clearer in key moments"
         ],
         technical_notes: [
-          "Proper screenplay format maintained",
-          "Good use of action lines",
-          "Appropriate scene transitions"
-        ]
+          "Proper screenplay format maintained throughout",
+          "Good use of action lines and scene descriptions",
+          "Appropriate scene transitions and formatting"
+        ],
+        genre_analysis: "Drama/Thriller",
+        estimated_runtime: "95-105 minutes",
+        target_audience: "Young Adult to Adult"
       };
 
-      // Save analysis
-      await saveAnalysis(content, analysisResult, scriptUrl);
+      // Update the analysis record with the result
+      const { error: updateError } = await supabase
+        .from('script_analyses')
+        .update({
+          script_content: content,
+          script_url: scriptUrl,
+          analysis_result: analysisResult
+        })
+        .eq('id', currentAnalysis.id);
 
-      const analysisMessage: Message = {
+      if (updateError) throw updateError;
+
+      const analysisMessage: ChatMessage = {
         id: Date.now() + 1,
         type: 'agent',
         content: `✅ **Script Analysis Complete**
 
-**Overall Score: ${analysisResult.overall_score}/100**
+**Overall Score: ${analysisResult.overall_score}/100** ⭐
 
-**Strengths:**
+**📈 Strengths:**
 ${analysisResult.strengths.map(s => `• ${s}`).join('\n')}
 
-**Areas for Improvement:**
+**🎯 Areas for Improvement:**
 ${analysisResult.improvements.map(i => `• ${i}`).join('\n')}
 
-**Technical Notes:**
+**🔧 Technical Notes:**
 ${analysisResult.technical_notes.map(n => `• ${n}`).join('\n')}
 
-Your script has been saved and analyzed. Feel free to ask specific questions about any aspect of your script!`,
+**📊 Analysis Details:**
+• **Genre:** ${analysisResult.genre_analysis}
+• **Estimated Runtime:** ${analysisResult.estimated_runtime}
+• **Target Audience:** ${analysisResult.target_audience}
+
+Your script has been analyzed and saved. Feel free to ask specific questions about any aspect of your script or request focused feedback on particular scenes!`,
         timestamp: new Date(),
       };
 
-      setMessages(prev => [...prev, analysisMessage]);
+      const updatedMessages = [...messages, analysisMessage];
+      setMessages(updatedMessages);
+      await updateAnalysisMessages(updatedMessages);
       
       toast({
         title: "Analysis Complete",
@@ -209,46 +286,60 @@ Your script has been saved and analyzed. Feel free to ask specific questions abo
 
     } catch (error) {
       console.error('Error analyzing script:', error);
-      const errorMessage: Message = {
+      const errorMessage: ChatMessage = {
         id: Date.now() + 1,
         type: 'agent',
         content: 'Sorry, I encountered an error while analyzing your script. Please try again.',
         timestamp: new Date(),
         isError: true,
       };
-      setMessages(prev => [...prev, errorMessage]);
+      const updatedMessages = [...messages, errorMessage];
+      setMessages(updatedMessages);
+      await updateAnalysisMessages(updatedMessages);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleSendMessage = async () => {
-    if (!inputMessage.trim() || isLoading) return;
+    if (!inputMessage.trim() || isLoading || !currentAnalysis) return;
 
-    const userMessage: Message = {
+    const userMessage: ChatMessage = {
       id: Date.now(),
       type: 'user',
       content: inputMessage,
       timestamp: new Date(),
     };
 
-    setMessages(prev => [...prev, userMessage]);
+    const updatedMessages = [...messages, userMessage];
+    setMessages(updatedMessages);
     setInputMessage('');
 
     // Check if this is a script to analyze
-    if (inputMessage.length > 100 && inputMessage.includes('FADE IN')) {
+    if (inputMessage.length > 100 && (inputMessage.includes('FADE IN') || inputMessage.includes('INT.') || inputMessage.includes('EXT.'))) {
       await analyzeScript(inputMessage);
     } else {
       // Regular conversation
       setIsLoading(true);
-      setTimeout(() => {
-        const agentMessage: Message = {
+      setTimeout(async () => {
+        const agentMessage: ChatMessage = {
           id: Date.now() + 1,
           type: 'agent',
-          content: `I understand you want to discuss: "${inputMessage}". Please upload a script file or paste script content for detailed analysis. I can help with formatting, structure, character development, and industry standards.`,
+          content: `I understand you want to discuss: "${inputMessage}". 
+
+I can help you with:
+📝 **Script Analysis** - Upload or paste your script for detailed feedback
+🎭 **Character Development** - Discuss character arcs and motivations  
+📖 **Story Structure** - Review plot progression and pacing
+🎬 **Industry Standards** - Ensure your script meets professional formatting
+✍️ **Dialogue Improvement** - Enhance character voices and conversations
+
+Please upload a script file or paste script content for detailed analysis, or ask me specific questions about screenwriting techniques!`,
           timestamp: new Date(),
         };
-        setMessages(prev => [...prev, agentMessage]);
+        const finalMessages = [...updatedMessages, agentMessage];
+        setMessages(finalMessages);
+        await updateAnalysisMessages(finalMessages);
         setIsLoading(false);
       }, 1000);
     }
@@ -256,15 +347,15 @@ Your script has been saved and analyzed. Feel free to ask specific questions abo
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file) return;
+    if (!file || !currentAnalysis) return;
 
-    const allowedTypes = ['.txt', '.pdf', '.doc', '.docx', '.fountain'];
+    const allowedTypes = ['.txt', '.pdf', '.doc', '.docx', '.fountain', '.fdx'];
     const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
 
     if (!allowedTypes.includes(fileExtension)) {
       toast({
         title: "Invalid File Type",
-        description: "Please upload a script file (.txt, .pdf, .doc, .docx, .fountain)",
+        description: "Please upload a script file (.txt, .pdf, .doc, .docx, .fountain, .fdx)",
         variant: "destructive"
       });
       return;
@@ -282,17 +373,19 @@ Your script has been saved and analyzed. Feel free to ask specific questions abo
     try {
       const text = await file.text();
 
-      const uploadMessage: Message = {
+      const uploadMessage: ChatMessage = {
         id: Date.now(),
         type: 'user',
-        content: `Uploaded script: ${file.name}`,
+        content: `📎 Uploaded script: ${file.name}`,
         timestamp: new Date(),
         isFile: true,
         fileName: file.name,
         fileSize: file.size,
       };
 
-      setMessages(prev => [...prev, uploadMessage]);
+      const updatedMessages = [...messages, uploadMessage];
+      setMessages(updatedMessages);
+      await updateAnalysisMessages(updatedMessages);
       
       // Auto-analyze the uploaded script
       await analyzeScript(text, file.name);
@@ -311,12 +404,86 @@ Your script has been saved and analyzed. Feel free to ask specific questions abo
     }
   };
 
+  const deleteAnalysis = async (analysisId: string) => {
+    try {
+      const { error } = await supabase
+        .from('script_analyses')
+        .delete()
+        .eq('id', analysisId);
+
+      if (error) throw error;
+
+      setAnalyses(prev => prev.filter(a => a.id !== analysisId));
+      
+      if (currentAnalysis?.id === analysisId) {
+        const remainingAnalyses = analyses.filter(a => a.id !== analysisId);
+        if (remainingAnalyses.length > 0) {
+          loadAnalysis(remainingAnalyses[0]);
+        } else {
+          setCurrentAnalysis(null);
+          setMessages([]);
+        }
+      }
+
+      toast({
+        title: "Analysis Deleted",
+        description: "Script analysis has been removed",
+      });
+    } catch (error) {
+      console.error('Error deleting analysis:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete analysis",
+        variant: "destructive"
+      });
+    }
+  };
+
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
     }
   };
+
+  const formatTimeAgo = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffDays > 0) return `${diffDays}d ago`;
+    if (diffHours > 0) return `${diffHours}h ago`;
+    return 'Just now';
+  };
+
+  // Initialize with welcome message if no current analysis
+  useEffect(() => {
+    if (!currentAnalysis && analyses.length === 0) {
+      const welcomeMessage: ChatMessage = {
+        id: 1,
+        type: 'agent',
+        content: `Welcome to the Script Analyzer! 📝
+
+I can help you analyze your scripts and provide detailed feedback on:
+• **Structure and formatting** - Ensure industry-standard screenplay format
+• **Character development** - Strengthen character arcs and motivations
+• **Dialogue quality** - Improve character voices and conversations
+• **Pacing and flow** - Optimize story rhythm and scene transitions
+• **Industry standards compliance** - Meet professional requirements
+
+**Getting Started:**
+1. Create a new chat session for your script
+2. Upload a script file or paste your content
+3. Get detailed analysis and ask follow-up questions
+
+Ready to improve your screenwriting? Let's get started! 🎬`,
+        timestamp: new Date(),
+      };
+      setMessages([welcomeMessage]);
+    }
+  }, [currentAnalysis, analyses]);
 
   return (
     <AuthGuard allowedRoles={['student']}>
@@ -326,34 +493,106 @@ Your script has been saved and analyzed. Feel free to ask specific questions abo
           <div className="col-span-3">
             <Card className="h-full">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  Script History
-                </CardTitle>
-                <CardDescription>
-                  Your previous analyses
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <FileText className="h-5 w-5" />
+                      Script Sessions
+                    </CardTitle>
+                    <CardDescription>
+                      Your analysis history
+                    </CardDescription>
+                  </div>
+                  <Button 
+                    size="sm" 
+                    onClick={() => setShowNewChatDialog(true)}
+                    className="h-8 w-8 p-0"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
-                <ScrollArea className="h-[calc(100vh-20rem)]">
+                {showNewChatDialog && (
+                  <div className="mb-4 p-3 border rounded-lg bg-gray-50">
+                    <Input
+                      placeholder="Enter chat title..."
+                      value={newChatTitle}
+                      onChange={(e) => setNewChatTitle(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && createNewAnalysis()}
+                      className="mb-2"
+                    />
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={createNewAnalysis} disabled={!newChatTitle.trim()}>
+                        Create
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => setShowNewChatDialog(false)}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                
+                <ScrollArea className="h-[calc(100vh-24rem)]">
                   <div className="space-y-3">
                     {analyses.map((analysis) => (
-                      <div key={analysis.id} className="p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm font-medium">Script Analysis</span>
-                          <Badge variant="outline" className="text-xs">
-                            {analysis.analysis_result?.overall_score || 'N/A'}/100
-                          </Badge>
+                      <div 
+                        key={analysis.id} 
+                        className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                          currentAnalysis?.id === analysis.id 
+                            ? 'bg-blue-50 border-blue-200' 
+                            : 'hover:bg-gray-50'
+                        }`}
+                        onClick={() => loadAnalysis(analysis)}
+                      >
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1 min-w-0">
+                            <span className="text-sm font-medium block truncate">
+                              {analysis.title}
+                            </span>
+                            <div className="flex items-center gap-2 mt-1">
+                              <MessageSquare className="h-3 w-3 text-gray-400" />
+                              <span className="text-xs text-gray-500">
+                                {analysis.chat_messages?.length || 0} messages
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            {analysis.analysis_result?.overall_score && (
+                              <Badge variant="outline" className="text-xs">
+                                {analysis.analysis_result.overall_score}/100
+                              </Badge>
+                            )}
+                            <Button 
+                              size="sm" 
+                              variant="ghost" 
+                              className="h-6 w-6 p-0 text-gray-400 hover:text-red-600"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteAnalysis(analysis.id);
+                              }}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
                         </div>
-                        <p className="text-xs text-gray-500 truncate">
-                          {new Date(analysis.created_at).toLocaleDateString()}
-                        </p>
+                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                          <Calendar className="h-3 w-3" />
+                          {formatTimeAgo(analysis.updated_at)}
+                        </div>
                       </div>
                     ))}
                     {analyses.length === 0 && (
-                      <p className="text-sm text-gray-500 text-center py-8">
-                        No analyses yet. Upload a script to get started!
-                      </p>
+                      <div className="text-center py-8">
+                        <FileText className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                        <p className="text-sm text-gray-500 mb-3">
+                          No script analyses yet
+                        </p>
+                        <Button size="sm" onClick={() => setShowNewChatDialog(true)}>
+                          <Plus className="h-4 w-4 mr-2" />
+                          Start Analysis
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </ScrollArea>
@@ -368,9 +607,17 @@ Your script has been saved and analyzed. Feel free to ask specific questions abo
                 <CardTitle className="flex items-center gap-2">
                   <Bot className="h-5 w-5 text-blue-600" />
                   Script Analyzer AI
+                  {currentAnalysis && (
+                    <Badge variant="outline" className="ml-2">
+                      {currentAnalysis.title}
+                    </Badge>
+                  )}
                 </CardTitle>
                 <CardDescription>
-                  Upload your script for detailed analysis and feedback
+                  {currentAnalysis 
+                    ? "Upload your script for detailed analysis and feedback"
+                    : "Create a new chat session to start analyzing your scripts"
+                  }
                 </CardDescription>
               </CardHeader>
               
@@ -439,53 +686,65 @@ Your script has been saved and analyzed. Feel free to ask specific questions abo
                 </ScrollArea>
 
                 {/* Input Area */}
-                <div className="border-t p-4">
-                  <div className="flex gap-2">
-                    <div className="flex-1 relative">
-                      <Textarea
-                        placeholder="Paste your script here or ask questions about script analysis..."
-                        value={inputMessage}
-                        onChange={(e) => setInputMessage(e.target.value)}
-                        onKeyPress={handleKeyPress}
-                        className="resize-none pr-12"
-                        rows={3}
-                        disabled={isLoading}
-                      />
+                {currentAnalysis ? (
+                  <div className="border-t p-4">
+                    <div className="flex gap-2">
+                      <div className="flex-1 relative">
+                        <Textarea
+                          placeholder="Paste your script here or ask questions about script analysis..."
+                          value={inputMessage}
+                          onChange={(e) => setInputMessage(e.target.value)}
+                          onKeyPress={handleKeyPress}
+                          className="resize-none pr-12"
+                          rows={3}
+                          disabled={isLoading}
+                        />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="absolute right-2 bottom-2 h-8 w-8"
+                        >
+                          <Paperclip className="h-4 w-4" />
+                        </Button>
+                      </div>
                       <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => fileInputRef.current?.click()}
-                        className="absolute right-2 bottom-2 h-8 w-8"
+                        onClick={handleSendMessage}
+                        disabled={!inputMessage.trim() || isLoading}
+                        className="h-12 w-12 rounded-full"
                       >
-                        <Paperclip className="h-4 w-4" />
+                        {isLoading ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Send className="h-4 w-4" />
+                        )}
                       </Button>
                     </div>
-                    <Button
-                      onClick={handleSendMessage}
-                      disabled={!inputMessage.trim() || isLoading}
-                      className="h-12 w-12 rounded-full"
-                    >
-                      {isLoading ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Send className="h-4 w-4" />
-                      )}
+
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".txt,.pdf,.doc,.docx,.fountain,.fdx"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                    />
+
+                    <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
+                      <span>📝 Upload script files (.txt, .pdf, .doc, .docx, .fountain, .fdx) or paste content</span>
+                      <span>Max 10MB</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="border-t p-4 text-center">
+                    <p className="text-gray-500 mb-3">
+                      Create a new chat session to start analyzing your scripts
+                    </p>
+                    <Button onClick={() => setShowNewChatDialog(true)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      New Script Analysis
                     </Button>
                   </div>
-
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".txt,.pdf,.doc,.docx,.fountain"
-                    onChange={handleFileUpload}
-                    className="hidden"
-                  />
-
-                  <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
-                    <span>📝 Upload script files or paste content for analysis</span>
-                    <span>Max 10MB</span>
-                  </div>
-                </div>
+                )}
               </CardContent>
             </Card>
           </div>

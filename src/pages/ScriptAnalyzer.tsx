@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from 'react';
 import { AuthGuard } from '@/components/AuthGuard';
 import { ModernDashboardLayout } from '@/components/ModernDashboardLayout';
@@ -28,6 +27,26 @@ import {
   MessageSquare
 } from 'lucide-react';
 
+const RELEVANCE_CONFIG = {
+  agent: {
+    endpoint: "https://api-d7b62b.stack.tryrelevance.com/latest/agents/trigger",
+    authorization: "5cc7752400a6-4648-b47b-04fc92b47cae:sk-ZGNiZDlmNmItOTVmYS00NzNlLWI5NTEtN2M4NjdkNGFlYWNk",
+    agent_id: "0ee50392-6b9b-461c-9824-1ccf5796d6f6",
+  },
+  tools: {
+    analyzeScript: {
+      endpoint: "https://api-d7b62b.stack.tryrelevance.com/latest/studios/8fbb0eef-39a4-4770-aeab-4498f3125938/trigger_webhook",
+      authorization: "5cc7752400a6-4648-b47b-04fc92b47cae:sk-OWQ3NGI2OGMtYTYxNC00NmIyLWJmODItYWFmY2IwYzA5YmRm",
+    },
+    generateAnalysis: {
+      endpoint: "https://api-d7b62b.stack.tryrelevance.com/latest/studios/edf5117d-aa78-4ea3-965e-efbd7066a130/trigger_webhook",
+      authorization: "5cc7752400a6-4648-b47b-04fc92b47cae:sk-NjFiM2IzZTMtOWJmYS00YjI2LWFmYmItOTcwZTQwNWZkYmJi",
+    },
+  },
+  region: "d7b62b",
+  project: "5cc7752400a6-4648-b47b-04fc92b47cae",
+};
+
 interface ScriptAnalysis {
   id: string;
   title: string;
@@ -50,6 +69,33 @@ interface ChatMessage {
   fileSize?: number;
 }
 
+import * as pdfjsLib from 'pdfjs-dist';
+import mammoth from 'mammoth';
+
+// Required to locate PDF worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+
+const extractTextFromPDF = async (file: File): Promise<string> => {
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+  let fullText = '';
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    const pageText = content.items.map((item: any) => item.str).join(' ');
+    fullText += pageText + '\n';
+  }
+  return fullText;
+};
+
+const extractTextFromDocx = async (file: File): Promise<string> => {
+  const arrayBuffer = await file.arrayBuffer();
+  const { value } = await mammoth.extractRawText({ arrayBuffer });
+  return value;
+};
+
+
 export default function ScriptAnalyzerPage() {
   const { profile } = useAuth();
   const [analyses, setAnalyses] = useState<ScriptAnalysis[]>([]);
@@ -59,7 +105,8 @@ export default function ScriptAnalyzerPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [showNewChatDialog, setShowNewChatDialog] = useState(false);
   const [newChatTitle, setNewChatTitle] = useState('');
-  
+  const [conversationId, setConversationId] = useState<string | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -91,14 +138,19 @@ export default function ScriptAnalyzerPage() {
         console.error('Error fetching analyses:', error);
         return;
       }
-      
+
       const processedAnalyses = (data || []).map((analysis: any) => ({
         ...analysis,
-        chat_messages: Array.isArray(analysis.chat_messages) ? analysis.chat_messages : []
+        chat_messages: Array.isArray(analysis.chat_messages)
+          ? analysis.chat_messages.map((msg: any) => ({
+            ...msg,
+            timestamp: new Date(msg.timestamp)
+          }))
+          : []
       }));
-      
+
       setAnalyses(processedAnalyses);
-      
+
       if (!currentAnalysis && processedAnalyses.length > 0) {
         loadAnalysis(processedAnalyses[0]);
       }
@@ -172,7 +224,7 @@ export default function ScriptAnalyzerPage() {
     try {
       const timestamp = new Date().toISOString();
       const scriptFileName = fileName || `script_${timestamp.replace(/[:.]/g, '-')}.txt`;
-      
+
       const { data, error } = await supabase.storage
         .from('scripts')
         .upload(`${profile.id}/${scriptFileName}`, content, {
@@ -181,7 +233,7 @@ export default function ScriptAnalyzerPage() {
         });
 
       if (error) throw error;
-      
+
       return data.path;
     } catch (error) {
       console.error('Error saving script:', error);
@@ -209,8 +261,8 @@ export default function ScriptAnalyzerPage() {
       if (error) throw error;
 
       setCurrentAnalysis(prev => prev ? { ...prev, chat_messages: newMessages } : null);
-      setAnalyses(prev => prev.map(analysis => 
-        analysis.id === currentAnalysis.id 
+      setAnalyses(prev => prev.map(analysis =>
+        analysis.id === currentAnalysis.id
           ? { ...analysis, chat_messages: newMessages, updated_at: new Date().toISOString() }
           : analysis
       ));
@@ -219,7 +271,7 @@ export default function ScriptAnalyzerPage() {
     }
   };
 
-  const analyzeScript = async (content: string, fileName?: string) => {
+  const analyzeScript = async (content: string, fileName?: string, fileSize?: number) => {
     if (!currentAnalysis) return;
 
     setIsLoading(true);
@@ -227,75 +279,64 @@ export default function ScriptAnalyzerPage() {
     try {
       const scriptUrl = await saveScript(content, fileName);
 
-      // Simulate AI analysis (replace with actual AI service call)
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      const analysisResult = {
-        overall_score: Math.floor(Math.random() * 30) + 70,
-        strengths: [
-          "Strong character development and authentic dialogue",
-          "Engaging story structure with clear three-act progression",
-          "Visual storytelling techniques effectively employed"
-        ],
-        improvements: [
-          "Consider tightening pacing in the second act",
-          "Some scenes could benefit from more specific visual descriptions",
-          "Character motivations could be clearer in key moments"
-        ],
-        technical_notes: [
-          "Proper screenplay format maintained throughout",
-          "Good use of action lines and scene descriptions",
-          "Appropriate scene transitions and formatting"
-        ],
-        genre_analysis: "Drama/Thriller",
-        estimated_runtime: "95-105 minutes",
-        target_audience: "Young Adult to Adult"
+      // Create upload message
+      const uploadMessage: ChatMessage = {
+        id: Date.now(),
+        type: 'user',
+        content: `📎 Uploaded script: ${fileName}`,
+        timestamp: new Date(),
+        isFile: true,
+        fileName,
+        fileSize,
       };
 
-      // Update the analysis record with the result
+      // Send content to Relevance AI
+      const agentResponse = await callRelevanceAgent(content, conversationId);
+
+      let finalOutput = null;
+      let newConversationId = null;
+
+      if (agentResponse.job_info) {
+        const result = await pollAgentResponse(agentResponse.job_info);
+
+        if (result.success) {
+          finalOutput = result.content;
+          newConversationId = result.conversationId;
+        } else {
+          throw new Error(result.error);
+        }
+      } else {
+        throw new Error("No job info returned from Relevance API.");
+      }
+
+      // Save full analysis result
       const { error: updateError } = await supabase
         .from('script_analyses')
         .update({
           script_content: content,
           script_url: scriptUrl,
-          analysis_result: analysisResult
+          analysis_result: { raw_text: finalOutput },
+          updated_at: new Date().toISOString()
         })
         .eq('id', currentAnalysis.id);
 
       if (updateError) throw updateError;
 
-      const analysisMessage: ChatMessage = {
+      const agentMessage: ChatMessage = {
         id: Date.now() + 1,
         type: 'agent',
-        content: `✅ **Script Analysis Complete**
-
-**Overall Score: ${analysisResult.overall_score}/100** ⭐
-
-**📈 Strengths:**
-${analysisResult.strengths.map(s => `• ${s}`).join('\n')}
-
-**🎯 Areas for Improvement:**
-${analysisResult.improvements.map(i => `• ${i}`).join('\n')}
-
-**🔧 Technical Notes:**
-${analysisResult.technical_notes.map(n => `• ${n}`).join('\n')}
-
-**📊 Analysis Details:**
-• **Genre:** ${analysisResult.genre_analysis}
-• **Estimated Runtime:** ${analysisResult.estimated_runtime}
-• **Target Audience:** ${analysisResult.target_audience}
-
-Your script has been analyzed and saved. Feel free to ask specific questions about any aspect of your script or request focused feedback on particular scenes!`,
+        content: finalOutput,
         timestamp: new Date(),
       };
 
-      const updatedMessages = [...messages, analysisMessage];
+      const updatedMessages = [...messages, uploadMessage, agentMessage];
       setMessages(updatedMessages);
       await updateAnalysisMessages(updatedMessages);
-      
+      setConversationId(newConversationId);
+
       toast({
         title: "Analysis Complete",
-        description: "Your script has been analyzed and saved",
+        description: "Your script has been analyzed using Relevance AI.",
       });
 
     } catch (error) {
@@ -315,6 +356,103 @@ Your script has been analyzed and saved. Feel free to ask specific questions abo
     }
   };
 
+
+
+  const callRelevanceAgent = async (message: string, conversationId: string | null = null): Promise<any> => {
+    const payload: any = {
+      message: { role: "user", content: message },
+      agent_id: RELEVANCE_CONFIG.agent.agent_id,
+    };
+
+    if (conversationId) {
+      payload.conversation_id = conversationId;
+    }
+
+    const response = await fetch(RELEVANCE_CONFIG.agent.endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: RELEVANCE_CONFIG.agent.authorization,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      throw new Error(`API Error: ${response.status}`);
+    }
+
+    return response.json();
+  };
+
+  const pollAgentResponse = async (jobInfo: any): Promise<any> => {
+    const maxAttempts = 20;
+    let attempts = 0;
+
+    while (attempts < maxAttempts) {
+      try {
+        const response = await fetch(
+          `https://api-${RELEVANCE_CONFIG.region}.stack.tryrelevance.com/latest/studios/${jobInfo.studio_id}/async_poll/${jobInfo.job_id}`,
+          {
+            headers: {
+              Authorization: RELEVANCE_CONFIG.agent.authorization,
+            },
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(`Polling failed: ${response.status}`);
+        }
+
+        const status = await response.json();
+
+        for (const update of status.updates || []) {
+          if (update.type === "chain-success") {
+            let content = "Analysis completed successfully.";
+
+            if (update.output) {
+              if (update.output.output && update.output.output.answer) {
+                content = update.output.output.answer;
+              } else if (update.output.answer && typeof update.output.answer === "string") {
+                content = update.output.answer;
+              } else if (typeof update.output === "string") {
+                content = update.output;
+              } else if (update.output.output && typeof update.output.output === "string") {
+                content = update.output.output;
+              } else if (update.output.result && typeof update.output.result === "string") {
+                content = update.output.result;
+              } else {
+                content = `Analysis Response:\n${JSON.stringify(update.output, null, 2)}`;
+              }
+            }
+
+            return {
+              success: true,
+              content: content,
+              conversationId: jobInfo.conversation_id,
+            };
+          }
+          if (update.type === "chain-error") {
+            return {
+              success: false,
+              error: update.error || "An error occurred during analysis.",
+            };
+          }
+        }
+
+        attempts++;
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+      } catch (error) {
+        attempts++;
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+      }
+    }
+
+    return {
+      success: false,
+      error: "Request timed out. Please try again.",
+    };
+  };
+
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || isLoading || !currentAnalysis) return;
 
@@ -328,34 +466,53 @@ Your script has been analyzed and saved. Feel free to ask specific questions abo
     const updatedMessages = [...messages, userMessage];
     setMessages(updatedMessages);
     setInputMessage('');
+    setIsLoading(true);
 
-    // Check if this is a script to analyze
-    if (inputMessage.length > 100 && (inputMessage.includes('FADE IN') || inputMessage.includes('INT.') || inputMessage.includes('EXT.'))) {
-      await analyzeScript(inputMessage);
-    } else {
-      // Regular conversation
-      setIsLoading(true);
-      setTimeout(async () => {
-        const agentMessage: ChatMessage = {
-          id: Date.now() + 1,
-          type: 'agent',
-          content: `I understand you want to discuss: "${inputMessage}". 
+    try {
+      const agentResponse = await callRelevanceAgent(inputMessage, conversationId);
 
-I can help you with:
-📝 **Script Analysis** - Upload or paste your script for detailed feedback
-🎭 **Character Development** - Discuss character arcs and motivations  
-📖 **Story Structure** - Review plot progression and pacing
-🎬 **Industry Standards** - Ensure your script meets professional formatting
-✍️ **Dialogue Improvement** - Enhance character voices and conversations
+      if (agentResponse.job_info) {
+        const result = await pollAgentResponse(agentResponse.job_info);
 
-Please upload a script file or paste script content for detailed analysis, or ask me specific questions about screenwriting techniques!`,
-          timestamp: new Date(),
-        };
-        const finalMessages = [...updatedMessages, agentMessage];
-        setMessages(finalMessages);
-        await updateAnalysisMessages(finalMessages);
-        setIsLoading(false);
-      }, 1000);
+        if (result.success) {
+          const agentMessage: ChatMessage = {
+            id: Date.now() + 1,
+            type: 'agent',
+            content: result.content,
+            timestamp: new Date(),
+          };
+
+          const finalMessages = [...updatedMessages, agentMessage];
+          setMessages(finalMessages);
+          await updateAnalysisMessages(finalMessages);
+          setConversationId(result.conversationId);
+        } else {
+          const errorMessage: ChatMessage = {
+            id: Date.now() + 1,
+            type: 'agent',
+            content: result.error || "An error occurred during analysis.",
+            timestamp: new Date(),
+            isError: true,
+          };
+          const finalMessages = [...updatedMessages, errorMessage];
+          setMessages(finalMessages);
+          await updateAnalysisMessages(finalMessages);
+        }
+      }
+    } catch (error) {
+      console.error('Error getting AI response:', error);
+      const errorMessage: ChatMessage = {
+        id: Date.now() + 1,
+        type: 'agent',
+        content: "I'm sorry, but I encountered an error. Please try again.",
+        timestamp: new Date(),
+        isError: true,
+      };
+      const finalMessages = [...updatedMessages, errorMessage];
+      setMessages(finalMessages);
+      await updateAnalysisMessages(finalMessages);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -385,7 +542,26 @@ Please upload a script file or paste script content for detailed analysis, or as
     }
 
     try {
-      const text = await file.text();
+
+
+      let text = '';
+      const ext = file.name.split('.').pop()?.toLowerCase();
+
+      if (ext === 'txt') {
+        text = await file.text();
+      } else if (ext === 'pdf') {
+        text = await extractTextFromPDF(file);
+      } else if (ext === 'docx') {
+        text = await extractTextFromDocx(file);
+      } else {
+        toast({
+          title: "Unsupported Format",
+          description: "Only .txt, .pdf, .docx are supported for now.",
+          variant: "destructive"
+        });
+        return;
+      }
+
 
       const uploadMessage: ChatMessage = {
         id: Date.now(),
@@ -400,9 +576,10 @@ Please upload a script file or paste script content for detailed analysis, or as
       const updatedMessages = [...messages, uploadMessage];
       setMessages(updatedMessages);
       await updateAnalysisMessages(updatedMessages);
-      
+
       // Auto-analyze the uploaded script
-      await analyzeScript(text, file.name);
+      await analyzeScript(text, file.name, file.size);
+
 
     } catch (error) {
       console.error('Error reading file:', error);
@@ -428,7 +605,7 @@ Please upload a script file or paste script content for detailed analysis, or as
       if (error) throw error;
 
       setAnalyses(prev => prev.filter(a => a.id !== analysisId));
-      
+
       if (currentAnalysis?.id === analysisId) {
         const remainingAnalyses = analyses.filter(a => a.id !== analysisId);
         if (remainingAnalyses.length > 0) {
@@ -517,8 +694,8 @@ Ready to improve your screenwriting? Let's get started! 🎬`,
                       Your analysis history
                     </CardDescription>
                   </div>
-                  <Button 
-                    size="sm" 
+                  <Button
+                    size="sm"
                     onClick={() => setShowNewChatDialog(true)}
                     className="h-8 w-8 p-0"
                   >
@@ -546,17 +723,16 @@ Ready to improve your screenwriting? Let's get started! 🎬`,
                     </div>
                   </div>
                 )}
-                
+
                 <ScrollArea className="h-[calc(100vh-24rem)]">
                   <div className="space-y-3">
                     {analyses.map((analysis) => (
-                      <div 
-                        key={analysis.id} 
-                        className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                          currentAnalysis?.id === analysis.id 
-                            ? 'bg-blue-50 border-blue-200' 
-                            : 'hover:bg-gray-50'
-                        }`}
+                      <div
+                        key={analysis.id}
+                        className={`p-3 border rounded-lg cursor-pointer transition-colors ${currentAnalysis?.id === analysis.id
+                          ? 'bg-blue-50 border-blue-200'
+                          : 'hover:bg-gray-50'
+                          }`}
                         onClick={() => loadAnalysis(analysis)}
                       >
                         <div className="flex items-start justify-between mb-2">
@@ -577,9 +753,9 @@ Ready to improve your screenwriting? Let's get started! 🎬`,
                                 {analysis.analysis_result.overall_score}/100
                               </Badge>
                             )}
-                            <Button 
-                              size="sm" 
-                              variant="ghost" 
+                            <Button
+                              size="sm"
+                              variant="ghost"
                               className="h-6 w-6 p-0 text-gray-400 hover:text-red-600"
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -628,23 +804,22 @@ Ready to improve your screenwriting? Let's get started! 🎬`,
                   )}
                 </CardTitle>
                 <CardDescription>
-                  {currentAnalysis 
+                  {currentAnalysis
                     ? "Upload your script for detailed analysis and feedback"
                     : "Create a new chat session to start analyzing your scripts"
                   }
                 </CardDescription>
               </CardHeader>
-              
-              <CardContent className="flex-1 flex flex-col p-0">
+
+              <CardContent className=" flex-1 flex flex-col p-0">
                 {/* Messages */}
                 <ScrollArea className="flex-1 p-4">
                   <div className="space-y-4 max-w-4xl">
                     {messages.map((message) => (
                       <div
                         key={message.id}
-                        className={`flex gap-3 ${
-                          message.type === 'user' ? 'justify-end' : 'justify-start'
-                        }`}
+                        className={`flex gap-3 ${message.type === 'user' ? 'justify-end' : 'justify-start'
+                          }`}
                       >
                         {message.type === 'agent' && (
                           <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
@@ -652,13 +827,12 @@ Ready to improve your screenwriting? Let's get started! 🎬`,
                           </div>
                         )}
                         <div
-                          className={`max-w-[80%] rounded-lg p-3 ${
-                            message.type === 'user'
-                              ? 'bg-blue-600 text-white'
-                              : message.isError
+                          className={`max-w-[80%] rounded-lg p-3 ${message.type === 'user'
+                            ? 'bg-blue-600 text-white'
+                            : message.isError
                               ? 'bg-red-50 border border-red-200'
                               : 'bg-gray-100'
-                          }`}
+                            }`}
                         >
                           <div className="whitespace-pre-wrap text-sm">
                             {message.content}

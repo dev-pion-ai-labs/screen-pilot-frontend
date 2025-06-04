@@ -37,7 +37,7 @@ export const ModernDashboardLayout = ({ children }: ModernDashboardLayoutProps) 
             <SidebarTrigger className="-ml-1" />
             <div className="flex-1 flex items-center justify-between">
               <div>
-                <h1 className="text-xl font-bold text-gray-900">Screen Pilot</h1>
+                <h1 className="text-xl font-bold text-gray-900"></h1>
               </div>
               
               <div className="flex items-center gap-4">

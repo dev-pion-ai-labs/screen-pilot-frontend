@@ -35,6 +35,7 @@ import {
 import { Link } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
+import { ModernDashboardLayout } from "@/components/ModernDashboardLayout";
 
 // Types
 interface QuizQuestion {
@@ -831,7 +832,7 @@ What subject would you like to be quizzed on today?`,
 
   return (
     <AuthGuard allowedRoles={["student"]}>
-      <DashboardLayout>
+      <ModernDashboardLayout>
         <div className="flex h-[calc(100vh-4rem)] bg-gray-50">
           {/* Sidebar */}
           <div
@@ -1069,7 +1070,7 @@ What subject would you like to be quizzed on today?`,
             </div>
           </div>
         </div>
-      </DashboardLayout>
+      </ModernDashboardLayout>
     </AuthGuard>
   );
 }

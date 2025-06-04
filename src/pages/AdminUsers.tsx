@@ -7,7 +7,6 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
   DialogContent,
@@ -31,7 +30,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
-import { UserPlus, Search, Eye, Trash2, Mail } from 'lucide-react';
+import { UserPlus, Search, Eye, Trash2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
 interface User {
@@ -91,16 +90,18 @@ export default function AdminUsers() {
     }
 
     try {
-      // Create auth user with admin privileges
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      // Get current session to save admin state
+      const { data: currentSession } = await supabase.auth.getSession();
+      
+      // Create auth user
+      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
         email: newUser.email,
         password: newUser.password,
-        options: {
-          data: {
-            full_name: newUser.full_name,
-            role: newUser.role
-          }
-        }
+        user_metadata: {
+          full_name: newUser.full_name,
+          role: newUser.role
+        },
+        email_confirm: true
       });
 
       if (authError) {
@@ -108,7 +109,31 @@ export default function AdminUsers() {
         throw authError;
       }
 
-      // If auth user creation succeeded, refresh the users list
+      // Create profile entry
+      if (authData.user) {
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert({
+            id: authData.user.id,
+            email: newUser.email,
+            full_name: newUser.full_name,
+            role: newUser.role
+          });
+
+        if (profileError) {
+          console.error('Profile error:', profileError);
+          // If profile creation fails, clean up auth user
+          await supabase.auth.admin.deleteUser(authData.user.id);
+          throw profileError;
+        }
+      }
+
+      // Restore admin session if it was lost
+      if (currentSession?.session) {
+        await supabase.auth.setSession(currentSession.session);
+      }
+
+      // Refresh the users list
       await fetchUsers();
       
       setIsCreateDialogOpen(false);
@@ -155,14 +180,23 @@ export default function AdminUsers() {
     if (!confirm(`Are you sure you want to delete user: ${userEmail}?`)) return;
 
     try {
-      // Note: In a real app, you'd need admin privileges to delete users
-      // For now, we'll just remove from profiles table
-      const { error } = await supabase
+      // Delete from auth using admin API
+      const { error: authError } = await supabase.auth.admin.deleteUser(userId);
+      
+      if (authError) {
+        console.error('Auth deletion error:', authError);
+        // If auth deletion fails, still try to delete from profiles
+      }
+
+      // Delete from profiles table
+      const { error: profileError } = await supabase
         .from('profiles')
         .delete()
         .eq('id', userId);
 
-      if (error) throw error;
+      if (profileError) {
+        console.error('Profile deletion error:', profileError);
+      }
 
       await fetchUsers();
       toast({

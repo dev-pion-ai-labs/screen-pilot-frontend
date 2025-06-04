@@ -64,10 +64,10 @@ export default function ScriptAnalyzerPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (profile) {
+    if (profile?.id) {
       fetchAnalyses();
     }
-  }, [profile]);
+  }, [profile?.id]);
 
   useEffect(() => {
     scrollToBottom();
@@ -78,33 +78,17 @@ export default function ScriptAnalyzerPage() {
   };
 
   const fetchAnalyses = async () => {
-    if (!profile) return;
+    if (!profile?.id) return;
 
     try {
-      // Use raw SQL query to work around type issues
       const { data, error } = await supabase
-        .rpc('get_user_script_analyses', { user_uuid: profile.id });
+        .from('script_analyses')
+        .select('*')
+        .eq('user_id', profile.id)
+        .order('updated_at', { ascending: false });
 
       if (error) {
         console.error('Error fetching analyses:', error);
-        // Fallback: try direct table access
-        const { data: fallbackData, error: fallbackError } = await supabase
-          .from('script_analyses' as any)
-          .select('*')
-          .eq('user_id', profile.id)
-          .order('updated_at', { ascending: false });
-
-        if (fallbackError) {
-          console.error('Fallback error:', fallbackError);
-          return;
-        }
-        
-        const processedAnalyses = (fallbackData || []).map((analysis: any) => ({
-          ...analysis,
-          chat_messages: Array.isArray(analysis.chat_messages) ? analysis.chat_messages : []
-        }));
-        
-        setAnalyses(processedAnalyses);
         return;
       }
       
@@ -129,10 +113,9 @@ export default function ScriptAnalyzerPage() {
   };
 
   const createNewAnalysis = async () => {
-    if (!profile || !newChatTitle.trim()) return;
+    if (!profile?.id || !newChatTitle.trim()) return;
 
     try {
-      // Use raw insert to bypass type checking issues
       const analysisData = {
         user_id: profile.id,
         title: newChatTitle.trim(),
@@ -143,7 +126,7 @@ export default function ScriptAnalyzerPage() {
       };
 
       const { data, error } = await supabase
-        .from('script_analyses' as any)
+        .from('script_analyses')
         .insert(analysisData)
         .select()
         .single();
@@ -184,7 +167,7 @@ export default function ScriptAnalyzerPage() {
   };
 
   const saveScript = async (content: string, fileName?: string): Promise<string | null> => {
-    if (!profile) return null;
+    if (!profile?.id) return null;
 
     try {
       const timestamp = new Date().toISOString();
@@ -216,7 +199,7 @@ export default function ScriptAnalyzerPage() {
 
     try {
       const { error } = await supabase
-        .from('script_analyses' as any)
+        .from('script_analyses')
         .update({
           chat_messages: newMessages,
           updated_at: new Date().toISOString()
@@ -271,7 +254,7 @@ export default function ScriptAnalyzerPage() {
 
       // Update the analysis record with the result
       const { error: updateError } = await supabase
-        .from('script_analyses' as any)
+        .from('script_analyses')
         .update({
           script_content: content,
           script_url: scriptUrl,
@@ -438,7 +421,7 @@ Please upload a script file or paste script content for detailed analysis, or as
   const deleteAnalysis = async (analysisId: string) => {
     try {
       const { error } = await supabase
-        .from('script_analyses' as any)
+        .from('script_analyses')
         .delete()
         .eq('id', analysisId);
 

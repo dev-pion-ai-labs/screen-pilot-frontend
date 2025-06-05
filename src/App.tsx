@@ -22,6 +22,7 @@ import NotFound from "./pages/NotFound";
 import AdminSettings from "./pages/AdminSettings";
 import TeacherAssignment from "./pages/TeacherAssignment";
 import TeacherStudentSubmission from "./pages/TeacherStudentSubmission";
+import TeacherStudents from "./pages/TeacherStudents";
 
 const queryClient = new QueryClient();
 
@@ -43,6 +44,7 @@ const App = () => (
             <Route path="/admin/settings" element={<AdminSettings />} />
             <Route path="/teacher/assignments" element={<TeacherAssignment />} />
             <Route path="/teacher/student-submission" element={<TeacherStudentSubmission />} />
+            <Route path="/teacher/students" element={<TeacherStudents />} />
             <Route path="/chat" element={<Chat />} />
             <Route path="/ai-mentor" element={<AIMentor />} />
             <Route path="/quiz" element={<Quiz />} />

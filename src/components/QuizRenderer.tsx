@@ -182,7 +182,7 @@ export const QuizRenderer: React.FC<QuizRendererProps> = ({
 
                   return (
                     <button
-                      key={index}
+                      key={`${q.id}-${index}`}
                       onClick={() => handleAnswerSelect(q.id, optionLetter)}
                       disabled={submitted}
                       className={cn(

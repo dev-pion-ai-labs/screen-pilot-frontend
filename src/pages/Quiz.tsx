@@ -1,4 +1,3 @@
-
 import { JSX } from "react";
 import { AuthGuard } from "@/components/AuthGuard";
 import { Button } from "@/components/ui/button";
@@ -70,59 +69,85 @@ const RELEVANCE_CONFIG = {
 const parseQuizContent = (content: string): QuizQuestion[] => {
   const questions: QuizQuestion[] = [];
 
-  // Split by question separators
-  const questionBlocks = content
-    .split(/---+/)
-    .filter(
-      (block) =>
-        block.trim() &&
-        (block.includes("Question") || block.includes("**Question"))
-    );
+  // Split content by question markers
+  const questionPattern = /(?:^|\n)(?:###\s*)?Question\s+(\d+):\s*\*?\*?(.*?)\*?\*?\s*\n((?:[A-D]\)[^\n]*\n?)*)/gm;
+  let match;
 
-  if (questionBlocks.length > 0) {
-    questionBlocks.forEach((block, index) => {
-      const lines = block
-        .trim()
-        .split("\n")
-        .filter((line) => line.trim());
+  while ((match = questionPattern.exec(content)) !== null) {
+    const questionNumber = parseInt(match[1]);
+    const questionText = match[2].trim();
+    const optionsText = match[3].trim();
 
-      let questionText = "";
-      let options: string[] = [];
+    // Extract options
+    const optionPattern = /([A-D])\)\s*([^\n]+)/g;
+    const options: string[] = [];
+    let optionMatch;
 
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim();
+    while ((optionMatch = optionPattern.exec(optionsText)) !== null) {
+      options.push(`${optionMatch[1]}) ${optionMatch[2].trim()}`);
+    }
 
-        // Skip question headers
-        if (line.includes("**Question") && line.includes(":**")) {
-          continue;
+    if (questionText && options.length >= 2) {
+      questions.push({
+        id: questionNumber,
+        question: questionText,
+        options: options,
+      });
+    }
+  }
+
+  // Fallback: If the above pattern doesn't work, try alternative parsing
+  if (questions.length === 0) {
+    const lines = content.split('\n').filter(line => line.trim());
+    let currentQuestion: Partial<QuizQuestion> | null = null;
+    let questionCounter = 1;
+
+    for (const line of lines) {
+      const trimmedLine = line.trim();
+      
+      // Check if it's a question line
+      if (trimmedLine.match(/^(?:###\s*)?Question\s+\d+:/i) || 
+          (trimmedLine.includes('**') && trimmedLine.includes('?'))) {
+        
+        // Save previous question if exists
+        if (currentQuestion && currentQuestion.question && currentQuestion.options && currentQuestion.options.length >= 2) {
+          questions.push({
+            id: currentQuestion.id || questionCounter,
+            question: currentQuestion.question,
+            options: currentQuestion.options,
+          });
+          questionCounter++;
         }
 
-        // Extract question text
-        if (
-          !questionText &&
-          line &&
-          !line.match(/^[A-D]\)/) &&
-          !line.includes("**Question") &&
-          line.length > 10
-        ) {
-          questionText = line;
-          continue;
-        }
-
-        // Extract options
-        if (line.match(/^[A-D]\)/)) {
-          options.push(line);
-        }
-      }
-
-      if (questionText && options.length >= 2) {
-        questions.push({
-          id: index + 1,
+        // Start new question
+        const questionText = trimmedLine
+          .replace(/^(?:###\s*)?Question\s+\d+:\s*/i, '')
+          .replace(/\*\*/g, '')
+          .trim();
+        
+        currentQuestion = {
+          id: questionCounter,
           question: questionText,
-          options: options,
-        });
+          options: [],
+        };
       }
-    });
+      // Check if it's an option line
+      else if (trimmedLine.match(/^[A-D]\)/)) {
+        if (currentQuestion) {
+          if (!currentQuestion.options) currentQuestion.options = [];
+          currentQuestion.options.push(trimmedLine);
+        }
+      }
+    }
+
+    // Add the last question
+    if (currentQuestion && currentQuestion.question && currentQuestion.options && currentQuestion.options.length >= 2) {
+      questions.push({
+        id: currentQuestion.id || questionCounter,
+        question: currentQuestion.question,
+        options: currentQuestion.options,
+      });
+    }
   }
 
   return questions;
@@ -369,6 +394,9 @@ export default function QuizPage(): JSX.Element {
     // Update chat progress
     await updateChatProgress(totalQuestions, totalQuestions, 0);
 
+    // Clear current quiz data to allow new quiz
+    setCurrentQuizData(null);
+
     toast.success("Quiz completed successfully!");
   };
 
@@ -393,15 +421,14 @@ export default function QuizPage(): JSX.Element {
     setIsLoading(true);
 
     try {
-      // Check if this is an answer submission to a quiz
-      const extractedAnswers = extractAnswersFromUserInput(userMessageContent);
-      const isAnswerSubmission = Object.keys(extractedAnswers).length > 0 && currentQuizData?.questions;
-
       // Save user message
       console.log("Saving user message:", userMessageContent);
       await saveMessage("user", userMessageContent);
 
-      // If this is an answer submission, calculate score and provide feedback
+      // Check if this is an answer submission to a quiz
+      const extractedAnswers = extractAnswersFromUserInput(userMessageContent);
+      const isAnswerSubmission = Object.keys(extractedAnswers).length > 0 && currentQuizData?.questions;
+
       if (isAnswerSubmission && currentQuizData?.questions) {
         const totalQuestions = currentQuizData.questions.length;
         const submittedAnswers = Object.keys(extractedAnswers).length;
@@ -426,11 +453,10 @@ export default function QuizPage(): JSX.Element {
         // Update chat progress
         await updateChatProgress(totalQuestions, submittedAnswers, 0, "Quiz Completed");
         
-        // Update chat title with topic
-        const chatTopic = currentChatId ? chats.find(c => c.id === currentChatId)?.topic || "General Quiz" : "General Quiz";
+        // Clear current quiz data
+        setCurrentQuizData(null);
         
         toast.success("Quiz answers submitted successfully!");
-        setCurrentQuizData(null); // Clear current quiz data
       } else {
         // Regular message - send to AI agent
         const agentResponse = await callRelevanceAgent(
@@ -448,14 +474,24 @@ export default function QuizPage(): JSX.Element {
             const isQuiz = result.isQuiz || userMessageContent.toLowerCase().includes("quiz");
             const messageType = isQuiz ? "quiz" : "text";
 
+            // Parse quiz content if it's a quiz
+            let quizData: QuizData | undefined = undefined;
+            if (isQuiz) {
+              const questions = parseQuizContent(messageContent);
+              if (questions.length > 0) {
+                quizData = { questions };
+                setCurrentQuizData(quizData);
+              }
+            }
+
             // Save agent message
             console.log("Saving agent message:", messageContent);
-            await saveMessage("assistant", messageContent, messageType, result.quizData);
+            await saveMessage("assistant", messageContent, messageType, quizData);
 
             setConversationId(result.conversationId);
 
             // Extract topic if this is a quiz
-            if (isQuiz && result.quizData?.questions) {
+            if (isQuiz && quizData?.questions) {
               const topic = userMessageContent.toLowerCase().includes("quiz on")
                 ? userMessageContent.split("quiz on")[1]?.trim()
                 : userMessageContent.toLowerCase().includes("on")
@@ -463,13 +499,11 @@ export default function QuizPage(): JSX.Element {
                 : "General Knowledge";
 
               await updateChatProgress(
-                result.quizData.questions.length,
+                quizData.questions.length,
                 0,
                 0,
                 topic
               );
-
-              setCurrentQuizData(result.quizData);
             }
           } else {
             await saveMessage("assistant", String(result.error || "An error occurred while generating quiz."), "text");

@@ -1,3 +1,4 @@
+
 import { JSX } from "react";
 import { AuthGuard } from "@/components/AuthGuard";
 import { Button } from "@/components/ui/button";
@@ -293,29 +294,7 @@ export default function QuizPage(): JSX.Element {
       }));
       setMessages(formattedMessages);
     } else if (currentChatId) {
-      // Show welcome message for new chats
-      const welcomeMessage: Message = {
-        id: "welcome",
-        type: "agent",
-        content: `Welcome to Quizzy, the Quiz Master! 🧠✨
-
-I'm your AI-powered quiz companion ready to help you test your knowledge across various subjects. Here's what I can do:
-
-🎯 **Generate Custom Quizzes** - Create quizzes on any topic you want to study
-📊 **Track Your Progress** - Monitor your performance and improvement over time  
-🎓 **Subject-Specific Tests** - Focused quizzes on screenwriting, direction, film studies, and more
-📈 **Performance Analytics** - Detailed feedback on your strengths and areas to improve
-
-**How to get started:**
-• Ask me to create a quiz on any topic
-• Request a specific number of questions
-• Tell me your difficulty preference (beginner, intermediate, advanced)
-• Take practice tests for your upcoming exams
-
-What subject would you like to be quizzed on today?`,
-        timestamp: new Date(),
-      };
-      setMessages([welcomeMessage]);
+      setMessages([]);
     }
   }, [dbMessages, currentChatId]);
 
@@ -485,8 +464,11 @@ What subject would you like to be quizzed on today?`,
 
     // Create new chat if none exists
     if (!currentChatId) {
-      await createNewChat();
-      return;
+      const newChat = await createNewChat();
+      if (!newChat) {
+        toast.error("Failed to create new chat session");
+        return;
+      }
     }
 
     const userMessageContent = inputMessage;
@@ -495,6 +477,7 @@ What subject would you like to be quizzed on today?`,
 
     try {
       // Save user message
+      console.log("Saving user message:", userMessageContent);
       await saveMessage("user", userMessageContent);
 
       const agentResponse = await callRelevanceAgent(
@@ -513,6 +496,7 @@ What subject would you like to be quizzed on today?`,
           const messageType = isQuiz ? "quiz" : "text";
 
           // Save agent message
+          console.log("Saving agent message:", messageContent);
           await saveMessage("assistant", messageContent, messageType, result.quizData);
 
           setConversationId(result.conversationId);
@@ -621,6 +605,22 @@ What subject would you like to be quizzed on today?`,
             {/* Messages */}
             <ScrollArea className="flex-1 p-4">
               <div className="max-w-4xl mx-auto space-y-6">
+                {messages.length === 0 && currentChatId && (
+                  <div className="text-center py-12">
+                    <div className="w-16 h-16 bg-gradient-to-r from-purple-600 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Brain className="h-8 w-8 text-white" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Ready to start your quiz journey?</h3>
+                    <p className="text-gray-600 mb-4">Ask me to create a quiz on any topic you'd like to study!</p>
+                    <div className="flex flex-wrap justify-center gap-2 text-sm">
+                      <span className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full">🧠 Film Studies</span>
+                      <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full">📚 Literature</span>
+                      <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full">🔬 Science</span>
+                      <span className="bg-orange-100 text-orange-700 px-3 py-1 rounded-full">🎭 Screenwriting</span>
+                    </div>
+                  </div>
+                )}
+
                 {messages.map((message) => (
                   <div
                     key={message.id}

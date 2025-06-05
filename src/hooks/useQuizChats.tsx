@@ -64,7 +64,19 @@ export const useQuizChats = () => {
         .order("created_at", { ascending: true });
 
       if (error) throw error;
-      setMessages(data || []);
+      
+      // Type cast the data to ensure proper types
+      const typedMessages: QuizMessage[] = (data || []).map((msg) => ({
+        id: msg.id,
+        chat_id: msg.chat_id,
+        role: msg.role as "user" | "assistant",
+        content: msg.content,
+        message_type: msg.message_type as "text" | "quiz" | "result",
+        quiz_data: msg.quiz_data,
+        created_at: msg.created_at,
+      }));
+      
+      setMessages(typedMessages);
     } catch (error) {
       console.error("Error fetching messages:", error);
       toast.error("Failed to load chat messages");
@@ -126,8 +138,19 @@ export const useQuizChats = () => {
 
       if (error) throw error;
 
-      setMessages(prev => [...prev, data]);
-      return data;
+      // Type cast the returned data
+      const typedMessage: QuizMessage = {
+        id: data.id,
+        chat_id: data.chat_id,
+        role: data.role as "user" | "assistant",
+        content: data.content,
+        message_type: data.message_type as "text" | "quiz" | "result",
+        quiz_data: data.quiz_data,
+        created_at: data.created_at,
+      };
+
+      setMessages(prev => [...prev, typedMessage]);
+      return typedMessage;
     } catch (error) {
       console.error("Error saving message:", error);
       toast.error("Failed to save message");

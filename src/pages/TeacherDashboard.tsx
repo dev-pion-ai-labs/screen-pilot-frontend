@@ -936,7 +936,6 @@ Ask me anything or upload files to get started with your teaching tasks.`,
                             Reset Chat
                           </Button>
                         )}
-                        <span>Help</span>
                       </div>
                     </div>
                   </div>

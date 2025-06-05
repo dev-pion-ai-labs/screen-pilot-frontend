@@ -386,9 +386,23 @@ export default function StudentAssignmentsPage() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <Clock className="h-4 w-4 flex-shrink-0" />
-                      <span>Est. time: {assignment.estimatedTime}</span>
+                    <div className="space-y-2">
+                      <div className={cn(
+                        "flex items-center gap-2 text-sm p-2 rounded",
+                        getDaysUntilDue(assignment.dueDate) <= 3 && "bg-red-50 text-red-700",
+                        getDaysUntilDue(assignment.dueDate) <= 7 && getDaysUntilDue(assignment.dueDate) > 3 && "bg-amber-50 text-amber-700",
+                        getDaysUntilDue(assignment.dueDate) > 7 && "bg-blue-50 text-blue-700"
+                      )}>
+                        <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                        <span>
+                          Due: {new Date(assignment.dueDate).toLocaleDateString()} 
+                          {getDaysUntilDue(assignment.dueDate) > 0 ? (
+                            <span className="ml-1">({getDaysUntilDue(assignment.dueDate)} days left)</span>
+                          ) : (
+                            <span className="ml-1 font-medium">(Overdue)</span>
+                          )}
+                        </span>
+                      </div>
                     </div>
 
                     {assignment.submittedAt && (
@@ -494,6 +508,24 @@ export default function StudentAssignmentsPage() {
                         <User className="h-4 w-4" />
                         <span className="font-medium">{selectedAssignment?.teacherName}</span>
                       </div>
+                      {selectedAssignment && (
+                        <div className={cn(
+                          "flex items-center gap-2 px-4 py-2 rounded-lg text-base font-medium",
+                          getDaysUntilDue(selectedAssignment.dueDate) <= 3 && "bg-red-50 text-red-700",
+                          getDaysUntilDue(selectedAssignment.dueDate) <= 7 && getDaysUntilDue(selectedAssignment.dueDate) > 3 && "bg-amber-50 text-amber-700",
+                          getDaysUntilDue(selectedAssignment.dueDate) > 7 && "bg-blue-50 text-blue-700"
+                        )}>
+                          <AlertCircle className="h-5 w-5" />
+                          <span>
+                            Due: {new Date(selectedAssignment.dueDate).toLocaleDateString()}
+                            {getDaysUntilDue(selectedAssignment.dueDate) > 0 ? (
+                              <span className="ml-2">({getDaysUntilDue(selectedAssignment.dueDate)} days remaining)</span>
+                            ) : (
+                              <span className="ml-2 font-semibold">(Overdue)</span>
+                            )}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -504,10 +536,20 @@ export default function StudentAssignmentsPage() {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <FileText className="h-5 w-5" />
-                      Assignment Description
+                      Assignment Details
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                      <div className="space-y-2">
+                        <div className="text-sm font-medium text-gray-500">Points</div>
+                        <div className="text-lg font-semibold">{selectedAssignment?.points} points</div>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="text-sm font-medium text-gray-500">Estimated Time</div>
+                        <div className="text-lg font-semibold">{selectedAssignment?.estimatedTime}</div>
+                      </div>
+                    </div>
                     <div className="prose prose-gray max-w-none">
                       <p className="whitespace-pre-wrap text-gray-700 leading-relaxed text-base">
                         {selectedAssignment?.description}

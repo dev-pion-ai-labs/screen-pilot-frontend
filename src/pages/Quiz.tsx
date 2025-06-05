@@ -14,6 +14,7 @@ import {
   Brain,
   Sparkles,
   Zap,
+  Plus,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";

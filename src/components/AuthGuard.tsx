@@ -18,7 +18,7 @@ export const AuthGuard = ({ children, allowedRoles, requireAuth = true }: AuthGu
   useEffect(() => {
     if (loading) return; // Don't do anything while loading
     
-    console.log('AuthGuard state:', { user: !!user, profile, loading, requireAuth, location: location.pathname });
+    // console.log('AuthGuard state:', { user: !!user, profile, loading, requireAuth, location: location.pathname });
 
     if (requireAuth && !user) {
       // User needs to be authenticated but isn't

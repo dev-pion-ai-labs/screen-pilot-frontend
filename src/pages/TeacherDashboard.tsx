@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { Link } from "react-router-dom"
 import { useAuth } from "@/hooks/useAuth"
 import { AuthGuard } from "@/components/AuthGuard"
@@ -44,7 +44,7 @@ interface Assignment {
 }
 
 interface Message {
-  id: number
+  id: string
   type: "user" | "agent"
   content: string
   timestamp: Date
@@ -101,7 +101,6 @@ const smartDelay = (ms: number): Promise<void> => {
   })
 }
 
-
 const RELEVANCE_CONFIG = {
   agent: {
     endpoint: "https://api-d7b62b.stack.tryrelevance.com/latest/agents/trigger",
@@ -131,13 +130,23 @@ export default function TeacherDashboard() {
   const [loading, setLoading] = useState(true)
   const [currentTime, setCurrentTime] = useState(new Date())
 
+  // Chat state with improvements
   const [messages, setMessages] = useState<Message[]>([])
   const [inputMessage, setInputMessage] = useState<string>("")
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [conversationId, setConversationId] = useState<string | null>(null)
+  
+  // New state for preventing loops and duplicates
+  const [processedMessageIds, setProcessedMessageIds] = useState<Set<string>>(new Set())
+  const [lastRequestTime, setLastRequestTime] = useState<number>(0)
+  const [isProcessing, setIsProcessing] = useState<boolean>(false)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Constants for rate limiting
+  const MIN_REQUEST_INTERVAL = 2000 // 2 seconds
+  const MAX_MESSAGE_LENGTH = 4000
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -152,7 +161,7 @@ export default function TeacherDashboard() {
 
   useEffect(() => {
     const welcomeMessage: Message = {
-      id: 1,
+      id: `welcome_${Date.now()}`,
       type: "agent",
       content: `Welcome to AI Assistant Manager, your intelligent teaching companion!
 
@@ -197,6 +206,7 @@ Ask me anything or upload files to get started with your teaching tasks.`,
     scrollToBottom()
   }, [messages])
 
+  // Utility functions
   const getInitials = (name: string) => {
     if (!name) return "T"
     return name
@@ -225,15 +235,76 @@ Ask me anything or upload files to get started with your teaching tasks.`,
     return messages[Math.floor(Math.random() * messages.length)]
   }
 
+  // Message validation
+  const isValidMessage = (content: string): boolean => {
+    return content.trim().length > 0 && content.trim().length <= MAX_MESSAGE_LENGTH
+  }
+
+  // Generate unique message ID
+  const generateMessageId = (prefix: string): string => {
+    return `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+  }
+
+  // Process agent response with better error handling
+  const processAgentResponse = (content: any): string => {
+    if (typeof content === "string") {
+      return content.trim()
+    }
+    
+    if (typeof content === "object" && content !== null) {
+      // Handle nested output structures
+      if (content.output && content.output.answer) {
+        return String(content.output.answer).trim()
+      }
+      if (content.answer) return String(content.answer).trim()
+      if (content.response) return String(content.response).trim()
+      if (content.result) return String(content.result).trim()
+      if (content.text) return String(content.text).trim()
+      if (content.message) return String(content.message).trim()
+      if (content.output && typeof content.output === "string") {
+        return content.output.trim()
+      }
+      
+      // Check for other common response patterns
+      if (content.data && typeof content.data === "string") {
+        return content.data.trim()
+      }
+      
+      // Avoid returning raw JSON unless it's a structured response
+      const jsonStr = JSON.stringify(content, null, 2)
+      if (jsonStr.length < 500) {
+        return `Response: ${jsonStr}`
+      }
+      
+      return "Task completed successfully."
+    }
+    
+    const result = String(content || "Task completed.").trim()
+    return result.length > 0 ? result : "Response received."
+  }
+
+  // Enhanced API call with better error handling and conversation ID extraction
   const callRelevanceAgent = async (message: string, conversationId: string | null = null): Promise<any> => {
+    if (!message || message.trim().length === 0) {
+      throw new Error("Message cannot be empty")
+    }
+
+    const cleanMessage = message.trim()
+    if (cleanMessage.length > MAX_MESSAGE_LENGTH) {
+      throw new Error("Message too long")
+    }
+
     const payload: any = {
-      message: { role: "user", content: message },
+      message: { role: "user", content: cleanMessage },
       agent_id: RELEVANCE_CONFIG.agent.agent_id,
     }
 
-    if (conversationId) {
-      payload.conversation_id = conversationId
+    // Only include conversation_id if it's valid and not empty
+    if (conversationId && conversationId.trim().length > 0) {
+      payload.conversation_id = conversationId.trim()
     }
+
+    console.log("Sending payload:", JSON.stringify(payload, null, 2))
 
     try {
       const fetchFunction = isSafari() ? safeFetch : fetch
@@ -252,28 +323,33 @@ Ask me anything or upload files to get started with your teaching tasks.`,
       })
 
       if (!response.ok) {
+        const errorText = await response.text()
+        console.error("API Error Response:", errorText)
         throw new Error(`API Error: ${response.status} - ${response.statusText}`)
       }
 
       const result = await response.json()
-
-      if (isSafari()) {
-        console.log("Safari - Agent Response:", result)
-      }
+      console.log("Full agent response received:", JSON.stringify(result, null, 2))
 
       return result
     } catch (error) {
-      console.error("Safari - Agent Call Error:", error)
+      console.error("Agent Call Error:", error)
       throw error
     }
   }
 
+  // Enhanced polling with circuit breaker and conversation ID extraction
   const pollAgentResponse = async (jobInfo: any): Promise<any> => {
-    const maxAttempts = isSafari() ? 25 : 20
+    const maxAttempts = isSafari() ? 30 : 25
     let attempts = 0
-    const baseDelay = 3000
+    let consecutiveErrors = 0
+    const maxConsecutiveErrors = 3
+    const baseDelay = 2000
 
-    while (attempts < maxAttempts) {
+    console.log("Starting polling for job:", jobInfo.job_id)
+    console.log("Job info conversation_id:", jobInfo.conversation_id)
+
+    while (attempts < maxAttempts && consecutiveErrors < maxConsecutiveErrors) {
       try {
         const pollUrl = `https://api-${RELEVANCE_CONFIG.region}.stack.tryrelevance.com/latest/studios/${jobInfo.studio_id}/async_poll/${jobInfo.job_id}`
 
@@ -291,63 +367,44 @@ Ask me anything or upload files to get started with your teaching tasks.`,
         })
 
         if (!response.ok) {
+          consecutiveErrors++
           throw new Error(`Polling failed: ${response.status} - ${response.statusText}`)
         }
 
+        consecutiveErrors = 0
         const status = await response.json()
 
-        if (isSafari()) {
-          console.log(`Safari - Polling attempt ${attempts + 1}:`, status)
-        }
+        console.log(`Polling attempt ${attempts + 1}:`, status.updates?.length || 0, "updates")
+        console.log("Full status response:", status)
 
         for (const update of status.updates || []) {
           if (update.type === "chain-success") {
-            let content = "Task completed successfully."
-
-            if (update.output) {
-              try {
-                if (update.output.output && update.output.output.answer) {
-                  content = String(update.output.output.answer)
-                } else if (update.output.answer && typeof update.output.answer === "string") {
-                  content = update.output.answer
-                } else if (typeof update.output === "string") {
-                  content = update.output
-                } else if (update.output.output && typeof update.output.output === "string") {
-                  content = update.output.output
-                } else if (update.output.result && typeof update.output.result === "string") {
-                  content = update.output.result
-                } else {
-                  if (isSafari()) {
-                    console.log("Safari - Raw output object:", update.output)
-                  }
-
-                  if (update.output.answer) {
-                    content = String(update.output.answer)
-                  } else if (update.output.prompt) {
-                    content = String(update.output.prompt)
-                  } else if (update.output.result) {
-                    content = String(update.output.result)
-                  } else if (update.output.text) {
-                    content = String(update.output.text)
-                  } else if (update.output.response) {
-                    content = String(update.output.response)
-                  } else {
-                    content = `AI Response:\n${JSON.stringify(update.output, null, 2)}`
-                  }
-                }
-              } catch (parseError) {
-                console.error("Safari - Output parsing error:", parseError)
-                content = "Response received but could not be parsed properly."
-              }
+            console.log("Chain success:", update.output)
+            
+            // Extract conversation ID from multiple possible sources
+            let extractedConversationId = null
+            
+            // Try to get conversation ID from various places in the response
+            if (update.conversation_id) {
+              extractedConversationId = update.conversation_id
+            } else if (jobInfo.conversation_id) {
+              extractedConversationId = jobInfo.conversation_id
+            } else if (status.conversation_id) {
+              extractedConversationId = status.conversation_id
+            } else if (update.output && update.output.conversation_id) {
+              extractedConversationId = update.output.conversation_id
             }
-
+            
+            console.log("Extracted conversation ID:", extractedConversationId)
+            
             return {
               success: true,
-              content: String(content),
-              conversationId: jobInfo.conversation_id,
+              content: update.output,
+              conversationId: extractedConversationId,
             }
           }
           if (update.type === "chain-error") {
+            console.error("Chain error:", update.error)
             return {
               success: false,
               error: update.error || "An error occurred during processing.",
@@ -356,89 +413,169 @@ Ask me anything or upload files to get started with your teaching tasks.`,
         }
 
         attempts++
+        const delay = Math.min(baseDelay + attempts * 300, 8000)
+        await smartDelay(delay)
 
-        const delay = isSafari() ? baseDelay * 1.5 : baseDelay
-        const adaptiveDelay = Math.min(delay + attempts * 500, 10000)
-
-        await smartDelay(adaptiveDelay)
       } catch (error) {
-        console.error(`Safari - Polling error on attempt ${attempts + 1}:`, error)
+        console.error(`Polling error on attempt ${attempts + 1}:`, error)
         attempts++
-
-        const errorDelay = isSafari() ? 5000 : 3000
+        consecutiveErrors++
+        
+        const errorDelay = Math.min(3000 + consecutiveErrors * 1000, 10000)
         await smartDelay(errorDelay)
       }
     }
 
     return {
       success: false,
-      error: `Request timed out after ${maxAttempts} attempts. Please try again.`,
+      error: `Request timed out after ${maxAttempts} attempts or too many consecutive errors. Please try again.`,
     }
   }
 
-  const handleSendMessage = async (): Promise<void> => {
-    if (!inputMessage.trim() || isLoading) return
+  // Main message handler with comprehensive loop prevention
+  const handleSendMessage = useCallback(async (): Promise<void> => {
+    // Early validation checks
+    if (!inputMessage.trim() || isLoading || isProcessing) {
+      console.log("Message rejected:", { empty: !inputMessage.trim(), loading: isLoading, processing: isProcessing })
+      return
+    }
 
+    if (!isValidMessage(inputMessage)) {
+      toast({
+        title: "Invalid Message",
+        description: "Message is too long or empty. Please try again.",
+        variant: "destructive"
+      })
+      return
+    }
+
+    // Rate limiting
+    const now = Date.now()
+    if (now - lastRequestTime < MIN_REQUEST_INTERVAL) {
+      toast({
+        title: "Please wait",
+        description: "Please wait a moment before sending another message.",
+        variant: "destructive"
+      })
+      return
+    }
+
+    // Duplicate prevention
+    const messageKey = `${inputMessage.trim()}_${Math.floor(now / 5000)}` // 5-second window
+    if (processedMessageIds.has(messageKey)) {
+      console.log("Duplicate message detected, skipping...")
+      return
+    }
+
+    // Lock processing
+    setIsProcessing(true)
+    setLastRequestTime(now)
+
+    const messageId = generateMessageId("user")
+    const currentInput = inputMessage.trim()
+    
     const userMessage: Message = {
-      id: Date.now(),
+      id: messageId,
       type: "user",
-      content: inputMessage,
+      content: currentInput,
       timestamp: new Date(),
     }
 
+    // Update UI immediately
     setMessages((prev) => [...prev, userMessage])
     setInputMessage("")
     setIsLoading(true)
 
+    // Add to processed messages
+    setProcessedMessageIds(prev => new Set([...prev, messageKey]))
+
     try {
-      const agentResponse = await callRelevanceAgent(inputMessage, conversationId)
+      console.log("Sending message:", currentInput)
+      console.log("Current conversation ID:", conversationId)
+
+      const agentResponse = await callRelevanceAgent(currentInput, conversationId)
+      console.log("Agent response structure:", agentResponse)
 
       if (agentResponse.job_info) {
         const result = await pollAgentResponse(agentResponse.job_info)
+        console.log("Polling result:", result)
 
         if (result.success) {
-          let messageContent: string
-          if (typeof result.content === "string") {
-            messageContent = result.content
-          } else if (typeof result.content === "object" && result.content !== null) {
-            messageContent = JSON.stringify(result.content, null, 2)
-          } else {
-            messageContent = String(result.content || "Task completed successfully.")
+          const messageContent = processAgentResponse(result.content)
+          console.log("Processed content:", messageContent)
+          
+          if (!messageContent || messageContent.trim().length === 0) {
+            throw new Error("Empty response received")
           }
 
           const agentMessage: Message = {
-            id: Date.now() + 1,
+            id: generateMessageId("agent"),
             type: "agent",
             content: messageContent,
             timestamp: new Date(),
           }
 
           setMessages((prev) => [...prev, agentMessage])
-          setConversationId(result.conversationId)
-        } else {
-          const errorMessage: Message = {
-            id: Date.now() + 1,
-            type: "agent",
-            content: String(result.error || "An error occurred during processing."),
-            timestamp: new Date(),
-            isError: true,
+          
+          // Improved conversation ID handling - always update if we get one
+          if (result.conversationId) {
+            const newConversationId = String(result.conversationId).trim()
+            if (newConversationId.length > 0) {
+              console.log("Setting conversation ID:", newConversationId)
+              setConversationId(newConversationId)
+            }
+          } else if (agentResponse.conversation_id) {
+            // Fallback to the initial response conversation ID
+            const fallbackConversationId = String(agentResponse.conversation_id).trim()
+            if (fallbackConversationId.length > 0) {
+              console.log("Using fallback conversation ID:", fallbackConversationId)
+              setConversationId(fallbackConversationId)
+            }
           }
-          setMessages((prev) => [...prev, errorMessage])
+        } else {
+          throw new Error(result.error || "Processing failed")
         }
+      } else {
+        // Check if the response itself contains a conversation ID
+        if (agentResponse.conversation_id) {
+          const directConversationId = String(agentResponse.conversation_id).trim()
+          if (directConversationId.length > 0) {
+            console.log("Setting direct conversation ID:", directConversationId)
+            setConversationId(directConversationId)
+          }
+        }
+        throw new Error("No job info received from agent")
       }
     } catch (error) {
+      console.error("Error in handleSendMessage:", error)
       const errorMessage: Message = {
-        id: Date.now() + 1,
+        id: generateMessageId("agent"),
         type: "agent",
-        content: "I'm sorry, but I encountered an error. Please try again.",
+        content: `I'm sorry, but I encountered an error: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`,
         timestamp: new Date(),
         isError: true,
       }
       setMessages((prev) => [...prev, errorMessage])
+      
+      toast({
+        title: "Error",
+        description: "Failed to send message. Please try again.",
+        variant: "destructive"
+      })
     } finally {
       setIsLoading(false)
+      setIsProcessing(false)
+      
+      // Clean up old processed messages (keep only last 50)
+      setProcessedMessageIds(prev => {
+        const arr = Array.from(prev)
+        if (arr.length > 50) {
+          return new Set(arr.slice(-50))
+        }
+        return prev
+      })
     }
-  }
+  }, [inputMessage, isLoading, isProcessing, conversationId, processedMessageIds, lastRequestTime, toast])
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
     const file = event.target.files?.[0]
@@ -464,12 +601,20 @@ Ask me anything or upload files to get started with your teaching tasks.`,
     const fileExtension = "." + file.name.split(".").pop()?.toLowerCase()
 
     if (!allowedTypes.includes(fileExtension)) {
-      alert("Please upload a supported file type")
+      toast({
+        title: "Invalid File Type",
+        description: "Please upload a supported file type",
+        variant: "destructive"
+      })
       return
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      alert("File size should be less than 5MB")
+      toast({
+        title: "File Too Large",
+        description: "File size should be less than 5MB",
+        variant: "destructive"
+      })
       return
     }
 
@@ -477,7 +622,7 @@ Ask me anything or upload files to get started with your teaching tasks.`,
       const text = await file.text()
 
       const uploadMessage: Message = {
-        id: Date.now(),
+        id: generateMessageId("user"),
         type: "user",
         content: `Uploaded file: ${file.name}\n\n${text}`,
         timestamp: new Date(),
@@ -492,7 +637,11 @@ Ask me anything or upload files to get started with your teaching tasks.`,
         setInputMessage(`Please help me with this file: ${file.name}`)
       }, 500)
     } catch (error) {
-      alert("Error reading file. Please try again.")
+      toast({
+        title: "File Error",
+        description: "Error reading file. Please try again.",
+        variant: "destructive"
+      })
     }
 
     if (fileInputRef.current) {
@@ -507,6 +656,17 @@ Ask me anything or upload files to get started with your teaching tasks.`,
     }
   }
 
+  // Function to reset conversation
+  const resetConversation = () => {
+    setConversationId(null)
+    setProcessedMessageIds(new Set())
+    toast({
+      title: "Conversation Reset",
+      description: "Starting a new conversation with the AI Assistant.",
+    })
+  }
+
+  // Stats calculations
   const totalSubmissions = assignments.reduce((acc, assignment) => acc + assignment.submissions.length, 0)
   const pendingReviews = assignments.reduce(
     (acc, assignment) => acc + assignment.submissions.filter((sub) => sub.grade === null).length,
@@ -609,6 +769,7 @@ Ask me anything or upload files to get started with your teaching tasks.`,
             </Card>
           </div>
 
+          {/* AI Chat Interface */}
           <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-gray-50">
             <CardHeader>
               <div className="flex items-center gap-3">
@@ -696,7 +857,7 @@ Ask me anything or upload files to get started with your teaching tasks.`,
                         <div className="bg-white border rounded-lg p-3">
                           <div className="flex items-center gap-2 text-sm text-gray-600">
                             <Loader2 className="h-4 w-4 animate-spin" />
-                            Processing...
+                            {isProcessing ? "Processing your request..." : "Thinking..."}
                           </div>
                         </div>
                       </div>
@@ -717,23 +878,24 @@ Ask me anything or upload files to get started with your teaching tasks.`,
                           onKeyPress={handleKeyPress}
                           className="resize-none border-gray-300 focus:border-purple-500 pr-12"
                           rows={3}
-                          disabled={isLoading}
+                          disabled={isLoading || isProcessing}
                         />
                         <Button
                           variant="ghost"
                           size="icon"
                           onClick={() => fileInputRef.current?.click()}
                           className="absolute right-2 bottom-2 h-8 w-8"
+                          disabled={isLoading || isProcessing}
                         >
                           <Paperclip className="h-4 w-4" />
                         </Button>
                       </div>
                       <Button
                         onClick={handleSendMessage}
-                        disabled={!inputMessage.trim() || isLoading}
-                        className="h-12 w-12 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                        disabled={!inputMessage.trim() || isLoading || isProcessing}
+                        className="h-12 w-12 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 disabled:opacity-50"
                       >
-                        {isLoading ? (
+                        {isLoading || isProcessing ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
                           <ArrowUp className="h-4 w-4" />
@@ -750,8 +912,32 @@ Ask me anything or upload files to get started with your teaching tasks.`,
                     />
 
                     <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
-                      <span>✨ Send new message to AI Assistant</span>
-                      <span>Help</span>
+                      <div className="flex items-center gap-2">
+                        <span>✨ Send new message to AI Assistant</span>
+                        {conversationId && (
+                          <Badge variant="outline" className="text-xs">
+                            Chat Active: {conversationId.substring(0, 8)}...
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {isProcessing && (
+                          <Badge variant="secondary" className="text-xs">
+                            Processing...
+                          </Badge>
+                        )}
+                        {conversationId && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={resetConversation}
+                            className="text-xs h-6 px-2"
+                          >
+                            Reset Chat
+                          </Button>
+                        )}
+                        <span>Help</span>
+                      </div>
                     </div>
                   </div>
                 </div>

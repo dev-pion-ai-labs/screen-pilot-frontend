@@ -13,6 +13,8 @@ import {
   MoreVertical,
   Trash2,
   MessageCircle,
+  CheckCircle,
+  Play,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -46,28 +48,43 @@ export const QuizSidebar: React.FC<QuizSidebarProps> = ({
     const diffMins = Math.floor(diffMs / (1000 * 60));
     const diffDays = Math.floor(diffHours / 24);
 
-    if (diffDays > 0) return `${diffDays}d`;
-    if (diffHours > 0) return `${diffHours}h`;
-    if (diffMins > 0) return `${diffMins}m`;
-    return "now";
+    if (diffDays > 0) return `${diffDays}d ago`;
+    if (diffHours > 0) return `${diffHours}h ago`;
+    if (diffMins > 0) return `${diffMins}m ago`;
+    return "Just now";
   };
 
   const getScoreDisplay = (chat: QuizChat): string => {
     if (chat.total_questions > 0) {
-      return `${chat.score}/${chat.total_questions}`;
+      const percentage = Math.round((chat.completed_questions / chat.total_questions) * 100);
+      return `${chat.completed_questions}/${chat.total_questions} (${percentage}%)`;
     }
     return chat.status === "completed" ? "Complete" : "In Progress";
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "completed":
-        return "bg-green-100 text-green-700 border-green-200";
-      case "active":
-        return "bg-blue-100 text-blue-700 border-blue-200";
-      default:
-        return "bg-gray-100 text-gray-700 border-gray-200";
+  const getStatusColor = (chat: QuizChat) => {
+    if (chat.status === "completed") {
+      return "bg-green-100 text-green-700 border-green-200";
     }
+    if (chat.total_questions > 0 && chat.completed_questions > 0) {
+      return "bg-blue-100 text-blue-700 border-blue-200";
+    }
+    return "bg-gray-100 text-gray-700 border-gray-200";
+  };
+
+  const getProgressPercentage = (chat: QuizChat): number => {
+    if (chat.total_questions === 0) return 0;
+    return (chat.completed_questions / chat.total_questions) * 100;
+  };
+
+  const getTitleFromTopic = (chat: QuizChat): string => {
+    if (chat.topic && chat.topic !== "General Knowledge") {
+      return `${chat.topic} Quiz`;
+    }
+    if (chat.message_count > 1) {
+      return "Quiz Session";
+    }
+    return chat.title;
   };
 
   return (
@@ -148,12 +165,14 @@ export const QuizSidebar: React.FC<QuizSidebarProps> = ({
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex items-center gap-2 flex-1 min-w-0">
                       {chat.status === "completed" ? (
-                        <Trophy className="h-4 w-4 text-yellow-500 flex-shrink-0" />
+                        <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
+                      ) : chat.total_questions > 0 && chat.completed_questions > 0 ? (
+                        <Play className="h-4 w-4 text-blue-500 flex-shrink-0" />
                       ) : (
                         <Target className="h-4 w-4 text-purple-500 flex-shrink-0" />
                       )}
                       <span className="text-sm font-medium truncate">
-                        {chat.title}
+                        {getTitleFromTopic(chat)}
                       </span>
                     </div>
                     <DropdownMenu>
@@ -186,10 +205,26 @@ export const QuizSidebar: React.FC<QuizSidebarProps> = ({
                     {chat.topic && (
                       <Badge
                         variant="outline"
-                        className="text-xs text-purple-600 border-purple-200"
+                        className="text-xs text-purple-600 border-purple-200 bg-purple-50"
                       >
                         {chat.topic}
                       </Badge>
+                    )}
+
+                    {/* Progress bar for active quizzes */}
+                    {chat.total_questions > 0 && chat.status !== "completed" && (
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-xs text-gray-500">
+                          <span>Progress</span>
+                          <span>{getProgressPercentage(chat).toFixed(0)}%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-1.5">
+                          <div 
+                            className="bg-purple-500 h-1.5 rounded-full transition-all duration-300"
+                            style={{ width: `${getProgressPercentage(chat)}%` }}
+                          />
+                        </div>
+                      </div>
                     )}
 
                     <div className="flex items-center justify-between text-xs">
@@ -199,7 +234,7 @@ export const QuizSidebar: React.FC<QuizSidebarProps> = ({
                       </div>
                       <Badge
                         variant="outline"
-                        className={cn("text-xs", getStatusColor(chat.status))}
+                        className={cn("text-xs", getStatusColor(chat))}
                       >
                         {getScoreDisplay(chat)}
                       </Badge>
@@ -211,7 +246,9 @@ export const QuizSidebar: React.FC<QuizSidebarProps> = ({
                         {chat.message_count} messages
                       </div>
                       {chat.total_questions > 0 && (
-                        <span>{chat.completed_questions}/{chat.total_questions} answered</span>
+                        <span className="text-purple-600 font-medium">
+                          {chat.total_questions} questions
+                        </span>
                       )}
                     </div>
                   </div>

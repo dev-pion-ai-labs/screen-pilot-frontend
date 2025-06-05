@@ -29,6 +29,7 @@ interface QuizQuestion {
   id: number;
   question: string;
   options: string[];
+  correctAnswer?: string;
 }
 
 interface QuizData {
@@ -68,6 +69,7 @@ const RELEVANCE_CONFIG = {
 const parseQuizContent = (content: string): QuizQuestion[] => {
   const questions: QuizQuestion[] = [];
 
+  // Split by question separators
   const questionBlocks = content
     .split(/---+/)
     .filter(
@@ -84,22 +86,21 @@ const parseQuizContent = (content: string): QuizQuestion[] => {
         .filter((line) => line.trim());
 
       let questionText = "";
-      let questionTitle = "";
       let options: string[] = [];
 
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
 
+        // Skip question headers
         if (line.includes("**Question") && line.includes(":**")) {
-          questionTitle = line;
           continue;
         }
 
+        // Extract question text
         if (
-          questionTitle &&
           !questionText &&
           line &&
-          !line.match(/^-\s*[A-D]\)/) &&
+          !line.match(/^[A-D]\)/) &&
           !line.includes("**Question") &&
           line.length > 10
         ) {
@@ -107,12 +108,9 @@ const parseQuizContent = (content: string): QuizQuestion[] => {
           continue;
         }
 
-        if (line.match(/^-\s*[A-D]\)/)) {
-          const optionMatch = line.match(/^-\s*([A-D])\)\s*(.*)/);
-
-          if (optionMatch) {
-            options.push(optionMatch[1]);
-          }
+        // Extract options
+        if (line.match(/^[A-D]\)/)) {
+          options.push(line);
         }
       }
 
@@ -124,134 +122,38 @@ const parseQuizContent = (content: string): QuizQuestion[] => {
         });
       }
     });
-  } else {
-    const numberedQuestionPattern = /^\d+\.\s*\*\*Question \d+:/;
-    const hasNumberedQuestions = content
-      .split("\n")
-      .some((line) => numberedQuestionPattern.test(line.trim()));
-
-    if (hasNumberedQuestions) {
-      const lines = content
-        .split("\n")
-        .map((line) => line.trim())
-        .filter((line) => line);
-      let currentQuestion: Partial<QuizQuestion> | null = null;
-      let questionId = 1;
-
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-
-        if (numberedQuestionPattern.test(line)) {
-          if (
-            currentQuestion &&
-            currentQuestion.question &&
-            currentQuestion.options
-          ) {
-            questions.push({
-              id: currentQuestion.id || questionId - 1,
-              question: currentQuestion.question,
-              options: currentQuestion.options,
-            });
-          }
-
-          currentQuestion = { id: questionId++, options: [] };
-          continue;
-        }
-
-        if (
-          currentQuestion &&
-          !currentQuestion.question &&
-          line &&
-          !line.match(/^\s*-\s*[A-D]\)/) &&
-          !line.includes("**Question") &&
-          !line.match(/^\d+\./) &&
-          line.length > 10
-        ) {
-          currentQuestion.question = line;
-          continue;
-        }
-
-        if (currentQuestion && line.match(/^\s*-\s*[A-D]\)/)) {
-          currentQuestion.options = currentQuestion.options || [];
-          const optionMatch = line.match(/^-\s*([A-D])\)\s*(.*)/);
-
-          if (optionMatch) {
-            currentQuestion.options.push(optionMatch[1]);
-          }
-        }
-      }
-
-      if (
-        currentQuestion &&
-        currentQuestion.question &&
-        currentQuestion.options
-      ) {
-        questions.push({
-          id: currentQuestion.id || questionId - 1,
-          question: currentQuestion.question,
-          options: currentQuestion.options,
-        });
-      }
-    } else {
-      const lines = content.split("\n");
-      let currentQuestion: Partial<QuizQuestion> | null = null;
-      let questionId = 1;
-
-      for (const line of lines) {
-        const trimmedLine = line.trim();
-
-        if (
-          trimmedLine.match(/\*\*Question \d+.*\*\*/) ||
-          trimmedLine.match(/Question \d+:/)
-        ) {
-          if (
-            currentQuestion &&
-            currentQuestion.question &&
-            currentQuestion.options
-          ) {
-            questions.push({
-              id: questionId - 1,
-              question: currentQuestion.question,
-              options: currentQuestion.options,
-            });
-          }
-          currentQuestion = { id: questionId++, options: [] };
-          continue;
-        }
-
-        if (
-          currentQuestion &&
-          !currentQuestion.question &&
-          trimmedLine &&
-          !trimmedLine.match(/^[A-D]\)/) &&
-          !trimmedLine.includes("Question") &&
-          trimmedLine.length > 10
-        ) {
-          currentQuestion.question = trimmedLine;
-          continue;
-        }
-
-        if (currentQuestion && trimmedLine.match(/^[A-D]\)/)) {
-          currentQuestion.options = currentQuestion.options || [];
-          currentQuestion.options.push(trimmedLine);
-        }
-      }
-
-      if (
-        currentQuestion &&
-        currentQuestion.question &&
-        currentQuestion.options
-      ) {
-        questions.push({
-          id: questionId - 1,
-          question: currentQuestion.question,
-          options: currentQuestion.options,
-        });
-      }
-    }
   }
 
   return questions;
+};
+
+const extractAnswersFromUserInput = (input: string): { [key: number]: string } => {
+  const answers: { [key: number]: string } = {};
+  
+  // Pattern to match answers like "1B", "2C", etc.
+  const answerPattern = /(\d+)([A-D])/g;
+  let match;
+  
+  while ((match = answerPattern.exec(input)) !== null) {
+    const questionNumber = parseInt(match[1]);
+    const answer = match[2];
+    answers[questionNumber] = answer;
+  }
+  
+  return answers;
+};
+
+const calculateScore = (userAnswers: { [key: number]: string }, correctAnswers: { [key: number]: string }): number => {
+  let correct = 0;
+  const total = Object.keys(correctAnswers).length;
+  
+  for (const questionId in correctAnswers) {
+    if (userAnswers[parseInt(questionId)] === correctAnswers[parseInt(questionId)]) {
+      correct++;
+    }
+  }
+  
+  return Math.round((correct / total) * 100);
 };
 
 export default function QuizPage(): JSX.Element {
@@ -260,6 +162,7 @@ export default function QuizPage(): JSX.Element {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(true);
+  const [currentQuizData, setCurrentQuizData] = useState<QuizData | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -295,8 +198,18 @@ export default function QuizPage(): JSX.Element {
         quizData: msg.quiz_data,
       }));
       setMessages(formattedMessages);
+
+      // Find the latest quiz data
+      const latestQuiz = dbMessages
+        .filter(msg => msg.message_type === "quiz" && msg.quiz_data)
+        .pop();
+      
+      if (latestQuiz && latestQuiz.quiz_data) {
+        setCurrentQuizData(latestQuiz.quiz_data as QuizData);
+      }
     } else if (currentChatId) {
       setMessages([]);
+      setCurrentQuizData(null);
     }
   }, [dbMessages, currentChatId]);
 
@@ -425,6 +338,7 @@ export default function QuizPage(): JSX.Element {
       setMessages([]);
       setConversationId(null);
       setInputMessage("");
+      setCurrentQuizData(null);
     }
   };
 
@@ -478,51 +392,92 @@ export default function QuizPage(): JSX.Element {
     setIsLoading(true);
 
     try {
+      // Check if this is an answer submission to a quiz
+      const extractedAnswers = extractAnswersFromUserInput(userMessageContent);
+      const isAnswerSubmission = Object.keys(extractedAnswers).length > 0 && currentQuizData?.questions;
+
       // Save user message
       console.log("Saving user message:", userMessageContent);
       await saveMessage("user", userMessageContent);
 
-      const agentResponse = await callRelevanceAgent(
-        userMessageContent,
-        conversationId
-      );
-
-      if (agentResponse.job_info) {
-        const result = await pollAgentResponse(agentResponse.job_info);
-
-        if (result.success) {
-          let messageContent = String(result.content || "Quiz generated successfully.");
-
-          // Determine if this is a quiz
-          const isQuiz = result.isQuiz || userMessageContent.toLowerCase().includes("quiz");
-          const messageType = isQuiz ? "quiz" : "text";
-
-          // Save agent message
-          console.log("Saving agent message:", messageContent);
-          await saveMessage("assistant", messageContent, messageType, result.quizData);
-
-          setConversationId(result.conversationId);
-
-          // Extract topic if this is a quiz
-          if (isQuiz && result.quizData?.questions) {
-            const topic = userMessageContent.toLowerCase().includes("quiz on")
-              ? userMessageContent.split("quiz on")[1]?.trim()
-              : "General Knowledge";
-
-            await updateChatProgress(
-              result.quizData.questions.length,
-              0,
-              0,
-              topic
-            );
+      // If this is an answer submission, calculate score and provide feedback
+      if (isAnswerSubmission && currentQuizData?.questions) {
+        const totalQuestions = currentQuizData.questions.length;
+        const submittedAnswers = Object.keys(extractedAnswers).length;
+        
+        // Create a feedback message
+        let feedbackMessage = `Great! You've submitted your answers.\n\n`;
+        feedbackMessage += `**Your Answers:**\n`;
+        
+        currentQuizData.questions.forEach((question) => {
+          const userAnswer = extractedAnswers[question.id];
+          if (userAnswer) {
+            feedbackMessage += `Question ${question.id}: ${userAnswer}\n`;
           }
-        } else {
-          await saveMessage("assistant", String(result.error || "An error occurred while generating quiz."), "text");
+        });
+        
+        feedbackMessage += `\nYou answered ${submittedAnswers} out of ${totalQuestions} questions.\n`;
+        feedbackMessage += `\nThank you for completing the quiz! Feel free to ask for another quiz on any topic.`;
+
+        // Save the feedback message
+        await saveMessage("assistant", feedbackMessage, "result");
+
+        // Update chat progress
+        await updateChatProgress(totalQuestions, submittedAnswers, 0, "Quiz Completed");
+        
+        // Update chat title with topic
+        const chatTopic = currentChatId ? chats.find(c => c.id === currentChatId)?.topic || "General Quiz" : "General Quiz";
+        
+        toast.success("Quiz answers submitted successfully!");
+        setCurrentQuizData(null); // Clear current quiz data
+      } else {
+        // Regular message - send to AI agent
+        const agentResponse = await callRelevanceAgent(
+          userMessageContent,
+          conversationId
+        );
+
+        if (agentResponse.job_info) {
+          const result = await pollAgentResponse(agentResponse.job_info);
+
+          if (result.success) {
+            let messageContent = String(result.content || "Quiz generated successfully.");
+
+            // Determine if this is a quiz
+            const isQuiz = result.isQuiz || userMessageContent.toLowerCase().includes("quiz");
+            const messageType = isQuiz ? "quiz" : "text";
+
+            // Save agent message
+            console.log("Saving agent message:", messageContent);
+            await saveMessage("assistant", messageContent, messageType, result.quizData);
+
+            setConversationId(result.conversationId);
+
+            // Extract topic if this is a quiz
+            if (isQuiz && result.quizData?.questions) {
+              const topic = userMessageContent.toLowerCase().includes("quiz on")
+                ? userMessageContent.split("quiz on")[1]?.trim()
+                : userMessageContent.toLowerCase().includes("on")
+                ? userMessageContent.split("on")[1]?.trim()
+                : "General Knowledge";
+
+              await updateChatProgress(
+                result.quizData.questions.length,
+                0,
+                0,
+                topic
+              );
+
+              setCurrentQuizData(result.quizData);
+            }
+          } else {
+            await saveMessage("assistant", String(result.error || "An error occurred while generating quiz."), "text");
+          }
         }
       }
     } catch (error) {
       console.error("Error sending message:", error);
-      await saveMessage("assistant", "I'm sorry, but I encountered an error while generating your quiz. Please try again.", "text");
+      await saveMessage("assistant", "I'm sorry, but I encountered an error while processing your request. Please try again.", "text");
       toast.error("Failed to send message");
     } finally {
       setIsLoading(false);
@@ -607,6 +562,23 @@ export default function QuizPage(): JSX.Element {
             {/* Messages */}
             <ScrollArea className="flex-1 p-4">
               <div className="max-w-4xl mx-auto space-y-6">
+                {messages.length === 0 && !currentChatId && (
+                  <div className="text-center py-12">
+                    <div className="w-16 h-16 bg-gradient-to-r from-purple-600 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Brain className="h-8 w-8 text-white" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Ready to start your quiz journey?</h3>
+                    <p className="text-gray-600 mb-4">Create a new quiz session and ask me to create a quiz on any topic you'd like to study!</p>
+                    <Button 
+                      onClick={handleCreateNewChat}
+                      className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Start New Quiz Session
+                    </Button>
+                  </div>
+                )}
+
                 {messages.length === 0 && currentChatId && (
                   <div className="text-center py-12">
                     <div className="w-16 h-16 bg-gradient-to-r from-purple-600 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -686,7 +658,7 @@ export default function QuizPage(): JSX.Element {
                     <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
                       <div className="flex items-center gap-3 text-sm text-gray-600">
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        <span>Quizzy is generating your quiz...</span>
+                        <span>Quizzy is processing your request...</span>
                       </div>
                     </div>
                   </div>
@@ -702,7 +674,11 @@ export default function QuizPage(): JSX.Element {
                 <div className="flex gap-3">
                   <div className="flex-1 relative">
                     <Textarea
-                      placeholder="Ask Quizzy to create a quiz on any topic..."
+                      placeholder={
+                        currentQuizData?.questions 
+                          ? "Submit your answers (e.g., 1B, 2C, 3A, 4D, 5B)..." 
+                          : "Ask Quizzy to create a quiz on any topic..."
+                      }
                       value={inputMessage}
                       onChange={(e) => setInputMessage(e.target.value)}
                       onKeyPress={handleKeyPress}
@@ -726,8 +702,14 @@ export default function QuizPage(): JSX.Element {
 
                 <div className="flex items-center justify-between mt-3 text-xs text-gray-500">
                   <div className="flex items-center gap-4">
-                    <span>🧠 Ask for quiz on any subject</span>
-                    <span>📊 Track your progress</span>
+                    {currentQuizData?.questions ? (
+                      <span>📝 Submit answers in format: 1B, 2C, 3A...</span>
+                    ) : (
+                      <>
+                        <span>🧠 Ask for quiz on any subject</span>
+                        <span>📊 Track your progress</span>
+                      </>
+                    )}
                   </div>
                   <span>Press Enter to send</span>
                 </div>

@@ -108,7 +108,8 @@ const parseQuizContent = (content: string): QuizQuestion[] => {
         }
 
         if (line.match(/^-\s*[A-D]\)/)) {
-          const optionMatch = line.match(/^-\s*([A-D]\).*/);
+          const optionMatch = line.match(/^-\s*([A-D])\)\s*(.*)/);
+
           if (optionMatch) {
             options.push(optionMatch[1]);
           }
@@ -172,7 +173,8 @@ const parseQuizContent = (content: string): QuizQuestion[] => {
 
         if (currentQuestion && line.match(/^\s*-\s*[A-D]\)/)) {
           currentQuestion.options = currentQuestion.options || [];
-          const optionMatch = line.match(/^\s*-\s*([A-D]\).*/);
+          const optionMatch = line.match(/^-\s*([A-D])\)\s*(.*)/);
+
           if (optionMatch) {
             currentQuestion.options.push(optionMatch[1]);
           }
@@ -503,10 +505,10 @@ export default function QuizPage(): JSX.Element {
 
           // Extract topic if this is a quiz
           if (isQuiz && result.quizData?.questions) {
-            const topic = userMessageContent.toLowerCase().includes("quiz on") 
-              ? userMessageContent.split("quiz on")[1]?.trim() 
+            const topic = userMessageContent.toLowerCase().includes("quiz on")
+              ? userMessageContent.split("quiz on")[1]?.trim()
               : "General Knowledge";
-            
+
             await updateChatProgress(
               result.quizData.questions.length,
               0,
@@ -640,8 +642,8 @@ export default function QuizPage(): JSX.Element {
                         message.type === "user"
                           ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white ml-12"
                           : message.isError
-                          ? "bg-red-50 border border-red-200 text-red-800"
-                          : "bg-white border border-gray-200"
+                            ? "bg-red-50 border border-red-200 text-red-800"
+                            : "bg-white border border-gray-200"
                       )}
                     >
                       <div className="whitespace-pre-wrap text-sm leading-relaxed">

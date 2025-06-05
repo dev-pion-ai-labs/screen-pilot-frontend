@@ -120,6 +120,12 @@ export function AppSidebar() {
         return [
           ...baseItems,
           {
+            name: "Assignments",
+            href: "/student/assignments",
+            icon: FileText,
+            description: "View and submit your assignments",
+          },
+          {
             name: "AI Mentor",
             href: "/ai-mentor",
             icon: MessageSquare,

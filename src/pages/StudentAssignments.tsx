@@ -681,3 +681,34 @@ export default function StudentAssignmentsPage() {
     </AuthGuard>
   )
 }
+
+
+
+// Relevance Config for evalution 
+// const RELEVANCE_CONFIG = {
+//   agent: {
+//     endpoint: "https://api-d7b62b.stack.tryrelevance.com/latest/agents/trigger",
+//     authorization: "5cc7752400a6-4648-b47b-04fc92b47cae:sk-OGIxMWJiMzAtMTk5Ni00Nzk3LTk5MTYtZTFmZTI4NzIzNTNj",
+//     agent_id: "6c425902-6090-4781-b8de-df38ff3f26fb",
+//   },
+//   tools: {
+//     convertWordToText: {
+//       endpoint: "https://api-d7b62b.stack.tryrelevance.com/latest/studios/aa26fd47-2966-428c-b542-cb40e608357a/trigger_webhook?project=5cc7752400a6-4648-b47b-04fc92b47cae",
+//       authorization: "5cc7752400a6-4648-b47b-04fc92b47cae:sk-OWQzMGE4MTUtMjVmOS00Nzk5LWJkNzEtZDdjOWRkOWJmZGRm",
+//     },
+//     extractDataFromPDF: {
+//       endpoint: "https://api-d7b62b.stack.tryrelevance.com/latest/studios/5a6eaca2-6e92-4557-a299-c0e2bbbac201/trigger_webhook?project=5cc7752400a6-4648-b47b-04fc92b47cae",
+//       authorization: "5cc7752400a6-4648-b47b-04fc92b47cae:sk-OTJkZGIzNzYtMGU5Yi00MDY4LTk2NjEtM2JkODE4NjM4M2Jk",
+//     },
+//     detectPlagiarism: {
+//       endpoint: "https://api-d7b62b.stack.tryrelevance.com/latest/studios/8679da8e-337d-4bfe-b185-7844e00eaee6/trigger_webhook?project=5cc7752400a6-4648-b47b-04fc92b47cae",
+//       authorization: "5cc7752400a6-4648-b47b-04fc92b47cae:sk-MjM0MWUwZmEtZDk0Zi00Y2Q5LWE2ZGYtNjA5NTFjM2VlMmU1",
+//     },
+//     detectAIContent: {
+//       endpoint: "https://api-d7b62b.stack.tryrelevance.com/latest/studios/ebb200c3-83be-473e-88e3-b83d24c06346/trigger_webhook?project=5cc7752400a6-4648-b47b-04fc92b47cae",
+//       authorization: "5cc7752400a6-4648-b47b-04fc92b47cae:sk-NmMwNmE3OGYtNzg5My00MDJjLTkxODYtYzA2NTE2NjViZWNi",
+//     },
+//   },
+//   region: "d7b62b",
+//   project: "5cc7752400a6-4648-b47b-04fc92b47cae",
+// }

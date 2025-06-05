@@ -136,6 +136,86 @@ export type Database = {
         }
         Relationships: []
       }
+      quiz_chat_messages: {
+        Row: {
+          chat_id: string
+          content: string
+          created_at: string
+          id: string
+          message_type: string | null
+          quiz_data: Json | null
+          role: string
+          user_id: string
+        }
+        Insert: {
+          chat_id: string
+          content: string
+          created_at?: string
+          id?: string
+          message_type?: string | null
+          quiz_data?: Json | null
+          role: string
+          user_id: string
+        }
+        Update: {
+          chat_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+          message_type?: string | null
+          quiz_data?: Json | null
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quiz_chat_messages_chat_id_fkey"
+            columns: ["chat_id"]
+            isOneToOne: false
+            referencedRelation: "quiz_chats"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quiz_chats: {
+        Row: {
+          completed_questions: number | null
+          created_at: string
+          id: string
+          score: number | null
+          status: string | null
+          title: string
+          topic: string | null
+          total_questions: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          completed_questions?: number | null
+          created_at?: string
+          id?: string
+          score?: number | null
+          status?: string | null
+          title?: string
+          topic?: string | null
+          total_questions?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          completed_questions?: number | null
+          created_at?: string
+          id?: string
+          score?: number | null
+          status?: string | null
+          title?: string
+          topic?: string | null
+          total_questions?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       script_analyses: {
         Row: {
           analysis_result: Json | null
@@ -225,10 +305,24 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_user_quiz_chats: {
+        Args: { user_uuid: string }
+        Returns: {
+          id: string
+          title: string
+          created_at: string
+          updated_at: string
+          status: string
+          topic: string
+          total_questions: number
+          completed_questions: number
+          score: number
+          message_count: number
+        }[]
+      }
     }
     Enums: {
-      [_ in never]: never
+      quiz_status: "in_progress" | "completed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -343,6 +437,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      quiz_status: ["in_progress", "completed"],
+    },
   },
 } as const

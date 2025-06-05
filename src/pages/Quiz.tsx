@@ -1,41 +1,27 @@
-
 import { JSX } from "react";
 import { AuthGuard } from "@/components/AuthGuard";
-import { DashboardLayout } from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import {
   ArrowLeft,
-  Send,
   Bot,
   User,
-  Upload,
-  FileText,
   Loader2,
-  Plus,
-  MessageCircle,
-  CheckCircle,
-  Paperclip,
   ArrowUp,
   Menu,
   Brain,
-  Trophy,
-  Target,
+  Sparkles,
+  Zap,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { ModernDashboardLayout } from "@/components/ModernDashboardLayout";
+import { useQuizChats } from "@/hooks/useQuizChats";
+import { QuizRenderer } from "@/components/QuizRenderer";
+import { QuizSidebar } from "@/components/QuizSidebar";
+import { toast } from "sonner";
 
 // Types
 interface QuizQuestion {
@@ -53,7 +39,7 @@ interface QuizData {
 }
 
 interface Message {
-  id: number;
+  id: string;
   type: "user" | "agent";
   content: string;
   timestamp: Date;
@@ -62,45 +48,17 @@ interface Message {
   quizData?: QuizData;
 }
 
-interface Task {
-  id: string;
-  title: string;
-  timestamp: Date;
-  status: "active" | "completed";
-  messageCount: number;
-  quizScore?: string;
-}
-
 interface QuizAnswers {
   [questionId: number]: string;
 }
 
+// Relevance API Configuration
 const RELEVANCE_CONFIG = {
   agent: {
     endpoint: "https://api-d7b62b.stack.tryrelevance.com/latest/agents/trigger",
     authorization:
       "5cc7752400a6-4648-b47b-04fc92b47cae:sk-ZGE1MzAyMzctYTkxZS00NzA4LTk5NDctOWI1Nzc0ZmIzMTY4",
     agent_id: "f57ea786-ad54-4fe5-9d9c-b78b701ad6a1",
-  },
-  tools: {
-    generateQuizSummary: {
-      endpoint:
-        "https://api-d7b62b.stack.tryrelevance.com/latest/studios/a92496c4-9407-4fb8-afa2-dabb8ea75b0f/trigger_webhook",
-      authorization:
-        "5cc7752400a6-4648-b47b-04fc92b47cae:sk-NjUyNTcyMmQtOGE5Mi00NGY1LWEwMDktNTRkNmE3MjNmN2Ri",
-    },
-    tool2: {
-      endpoint:
-        "https://api-d7b62b.stack.tryrelevance.com/latest/studios/9b24ea5f-1799-40e7-9062-9456a6f9bfc3/trigger_webhook",
-      authorization:
-        "5cc7752400a6-4648-b47b-04fc92b47cae:sk-ZDE2YzIwY2EtODA3Yy00YzQyLTkzOTYtOTRlNjVkMzczNTdm",
-    },
-    tool3: {
-      endpoint:
-        "https://api-d7b62b.stack.tryrelevance.com/latest/studios/a92496c4-9407-4fb8-afa2-dabb8ea75b0f/trigger_webhook",
-      authorization:
-        "5cc7752400a6-4648-b47b-04fc92b47cae:sk-NzMzOGZhZTktMTRhOC00M2IxLWI5NTQtODcxZGVlNDgyNTU3",
-    },
   },
   region: "d7b62b",
   project: "5cc7752400a6-4648-b47b-04fc92b47cae",
@@ -149,7 +107,7 @@ const parseQuizContent = (content: string): QuizQuestion[] => {
         }
 
         if (line.match(/^-\s*[A-D]\)/)) {
-          const optionMatch = line.match(/^-\s*([A-D]\).*)/);
+          const optionMatch = line.match(/^-\s*([A-D]\).*/);
           if (optionMatch) {
             options.push(optionMatch[1]);
           }
@@ -213,7 +171,7 @@ const parseQuizContent = (content: string): QuizQuestion[] => {
 
         if (currentQuestion && line.match(/^\s*-\s*[A-D]\)/)) {
           currentQuestion.options = currentQuestion.options || [];
-          const optionMatch = line.match(/^\s*-\s*([A-D]\).*)/);
+          const optionMatch = line.match(/^\s*-\s*([A-D]\).*/);
           if (optionMatch) {
             currentQuestion.options.push(optionMatch[1]);
           }
@@ -293,213 +251,26 @@ const parseQuizContent = (content: string): QuizQuestion[] => {
   return questions;
 };
 
-const formatText = (text: string): JSX.Element => {
-  const parts = text.split(/(\*\*.*?\*\*)/);
-
-  return (
-    <>
-      {parts.map((part, index) => {
-        if (part.startsWith("**") && part.endsWith("**")) {
-          const boldText = part.slice(2, -2);
-          return (
-            <strong key={index} className="font-semibold text-gray-900">
-              {boldText}
-            </strong>
-          );
-        }
-        return <span key={index}>{part}</span>;
-      })}
-    </>
-  );
-};
-
-interface QuizRendererProps {
-  quizData: QuizData;
-  onAnswerSubmit?: (answers: QuizAnswers) => void;
-}
-
-const QuizRenderer: React.FC<QuizRendererProps> = ({
-  quizData,
-  onAnswerSubmit,
-}) => {
-  const [selectedAnswers, setSelectedAnswers] = useState<QuizAnswers>({});
-  const [submitted, setSubmitted] = useState<boolean>(false);
-
-  const handleAnswerSelect = (questionId: number, answer: string): void => {
-    if (submitted) return;
-
-    setSelectedAnswers((prev) => ({
-      ...prev,
-      [questionId]: answer,
-    }));
-  };
-
-  const handleSubmit = (): void => {
-    setSubmitted(true);
-    onAnswerSubmit?.(selectedAnswers);
-  };
-
-  const getTotalQuestions = (): number => {
-    return quizData.questions?.length || 0;
-  };
-
-  const getAnsweredQuestions = (): number => {
-    return Object.keys(selectedAnswers).length;
-  };
-
-  if (!quizData.questions || quizData.questions.length === 0) {
-    return (
-      <div className="text-center py-4 text-gray-500">
-        No quiz questions found. Please try asking for a quiz again.
-      </div>
-    );
-  }
-
-  return (
-    <div className="mt-4 space-y-6">
-      <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg p-4 border border-purple-200">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center">
-              <Trophy className="h-5 w-5 text-white" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-purple-900">
-                Interactive Quiz
-              </h3>
-              <p className="text-sm text-purple-600">
-                {getTotalQuestions()} Questions • Answer all to submit
-              </p>
-            </div>
-          </div>
-          <div className="text-right">
-            <div className="text-sm font-medium text-purple-700">
-              Progress: {getAnsweredQuestions()}/{getTotalQuestions()}
-            </div>
-            <div className="w-24 bg-purple-200 rounded-full h-2 mt-1">
-              <div
-                className="bg-purple-600 h-2 rounded-full transition-all duration-300"
-                style={{
-                  width: `${
-                    (getAnsweredQuestions() / getTotalQuestions()) * 100
-                  }%`,
-                }}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {quizData.questions.map((q) => (
-        <Card
-          key={q.id}
-          className="border-l-4 border-l-purple-500 shadow-sm hover:shadow-md transition-shadow"
-        >
-          <CardHeader className="pb-3">
-            <div className="flex items-start gap-3">
-              <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
-                <span className="text-sm font-semibold text-purple-700">
-                  {q.id}
-                </span>
-              </div>
-              <div className="flex-1">
-                <CardTitle className="text-base font-medium text-gray-900 leading-relaxed">
-                  {formatText(q.question)}
-                </CardTitle>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {q.options.map((option, index) => {
-                const optionLetter = option.charAt(0);
-                const optionText = option.substring(3).trim();
-                const isSelected = selectedAnswers[q.id] === optionLetter;
-
-                return (
-                  <button
-                    key={index}
-                    onClick={() => handleAnswerSelect(q.id, optionLetter)}
-                    disabled={submitted}
-                    className={cn(
-                      "w-full text-left p-4 rounded-lg border-2 transition-all duration-200",
-                      "hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50",
-                      isSelected
-                        ? "bg-purple-50 border-purple-300 shadow-sm"
-                        : "border-gray-200 hover:border-gray-300",
-                      submitted && "cursor-not-allowed opacity-75"
-                    )}
-                  >
-                    <div className="flex items-start gap-4">
-                      <div
-                        className={cn(
-                          "w-8 h-8 rounded-full border-2 flex items-center justify-center text-sm font-semibold transition-colors flex-shrink-0 mt-0.5",
-                          isSelected
-                            ? "bg-purple-600 border-purple-600 text-white"
-                            : "border-gray-300 text-gray-600 hover:border-purple-300"
-                        )}
-                      >
-                        {optionLetter}
-                      </div>
-                      <div className="text-sm text-gray-800 flex-1 leading-relaxed">
-                        {formatText(optionText)}
-                      </div>
-                      {isSelected && (
-                        <CheckCircle className="h-5 w-5 text-purple-600 flex-shrink-0 mt-0.5" />
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      ))}
-
-      {!submitted && (
-        <div className="flex justify-center pt-4">
-          <Button
-            onClick={handleSubmit}
-            disabled={getAnsweredQuestions() !== getTotalQuestions()}
-            className={cn(
-              "bg-purple-600 hover:bg-purple-700 text-white px-8 py-3 text-base font-medium",
-              getAnsweredQuestions() === getTotalQuestions()
-                ? "shadow-lg hover:shadow-xl"
-                : "opacity-50 cursor-not-allowed"
-            )}
-            size="lg"
-          >
-            <CheckCircle className="h-5 w-5 mr-2" />
-            Submit Quiz ({getAnsweredQuestions()}/{getTotalQuestions()})
-          </Button>
-        </div>
-      )}
-
-      {submitted && (
-        <div className="text-center py-6 bg-green-50 rounded-lg border border-green-200">
-          <CheckCircle className="h-12 w-12 text-green-600 mx-auto mb-3" />
-          <h3 className="text-lg font-semibold text-green-800 mb-2">
-            Quiz Submitted!
-          </h3>
-          <p className="text-green-600">
-            Your answers have been recorded. Great work!
-          </p>
-        </div>
-      )}
-    </div>
-  );
-};
-
 export default function QuizPage(): JSX.Element {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [activeTask, setActiveTask] = useState<string | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(true);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const {
+    chats,
+    messages: dbMessages,
+    currentChatId,
+    createNewChat,
+    saveMessage,
+    updateChatProgress,
+    loadChat,
+    deleteChat,
+    setLoading,
+  } = useQuizChats();
 
   const scrollToBottom = (): void => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -509,11 +280,24 @@ export default function QuizPage(): JSX.Element {
     scrollToBottom();
   }, [messages]);
 
+  // Load messages from database when chat changes
   useEffect(() => {
-    const welcomeMessage: Message = {
-      id: 1,
-      type: "agent",
-      content: `Welcome to Quizzy, the Quiz Master! 🧠✨
+    if (dbMessages.length > 0) {
+      const formattedMessages: Message[] = dbMessages.map((msg) => ({
+        id: msg.id,
+        type: msg.role === "user" ? "user" : "agent",
+        content: msg.content,
+        timestamp: new Date(msg.created_at),
+        isQuiz: msg.message_type === "quiz",
+        quizData: msg.quiz_data,
+      }));
+      setMessages(formattedMessages);
+    } else if (currentChatId) {
+      // Show welcome message for new chats
+      const welcomeMessage: Message = {
+        id: "welcome",
+        type: "agent",
+        content: `Welcome to Quizzy, the Quiz Master! 🧠✨
 
 I'm your AI-powered quiz companion ready to help you test your knowledge across various subjects. Here's what I can do:
 
@@ -529,32 +313,11 @@ I'm your AI-powered quiz companion ready to help you test your knowledge across 
 • Take practice tests for your upcoming exams
 
 What subject would you like to be quizzed on today?`,
-      timestamp: new Date(),
-    };
-
-    const initialTasks: Task[] = [
-      {
-        id: "greeting",
-        title: "Welcome Quiz",
-        timestamp: new Date(Date.now() - 3600000),
-        status: "completed",
-        messageCount: 1,
-        quizScore: "Welcome",
-      },
-      {
-        id: "film-quiz",
-        title: "Film Studies Quiz",
-        timestamp: new Date(Date.now() - 28800000),
-        status: "completed",
-        messageCount: 8,
-        quizScore: "8/10",
-      },
-    ];
-
-    setMessages([welcomeMessage]);
-    setTasks(initialTasks);
-    setActiveTask("greeting");
-  }, []);
+        timestamp: new Date(),
+      };
+      setMessages([welcomeMessage]);
+    }
+  }, [dbMessages, currentChatId]);
 
   // API Functions
   const callRelevanceAgent = async (
@@ -623,32 +386,8 @@ What subject would you like to be quizzed on today?`,
                 content = update.output.answer;
               } else if (typeof update.output === "string") {
                 content = update.output;
-              } else if (
-                update.output.output &&
-                typeof update.output.output === "string"
-              ) {
-                content = update.output.output;
-              } else if (
-                update.output.result &&
-                typeof update.output.result === "string"
-              ) {
-                content = update.output.result;
               } else {
-                console.log("Received quiz response:", update.output);
-
-                if (update.output.answer) {
-                  content = String(update.output.answer);
-                } else if (update.output.prompt) {
-                  content = String(update.output.prompt);
-                } else if (update.output.result) {
-                  content = String(update.output.result);
-                } else {
-                  content = `Quiz Response:\n${JSON.stringify(
-                    update.output,
-                    null,
-                    2
-                  )}`;
-                }
+                content = String(update.output.answer || update.output.result || update.output);
               }
             }
 
@@ -699,58 +438,67 @@ What subject would you like to be quizzed on today?`,
   };
 
   // Handlers
-  const createNewTask = (): void => {
-    const newTask: Task = {
-      id: `task-${Date.now()}`,
-      title: "New Quiz",
-      timestamp: new Date(),
-      status: "active",
-      messageCount: 0,
-    };
-
-    setTasks((prev) => [newTask, ...prev]);
-    setActiveTask(newTask.id);
-    setMessages([]);
-    setConversationId(null);
-    setInputMessage("");
+  const handleCreateNewChat = async (): Promise<void> => {
+    const chat = await createNewChat();
+    if (chat) {
+      setMessages([]);
+      setConversationId(null);
+      setInputMessage("");
+    }
   };
 
-  const handleQuizAnswerSubmit = (answers: QuizAnswers): void => {
+  const handleLoadChat = async (chatId: string): Promise<void> => {
+    await loadChat(chatId);
+  };
+
+  const handleDeleteChat = async (chatId: string): Promise<void> => {
+    await deleteChat(chatId);
+  };
+
+  const handleQuizAnswerSubmit = async (answers: QuizAnswers): Promise<void> => {
     console.log("Quiz answers submitted:", answers);
 
-    const resultMessage: Message = {
-      id: Date.now(),
-      type: "agent",
-      content: `Quiz completed! 🎉\n\nYour answers have been submitted:\n${Object.entries(
-        answers
-      )
-        .map(([qId, answer]) => `Question ${qId}: ${answer}`)
-        .join(
-          "\n"
-        )}\n\nGreat work! Ask me for another quiz or topic to continue learning.`,
-      timestamp: new Date(),
-    };
+    const totalQuestions = Object.keys(answers).length;
+    const resultMessage = `Quiz completed! 🎉\n\nYour answers have been submitted:\n${Object.entries(
+      answers
+    )
+      .map(([qId, answer]) => `Question ${qId}: ${answer}`)
+      .join(
+        "\n"
+      )}\n\nGreat work! Ask me for another quiz or topic to continue learning.`;
 
-    setMessages((prev) => [...prev, resultMessage]);
+    // Save the result message
+    await saveMessage("assistant", resultMessage, "result");
+
+    // Update chat progress
+    await updateChatProgress(totalQuestions, totalQuestions, 0);
+
+    toast.success("Quiz completed successfully!");
+  };
+
+  const handleQuizProgress = async (progress: { completed: number; total: number }): Promise<void> => {
+    await updateChatProgress(progress.total, progress.completed, 0);
   };
 
   const handleSendMessage = async (): Promise<void> => {
     if (!inputMessage.trim() || isLoading) return;
 
-    const userMessage: Message = {
-      id: Date.now(),
-      type: "user",
-      content: inputMessage,
-      timestamp: new Date(),
-    };
+    // Create new chat if none exists
+    if (!currentChatId) {
+      await createNewChat();
+      return;
+    }
 
-    setMessages((prev) => [...prev, userMessage]);
+    const userMessageContent = inputMessage;
     setInputMessage("");
     setIsLoading(true);
 
     try {
+      // Save user message
+      await saveMessage("user", userMessageContent);
+
       const agentResponse = await callRelevanceAgent(
-        inputMessage,
+        userMessageContent,
         conversationId
       );
 
@@ -758,55 +506,38 @@ What subject would you like to be quizzed on today?`,
         const result = await pollAgentResponse(agentResponse.job_info);
 
         if (result.success) {
-          let messageContent: string;
-          if (typeof result.content === "string") {
-            messageContent = result.content;
-          } else if (
-            typeof result.content === "object" &&
-            result.content !== null
-          ) {
-            messageContent = JSON.stringify(result.content, null, 2);
-          } else {
-            messageContent = String(
-              result.content || "Quiz generated successfully."
+          let messageContent = String(result.content || "Quiz generated successfully.");
+
+          // Determine if this is a quiz
+          const isQuiz = result.isQuiz || userMessageContent.toLowerCase().includes("quiz");
+          const messageType = isQuiz ? "quiz" : "text";
+
+          // Save agent message
+          await saveMessage("assistant", messageContent, messageType, result.quizData);
+
+          setConversationId(result.conversationId);
+
+          // Extract topic if this is a quiz
+          if (isQuiz && result.quizData?.questions) {
+            const topic = userMessageContent.toLowerCase().includes("quiz on") 
+              ? userMessageContent.split("quiz on")[1]?.trim() 
+              : "General Knowledge";
+            
+            await updateChatProgress(
+              result.quizData.questions.length,
+              0,
+              0,
+              topic
             );
           }
-
-          const agentMessage: Message = {
-            id: Date.now() + 1,
-            type: "agent",
-            content: messageContent,
-            timestamp: new Date(),
-            isQuiz:
-              result.isQuiz || inputMessage.toLowerCase().includes("quiz"),
-            quizData: result.quizData,
-          };
-
-          setMessages((prev) => [...prev, agentMessage]);
-          setConversationId(result.conversationId);
         } else {
-          const errorMessage: Message = {
-            id: Date.now() + 1,
-            type: "agent",
-            content: String(
-              result.error || "An error occurred while generating quiz."
-            ),
-            timestamp: new Date(),
-            isError: true,
-          };
-          setMessages((prev) => [...prev, errorMessage]);
+          await saveMessage("assistant", String(result.error || "An error occurred while generating quiz."), "text");
         }
       }
     } catch (error) {
-      const errorMessage: Message = {
-        id: Date.now() + 1,
-        type: "agent",
-        content:
-          "I'm sorry, but I encountered an error while generating your quiz. Please try again.",
-        timestamp: new Date(),
-        isError: true,
-      };
-      setMessages((prev) => [...prev, errorMessage]);
+      console.error("Error sending message:", error);
+      await saveMessage("assistant", "I'm sorry, but I encountered an error while generating your quiz. Please try again.", "text");
+      toast.error("Failed to send message");
     } finally {
       setIsLoading(false);
     }
@@ -819,17 +550,6 @@ What subject would you like to be quizzed on today?`,
     }
   };
 
-  const formatTimeAgo = (date: Date): string => {
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffMins = Math.floor(diffMs / (1000 * 60));
-
-    if (diffHours > 0) return `${diffHours}h`;
-    if (diffMins > 0) return `${diffMins}m`;
-    return "now";
-  };
-
   return (
     <AuthGuard allowedRoles={["student"]}>
       <ModernDashboardLayout>
@@ -837,121 +557,62 @@ What subject would you like to be quizzed on today?`,
           {/* Sidebar */}
           <div
             className={cn(
-              "bg-white border-r transition-all duration-300",
-              sidebarOpen ? "w-72" : "w-0 overflow-hidden"
+              "bg-white border-r transition-all duration-300 shadow-sm",
+              sidebarOpen ? "w-80" : "w-0 overflow-hidden"
             )}
           >
-            <div className="p-4 border-b">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center">
-                  <Brain className="h-4 w-4 text-white" />
-                </div>
-                <div>
-                  <h3 className="font-medium text-gray-900">Quizzy</h3>
-                  <p className="text-sm text-gray-500">Quiz Master</p>
-                </div>
-              </div>
-
-              <Button
-                onClick={createNewTask}
-                className="w-full bg-purple-600 hover:bg-purple-700"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                New Quiz
-              </Button>
-            </div>
-
-            <div className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-medium">All Quizzes</span>
-                <Badge variant="secondary">{tasks.length}</Badge>
-              </div>
-
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-sm text-gray-600">Completed</span>
-                <Badge variant="secondary">
-                  {tasks.filter((t) => t.status === "completed").length}
-                </Badge>
-              </div>
-
-              <Separator className="my-4" />
-
-              <div className="space-y-2">
-                <h4 className="text-sm font-medium text-gray-900 mb-2">
-                  Recent
-                </h4>
-                {tasks.map((task) => (
-                  <div
-                    key={task.id}
-                    onClick={() => setActiveTask(task.id)}
-                    className={cn(
-                      "p-3 rounded-lg cursor-pointer border",
-                      activeTask === task.id
-                        ? "bg-purple-50 border-purple-200"
-                        : "hover:bg-gray-50"
-                    )}
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      {task.status === "completed" ? (
-                        <Trophy className="h-4 w-4 text-yellow-500" />
-                      ) : (
-                        <Target className="h-4 w-4 text-purple-500" />
-                      )}
-                      <span className="text-sm font-medium">{task.title}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-500">
-                        {formatTimeAgo(task.timestamp)}
-                      </span>
-                      {task.quizScore && (
-                        <Badge variant="outline" className="text-xs">
-                          {task.quizScore}
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <QuizSidebar
+              chats={chats}
+              activeChat={currentChatId}
+              onCreateNew={handleCreateNewChat}
+              onLoadChat={handleLoadChat}
+              onDeleteChat={handleDeleteChat}
+            />
           </div>
 
           {/* Main Chat */}
           <div className="flex-1 flex flex-col">
             {/* Header */}
-            <div className="bg-white border-b p-4">
+            <div className="bg-white border-b p-4 shadow-sm">
               <div className="flex items-center gap-4">
                 <Button
                   variant="ghost"
                   size="icon"
                   onClick={() => setSidebarOpen(!sidebarOpen)}
+                  className="hover:bg-gray-100"
                 >
                   <Menu className="h-5 w-5" />
                 </Button>
                 <Link to="/student/dashboard">
-                  <Button variant="outline" size="icon">
+                  <Button variant="outline" size="icon" className="hover:bg-gray-50">
                     <ArrowLeft className="h-4 w-4" />
                   </Button>
                 </Link>
-                <div>
-                  <h1 className="text-lg font-semibold">Interactive Quiz</h1>
+                <div className="flex-1">
+                  <h1 className="text-xl font-semibold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+                    Interactive Quiz with Quizzy
+                  </h1>
                   <p className="text-sm text-gray-600">
-                    Test your knowledge with AI-powered quizzes
+                    Test your knowledge with AI-powered quizzes and track your progress
                   </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-purple-500" />
+                  <span className="text-sm font-medium text-purple-600">AI Powered</span>
                 </div>
               </div>
             </div>
 
             {/* Agent Info */}
-            <div className="p-4 bg-purple-50 border-b">
+            <div className="p-4 bg-gradient-to-r from-purple-50 to-blue-50 border-b">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center">
-                  <Brain className="h-5 w-5 text-white" />
+                <div className="w-12 h-12 bg-gradient-to-r from-purple-600 to-blue-600 rounded-xl flex items-center justify-center shadow-sm">
+                  <Brain className="h-6 w-6 text-white" />
                 </div>
                 <div>
-                  <h2 className="font-medium">Quizzy, the Quiz Master</h2>
-                  <p className="text-sm text-gray-600">
-                    Generates custom quizzes, tracks performance, and provides
-                    detailed analytics for your learning journey.
+                  <h2 className="font-semibold text-purple-900">Quizzy, the Quiz Master</h2>
+                  <p className="text-sm text-purple-700">
+                    Generates custom quizzes, tracks performance, and provides detailed analytics for your learning journey.
                   </p>
                 </div>
               </div>
@@ -959,72 +620,71 @@ What subject would you like to be quizzed on today?`,
 
             {/* Messages */}
             <ScrollArea className="flex-1 p-4">
-              <div className="max-w-3xl mx-auto space-y-4">
+              <div className="max-w-4xl mx-auto space-y-6">
                 {messages.map((message) => (
                   <div
                     key={message.id}
                     className={cn(
-                      "flex gap-3",
+                      "flex gap-4",
                       message.type === "user" ? "justify-end" : "justify-start"
                     )}
                   >
                     {message.type === "agent" && (
-                      <div className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
-                        <Brain className="h-4 w-4 text-white" />
+                      <div className="w-10 h-10 bg-gradient-to-r from-purple-600 to-blue-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm">
+                        <Brain className="h-5 w-5 text-white" />
                       </div>
                     )}
                     <div
                       className={cn(
-                        "max-w-[80%] rounded-lg p-3",
+                        "max-w-[85%] rounded-2xl p-4 shadow-sm",
                         message.type === "user"
-                          ? "bg-purple-600 text-white ml-12"
+                          ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white ml-12"
                           : message.isError
-                          ? "bg-red-50 border border-red-200"
-                          : "bg-white border"
+                          ? "bg-red-50 border border-red-200 text-red-800"
+                          : "bg-white border border-gray-200"
                       )}
                     >
-                      <div className="whitespace-pre-wrap text-sm">
+                      <div className="whitespace-pre-wrap text-sm leading-relaxed">
                         {message.isQuiz && message.quizData?.questions ? (
                           <div>
-                            <div className="mb-4 font-medium text-purple-700">
-                              📝 Quiz Ready! Answer the questions below:
+                            <div className="mb-4 font-medium text-purple-700 flex items-center gap-2">
+                              <Zap className="h-4 w-4" />
+                              Quiz Ready! Answer the questions below:
                             </div>
                             <QuizRenderer
                               quizData={message.quizData}
                               onAnswerSubmit={handleQuizAnswerSubmit}
+                              onProgress={handleQuizProgress}
                             />
                           </div>
                         ) : (
                           message.content
                         )}
                       </div>
-                      {message.isQuiz && !message.quizData?.questions && (
-                        <div className="flex items-center gap-1 mt-2 text-xs opacity-75">
-                          <Trophy className="h-3 w-3" />
-                          Quiz Generated
-                        </div>
-                      )}
-                      <div className="text-xs opacity-60 mt-1">
+                      <div className={cn(
+                        "text-xs mt-2 opacity-70",
+                        message.type === "user" ? "text-purple-100" : "text-gray-500"
+                      )}>
                         {message.timestamp.toLocaleTimeString()}
                       </div>
                     </div>
                     {message.type === "user" && (
-                      <div className="w-8 h-8 bg-gray-400 rounded-full flex items-center justify-center flex-shrink-0">
-                        <User className="h-4 w-4 text-white" />
+                      <div className="w-10 h-10 bg-gray-400 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm">
+                        <User className="h-5 w-5 text-white" />
                       </div>
                     )}
                   </div>
                 ))}
 
                 {isLoading && (
-                  <div className="flex gap-3">
-                    <div className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
-                      <Brain className="h-4 w-4 text-white" />
+                  <div className="flex gap-4">
+                    <div className="w-10 h-10 bg-gradient-to-r from-purple-600 to-blue-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm">
+                      <Brain className="h-5 w-5 text-white" />
                     </div>
-                    <div className="bg-white border rounded-lg p-3">
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
+                      <div className="flex items-center gap-3 text-sm text-gray-600">
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        Generating quiz...
+                        <span>Quizzy is generating your quiz...</span>
                       </div>
                     </div>
                   </div>
@@ -1035,36 +695,39 @@ What subject would you like to be quizzed on today?`,
             </ScrollArea>
 
             {/* Input */}
-            <div className="border-t p-4 bg-white">
-              <div className="max-w-3xl mx-auto">
-                <div className="flex gap-2">
+            <div className="border-t p-4 bg-white shadow-sm">
+              <div className="max-w-4xl mx-auto">
+                <div className="flex gap-3">
                   <div className="flex-1 relative">
                     <Textarea
                       placeholder="Ask Quizzy to create a quiz on any topic..."
                       value={inputMessage}
                       onChange={(e) => setInputMessage(e.target.value)}
                       onKeyPress={handleKeyPress}
-                      className="resize-none border-gray-300 focus:border-purple-500 pr-12"
-                      rows={3}
+                      className="resize-none border-gray-300 focus:border-purple-500 focus:ring-purple-500 rounded-xl pr-12"
+                      rows={2}
                       disabled={isLoading}
                     />
                   </div>
                   <Button
                     onClick={handleSendMessage}
                     disabled={!inputMessage.trim() || isLoading}
-                    className="h-12 w-12 rounded-full bg-purple-600 hover:bg-purple-700"
+                    className="h-14 w-14 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 shadow-lg hover:shadow-xl"
                   >
                     {isLoading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <Loader2 className="h-5 w-5 animate-spin" />
                     ) : (
-                      <ArrowUp className="h-4 w-4" />
+                      <ArrowUp className="h-5 w-5" />
                     )}
                   </Button>
                 </div>
 
-                <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
-                  <span>🧠 Ask for quiz on any subject</span>
-                  <span>Help</span>
+                <div className="flex items-center justify-between mt-3 text-xs text-gray-500">
+                  <div className="flex items-center gap-4">
+                    <span>🧠 Ask for quiz on any subject</span>
+                    <span>📊 Track your progress</span>
+                  </div>
+                  <span>Press Enter to send</span>
                 </div>
               </div>
             </div>

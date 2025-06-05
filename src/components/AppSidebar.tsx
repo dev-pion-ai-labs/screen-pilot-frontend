@@ -105,7 +105,7 @@ export function AppSidebar() {
           },
           {
             name: "Submissions",
-            href: "/teacher/submissions",
+            href: "/teacher/student-submission",
             icon: FileText,
             description: "Review student submissions",
           },

@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { AuthGuard } from '@/components/AuthGuard';
-import { DashboardLayout } from '@/components/DashboardLayout';
+
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -13,6 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { ArrowLeft, Upload, FileText, CheckCircle, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from '@/hooks/use-toast';
+import { ModernDashboardLayout } from '@/components/ModernDashboardLayout';
 
 interface Assignment {
   id: string;
@@ -80,7 +81,7 @@ export default function AssignmentDetail() {
     try {
       // Upload file to Supabase Storage
       const fileName = `${profile?.id}/${assignment.id}/${Date.now()}-${file.name}`;
-      
+
       const { error: uploadError } = await supabase.storage
         .from('scripts')
         .upload(fileName, file);
@@ -137,11 +138,11 @@ export default function AssignmentDetail() {
   if (loading) {
     return (
       <AuthGuard allowedRoles={['student']}>
-        <DashboardLayout>
+        <ModernDashboardLayout>
           <div className="flex items-center justify-center h-64">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
           </div>
-        </DashboardLayout>
+        </ModernDashboardLayout>
       </AuthGuard>
     );
   }
@@ -149,7 +150,7 @@ export default function AssignmentDetail() {
   if (!assignment) {
     return (
       <AuthGuard allowedRoles={['student']}>
-        <DashboardLayout>
+        <ModernDashboardLayout>
           <div className="text-center py-8">
             <h2 className="text-2xl font-bold text-gray-900">Assignment not found</h2>
             <Link to="/student/dashboard">
@@ -159,7 +160,7 @@ export default function AssignmentDetail() {
               </Button>
             </Link>
           </div>
-        </DashboardLayout>
+        </ModernDashboardLayout>
       </AuthGuard>
     );
   }
@@ -169,7 +170,7 @@ export default function AssignmentDetail() {
 
   return (
     <AuthGuard allowedRoles={['student']}>
-      <DashboardLayout>
+      <ModernDashboardLayout>
         <div className="max-w-4xl mx-auto">
           <div className="mb-6">
             <Link to="/student/dashboard">
@@ -279,7 +280,7 @@ export default function AssignmentDetail() {
             </CardContent>
           </Card>
         </div>
-      </DashboardLayout>
+      </ModernDashboardLayout>
     </AuthGuard>
   );
 }

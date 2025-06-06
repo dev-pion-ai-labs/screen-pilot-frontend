@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { AuthGuard } from '@/components/AuthGuard'
-import { DashboardLayout } from '@/components/DashboardLayout'
+
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -12,6 +12,7 @@ import { supabase } from '@/integrations/supabase/client'
 import { Users, FileText, Settings, Trash2, UserPlus, BookOpen } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import type { Json } from '@/integrations/supabase/types'
+import { ModernDashboardLayout } from '@/components/ModernDashboardLayout'
 
 interface User {
   id: string
@@ -146,7 +147,7 @@ const AdminDashboard = () => {
         title: "Success",
         description: "User deleted successfully"
       })
-      
+
       fetchDashboardData()
     } catch (error) {
       console.error('Error deleting user:', error)
@@ -170,11 +171,11 @@ const AdminDashboard = () => {
   if (loading) {
     return (
       <AuthGuard allowedRoles={['admin']}>
-        <DashboardLayout>
+        <ModernDashboardLayout>
           <div className="flex items-center justify-center h-64">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
           </div>
-        </DashboardLayout>
+        </ModernDashboardLayout>
       </AuthGuard>
     )
   }
@@ -187,7 +188,7 @@ const AdminDashboard = () => {
 
   return (
     <AuthGuard allowedRoles={['admin']}>
-      <DashboardLayout>
+      <ModernDashboardLayout>
         <div className="space-y-6">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
@@ -294,8 +295,8 @@ const AdminDashboard = () => {
                           <TableCell>
                             <div className="flex gap-2">
                               <Button variant="outline" size="sm">Edit</Button>
-                              <Button 
-                                variant="destructive" 
+                              <Button
+                                variant="destructive"
                                 size="sm"
                                 onClick={() => deleteUser(user.id)}
                               >
@@ -408,7 +409,7 @@ const AdminDashboard = () => {
             </TabsContent>
           </Tabs>
         </div>
-      </DashboardLayout>
+      </ModernDashboardLayout>
     </AuthGuard>
   )
 }

@@ -146,7 +146,7 @@ export default function TeacherDashboard() {
   const [inputMessage, setInputMessage] = useState<string>("")
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [conversationId, setConversationId] = useState<string | null>(null)
-  
+
   // New state for preventing loops and duplicates
   const [processedMessageIds, setProcessedMessageIds] = useState<Set<string>>(new Set())
   const [lastRequestTime, setLastRequestTime] = useState<number>(0)
@@ -217,11 +217,11 @@ Ask me anything or upload files to get started with your teaching tasks.`,
   // Function to parse assignment data from AI response
   const parseAssignmentFromResponse = (content: string) => {
     console.log('Parsing assignment from content:', content)
-    
+
     let title = ''
     let description = content
     let dueDate = currentDueDate || ''
-    
+
     // Extract title with more flexible patterns
     const titlePatterns = [
       /\*\*ASSIGNMENT TITLE\*\*:\s*(.+?)(?:\n|$)/i,
@@ -229,7 +229,7 @@ Ask me anything or upload files to get started with your teaching tasks.`,
       /Assignment Title:\s*(.+?)(?:\n|$)/i,
       /Title:\s*(.+?)(?:\n|$)/i
     ]
-    
+
     for (const pattern of titlePatterns) {
       const match = content.match(pattern)
       if (match) {
@@ -238,14 +238,14 @@ Ask me anything or upload files to get started with your teaching tasks.`,
         break
       }
     }
-    
+
     // Extract description with more flexible patterns
     const descPatterns = [
       /\*\*ASSIGNMENT DESCRIPTION\*\*:\s*([\s\S]*?)(?:\*\*DUE DATE\*\*|$)/i,
       /ASSIGNMENT DESCRIPTION:\s*([\s\S]*?)(?:DUE DATE|$)/i,
       /Assignment Description:\s*([\s\S]*?)(?:Due Date|$)/i
     ]
-    
+
     for (const pattern of descPatterns) {
       const match = content.match(pattern)
       if (match) {
@@ -261,7 +261,7 @@ Ask me anything or upload files to get started with your teaching tasks.`,
       /DUE DATE:\s*(.+?)(?:\n|$)/i,
       /Due Date:\s*(.+?)(?:\n|$)/i
     ]
-    
+
     for (const pattern of dueDatePatterns) {
       const match = content.match(pattern)
       if (match && !dueDate) {
@@ -279,7 +279,7 @@ Ask me anything or upload files to get started with your teaching tasks.`,
       topic: currentTopic || '',
       aiGeneratedContent: content
     }
-    
+
     console.log('Parsed assignment data:', result)
     return result
   }
@@ -288,7 +288,7 @@ Ask me anything or upload files to get started with your teaching tasks.`,
   const saveAssignmentToDatabase = async (assignmentData: any) => {
     try {
       console.log('Saving assignment:', assignmentData)
-      
+
       // Convert due date to proper format
       let formattedDueDate = new Date()
       if (assignmentData.dueDate) {
@@ -345,14 +345,14 @@ Ask me anything or upload files to get started with your teaching tasks.`,
   // Function to detect if response contains a complete assignment
   const isCompleteAssignment = (content: string) => {
     console.log('Checking if complete assignment:', content.substring(0, 200))
-    
+
     const hasTitle = /\*\*ASSIGNMENT TITLE\*\*|ASSIGNMENT TITLE|Assignment Title/i.test(content)
     const hasDescription = /\*\*ASSIGNMENT DESCRIPTION\*\*|ASSIGNMENT DESCRIPTION|Assignment Description/i.test(content)
     const hasDueDate = /\*\*DUE DATE\*\*|DUE DATE|Due Date/i.test(content) || currentDueDate
-    
+
     const isComplete = hasTitle && hasDescription && hasDueDate
     console.log('Assignment completeness check:', { hasTitle, hasDescription, hasDueDate, isComplete })
-    
+
     return isComplete
   }
 
@@ -376,7 +376,7 @@ Ask me anything or upload files to get started with your teaching tasks.`,
       /film and society/i,
       /direction.*screenwriting/i
     ]
-    
+
     for (const pattern of topicPatterns) {
       const match = message.match(pattern)
       if (match) {
@@ -393,7 +393,7 @@ Ask me anything or upload files to get started with your teaching tasks.`,
       /(\d{1,2})-(\d{1,2})-(\d{4})/,
       /(\d{4})-(\d{1,2})-(\d{1,2})/
     ]
-    
+
     for (const pattern of datePatterns) {
       const match = message.match(pattern)
       if (match) {
@@ -455,7 +455,7 @@ Ask me anything or upload files to get started with your teaching tasks.`,
     if (typeof content === "string") {
       return content.trim()
     }
-    
+
     if (typeof content === "object" && content !== null) {
       // Handle nested output structures
       if (content.output && content.output.answer) {
@@ -469,21 +469,21 @@ Ask me anything or upload files to get started with your teaching tasks.`,
       if (content.output && typeof content.output === "string") {
         return content.output.trim()
       }
-      
+
       // Check for other common response patterns
       if (content.data && typeof content.data === "string") {
         return content.data.trim()
       }
-      
+
       // Avoid returning raw JSON unless it's a structured response
       const jsonStr = JSON.stringify(content, null, 2)
       if (jsonStr.length < 500) {
         return `Response: ${jsonStr}`
       }
-      
+
       return "Task completed successfully."
     }
-    
+
     const result = String(content || "Task completed.").trim()
     return result.length > 0 ? result : "Response received."
   }
@@ -585,9 +585,9 @@ Ask me anything or upload files to get started with your teaching tasks.`,
         for (const update of status.updates || []) {
           if (update.type === "chain-success") {
             console.log("Chain success:", update.output)
-            
+
             let extractedConversationId = null
-            
+
             if (update.conversation_id) {
               extractedConversationId = update.conversation_id
             } else if (jobInfo.conversation_id) {
@@ -597,9 +597,9 @@ Ask me anything or upload files to get started with your teaching tasks.`,
             } else if (update.output && update.output.conversation_id) {
               extractedConversationId = update.output.conversation_id
             }
-            
+
             console.log("Extracted conversation ID:", extractedConversationId)
-            
+
             return {
               success: true,
               content: update.output,
@@ -623,7 +623,7 @@ Ask me anything or upload files to get started with your teaching tasks.`,
         console.error(`Polling error on attempt ${attempts + 1}:`, error)
         attempts++
         consecutiveErrors++
-        
+
         const errorDelay = Math.min(3000 + consecutiveErrors * 1000, 10000)
         await smartDelay(errorDelay)
       }
@@ -676,7 +676,7 @@ Ask me anything or upload files to get started with your teaching tasks.`,
 
     const messageId = generateMessageId("user")
     const currentInput = inputMessage.trim()
-    
+
     // Extract information from user message
     const extractedSemester = extractSemesterFromMessage(currentInput)
     const extractedTopic = extractTopicFromMessage(currentInput)
@@ -695,7 +695,7 @@ Ask me anything or upload files to get started with your teaching tasks.`,
       setCurrentDueDate(extractedDueDate)
       console.log('Set current due date:', extractedDueDate)
     }
-    
+
     const userMessage: Message = {
       id: messageId,
       type: "user",
@@ -725,7 +725,7 @@ Ask me anything or upload files to get started with your teaching tasks.`,
         if (result.success) {
           const messageContent = processAgentResponse(result.content)
           console.log("Processed content:", messageContent)
-          
+
           if (!messageContent || messageContent.trim().length === 0) {
             throw new Error("Empty response received")
           }
@@ -739,28 +739,31 @@ Ask me anything or upload files to get started with your teaching tasks.`,
           }
 
           setMessages((prev) => [...prev, agentMessage])
-          
+
           // Check if this is a complete assignment and save it
           if (isCompleteAssignment(messageContent)) {
             const assignmentData = parseAssignmentFromResponse(messageContent)
             console.log("Complete assignment detected:", assignmentData)
-            
+
             // Only save if we have all required data
             if (assignmentData.title && assignmentData.semester && assignmentData.topic) {
               console.log('Saving assignment with data:', assignmentData)
               await saveAssignmentToDatabase(assignmentData)
-              
+
               // Reset assignment creation state
               setCurrentSemester(null)
               setCurrentTopic(null)
               setCurrentDueDate(null)
+              setConversationId(null)  // If you want a totally new chat context
+              setInputMessage("")      // Clear any input
+
             } else {
               console.log('Assignment data incomplete, not saving:', assignmentData)
             }
           } else {
             console.log('Not a complete assignment, checking for partial data')
           }
-          
+
           // Improved conversation ID handling
           if (result.conversationId) {
             const newConversationId = String(result.conversationId).trim()
@@ -798,7 +801,7 @@ Ask me anything or upload files to get started with your teaching tasks.`,
         isError: true,
       }
       setMessages((prev) => [...prev, errorMessage])
-      
+
       toast({
         title: "Error",
         description: "Failed to send message. Please try again.",
@@ -807,7 +810,7 @@ Ask me anything or upload files to get started with your teaching tasks.`,
     } finally {
       setIsLoading(false)
       setIsProcessing(false)
-      
+
       // Clean up old processed messages (keep only last 50)
       setProcessedMessageIds(prev => {
         const arr = Array.from(prev)
@@ -1093,8 +1096,8 @@ Ask me anything or upload files to get started with your teaching tasks.`,
                             message.type === "user"
                               ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white ml-12"
                               : message.isError
-                              ? "bg-red-50 border border-red-200"
-                              : "bg-white border"
+                                ? "bg-red-50 border border-red-200"
+                                : "bg-white border"
                           )}
                         >
                           <div className="whitespace-pre-wrap text-sm">

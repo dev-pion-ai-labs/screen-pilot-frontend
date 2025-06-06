@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
-import { DashboardLayout } from '@/components/DashboardLayout';
+
 import { AuthGuard } from '@/components/AuthGuard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,13 +12,13 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { toast } from '@/hooks/use-toast';
-import { 
-  FileText, 
-  Upload, 
-  Send, 
-  Bot, 
-  User, 
-  Loader2, 
+import {
+  FileText,
+  Upload,
+  Send,
+  Bot,
+  User,
+  Loader2,
   MessageSquare,
   Film,
   Sparkles,
@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import * as mammoth from 'mammoth';
 import * as pdfjsLib from 'pdfjs-dist';
+import { ModernDashboardLayout } from '@/components/ModernDashboardLayout';
 
 // Set up PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
@@ -105,11 +106,11 @@ const ScriptAnalyzer = () => {
 
     try {
       let extractedText = ''
-      
+
       if (file.type === 'application/pdf') {
         const arrayBuffer = await file.arrayBuffer()
         const pdf = await pdfjsLib.getDocument(arrayBuffer).promise
-        
+
         for (let i = 1; i <= pdf.numPages; i++) {
           const page = await pdf.getPage(i)
           const textContent = await page.getTextContent()
@@ -130,7 +131,7 @@ const ScriptAnalyzer = () => {
 
       setScriptContent(extractedText)
       setScriptTitle(file.name.replace(/\.[^/.]+$/, ''))
-      
+
       toast({
         title: "File uploaded successfully",
         description: `Extracted ${extractedText.length} characters from ${file.name}`
@@ -201,10 +202,10 @@ const ScriptAnalyzer = () => {
 
       // Refresh the analyses list
       await fetchAnalyses()
-      
+
       // Select the new analysis
       setSelectedAnalysis({ ...analysisData, analysis_result: analysisResult })
-      
+
       // Clear the input form
       setScriptContent('')
       setScriptTitle('')
@@ -232,10 +233,10 @@ const ScriptAnalyzer = () => {
     }
 
     // Add user message to chat
-    const currentMessages = Array.isArray(selectedAnalysis.chat_messages) 
-      ? selectedAnalysis.chat_messages 
+    const currentMessages = Array.isArray(selectedAnalysis.chat_messages)
+      ? selectedAnalysis.chat_messages
       : []
-    
+
     const updatedMessages = [...currentMessages, newMessage]
 
     setChatLoading(true)
@@ -244,7 +245,7 @@ const ScriptAnalyzer = () => {
     try {
       // Simulate AI response (replace with actual AI call)
       await new Promise(resolve => setTimeout(resolve, 1000))
-      
+
       const aiResponse: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
@@ -257,7 +258,7 @@ const ScriptAnalyzer = () => {
       // Update the database with new messages
       const { error } = await supabase
         .from('script_analyses')
-        .update({ 
+        .update({
           chat_messages: finalMessages as any,
           updated_at: new Date().toISOString()
         })
@@ -289,18 +290,18 @@ const ScriptAnalyzer = () => {
   if (loading) {
     return (
       <AuthGuard allowedRoles={['student', 'teacher']}>
-        <DashboardLayout>
+        <ModernDashboardLayout>
           <div className="flex items-center justify-center h-64">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
           </div>
-        </DashboardLayout>
+        </ModernDashboardLayout>
       </AuthGuard>
     )
   }
 
   return (
     <AuthGuard allowedRoles={['student', 'teacher']}>
-      <DashboardLayout>
+      <ModernDashboardLayout>
         <div className="max-w-7xl mx-auto space-y-6">
           {/* Header */}
           <div className="flex justify-between items-center">
@@ -400,11 +401,10 @@ const ScriptAnalyzer = () => {
                       <div
                         key={analysis.id}
                         onClick={() => setSelectedAnalysis(analysis)}
-                        className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                          selectedAnalysis?.id === analysis.id
+                        className={`p-3 rounded-lg border cursor-pointer transition-colors ${selectedAnalysis?.id === analysis.id
                             ? 'bg-blue-50 border-blue-200'
                             : 'hover:bg-gray-50'
-                        }`}
+                          }`}
                       >
                         <div className="font-medium text-sm">{analysis.title}</div>
                         <div className="text-xs text-gray-500">
@@ -445,9 +445,9 @@ const ScriptAnalyzer = () => {
                             {selectedAnalysis.analysis_result.summary}
                           </p>
                         </div>
-                        
+
                         <Separator />
-                        
+
                         <div>
                           <h4 className="font-medium mb-2">Key Themes</h4>
                           <div className="flex flex-wrap gap-2">
@@ -458,7 +458,7 @@ const ScriptAnalyzer = () => {
                         </div>
 
                         <Separator />
-                        
+
                         <div>
                           <h4 className="font-medium mb-2">Suggestions</h4>
                           <ul className="list-disc list-inside space-y-1 text-gray-700">
@@ -485,16 +485,14 @@ const ScriptAnalyzer = () => {
                           {Array.isArray(selectedAnalysis.chat_messages) && selectedAnalysis.chat_messages.map((message: any) => (
                             <div
                               key={message.id}
-                              className={`flex gap-2 ${
-                                message.role === 'user' ? 'justify-end' : 'justify-start'
-                              }`}
+                              className={`flex gap-2 ${message.role === 'user' ? 'justify-end' : 'justify-start'
+                                }`}
                             >
                               <div
-                                className={`max-w-[80%] rounded-lg p-3 ${
-                                  message.role === 'user'
+                                className={`max-w-[80%] rounded-lg p-3 ${message.role === 'user'
                                     ? 'bg-blue-600 text-white'
                                     : 'bg-gray-100 text-gray-900'
-                                }`}
+                                  }`}
                               >
                                 <div className="flex items-center gap-2 mb-1">
                                   {message.role === 'user' ? (
@@ -520,7 +518,7 @@ const ScriptAnalyzer = () => {
                           <div ref={messagesEndRef} />
                         </div>
                       </ScrollArea>
-                      
+
                       <div className="flex gap-2">
                         <Input
                           value={chatInput}
@@ -555,7 +553,7 @@ const ScriptAnalyzer = () => {
             </div>
           </div>
         </div>
-      </DashboardLayout>
+      </ModernDashboardLayout>
     </AuthGuard>
   )
 }

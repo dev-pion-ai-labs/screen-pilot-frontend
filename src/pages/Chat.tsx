@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { AuthGuard } from '@/components/AuthGuard';
-import { DashboardLayout } from '@/components/DashboardLayout';
+
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
@@ -10,6 +10,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/integrations/supabase/client';
 import { Bot, User, Send, Loader2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { ModernDashboardLayout } from '@/components/ModernDashboardLayout';
 
 interface Message {
   id: string;
@@ -146,18 +147,18 @@ export default function Chat() {
   if (loadingHistory) {
     return (
       <AuthGuard allowedRoles={['student']}>
-        <DashboardLayout>
+        <ModernDashboardLayout>
           <div className="flex items-center justify-center h-64">
             <Loader2 className="h-8 w-8 animate-spin" />
           </div>
-        </DashboardLayout>
+        </ModernDashboardLayout>
       </AuthGuard>
     );
   }
 
   return (
     <AuthGuard allowedRoles={['student']}>
-      <DashboardLayout>
+      <ModernDashboardLayout>
         <div className="max-w-4xl mx-auto">
           <div className="mb-6">
             <h1 className="text-3xl font-bold text-gray-900">AI Mentor Chat</h1>
@@ -253,7 +254,7 @@ export default function Chat() {
             </CardContent>
           </Card>
         </div>
-      </DashboardLayout>
+      </ModernDashboardLayout>
     </AuthGuard>
   );
 }

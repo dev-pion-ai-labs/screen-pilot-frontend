@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { AuthGuard } from '@/components/AuthGuard'
-import { DashboardLayout } from '@/components/DashboardLayout'
+
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { supabase } from '@/integrations/supabase/client'
 import { Users, UserPlus, Trash2, Edit, Search } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
+import { ModernDashboardLayout } from '@/components/ModernDashboardLayout'
 
 interface User {
   id: string
@@ -74,6 +75,8 @@ const AdminUsers = () => {
       setLoading(false)
     }
   }
+
+  console.log("USERSSSSSSSSSSSSSS", users);
 
   const handleAddUser = async () => {
     try {
@@ -184,7 +187,7 @@ const AdminUsers = () => {
 
   const filteredUsers = users.filter(user => {
     const matchesSearch = user.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.email.toLowerCase().includes(searchTerm.toLowerCase())
+      user.email.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesRole = filterRole === 'all' || user.role === filterRole
     return matchesSearch && matchesRole
   })
@@ -201,25 +204,25 @@ const AdminUsers = () => {
   if (loading) {
     return (
       <AuthGuard allowedRoles={['admin']}>
-        <DashboardLayout>
+        <ModernDashboardLayout>
           <div className="flex items-center justify-center h-64">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
           </div>
-        </DashboardLayout>
+        </ModernDashboardLayout>
       </AuthGuard>
     )
   }
 
   return (
     <AuthGuard allowedRoles={['admin']}>
-      <DashboardLayout>
+      <ModernDashboardLayout>
         <div className="space-y-6">
           <div className="flex justify-between items-center">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">User Management</h1>
               <p className="mt-2 text-gray-600">Manage system users and their roles</p>
             </div>
-            
+
             <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
               <DialogTrigger asChild>
                 <Button>
@@ -397,9 +400,9 @@ const AdminUsers = () => {
                       <TableCell>{user.email}</TableCell>
                       <TableCell>
                         {editingUser?.id === user.id ? (
-                          <Select 
-                            value={editingUser.role} 
-                            onValueChange={(value: 'admin' | 'teacher' | 'student') => 
+                          <Select
+                            value={editingUser.role}
+                            onValueChange={(value: 'admin' | 'teacher' | 'student') =>
                               setEditingUser({ ...editingUser, role: value })
                             }
                           >
@@ -420,9 +423,9 @@ const AdminUsers = () => {
                       </TableCell>
                       <TableCell>
                         {editingUser?.id === user.id && editingUser.role === 'student' ? (
-                          <Select 
-                            value={editingUser.semester?.toString() || '1'} 
-                            onValueChange={(value) => 
+                          <Select
+                            value={editingUser.semester?.toString() || '1'}
+                            onValueChange={(value) =>
                               setEditingUser({ ...editingUser, semester: parseInt(value) })
                             }
                           >
@@ -446,15 +449,15 @@ const AdminUsers = () => {
                         <div className="flex gap-2">
                           {editingUser?.id === user.id ? (
                             <>
-                              <Button 
-                                variant="outline" 
+                              <Button
+                                variant="outline"
                                 size="sm"
                                 onClick={() => handleEditUser(editingUser)}
                               >
                                 Save
                               </Button>
-                              <Button 
-                                variant="outline" 
+                              <Button
+                                variant="outline"
                                 size="sm"
                                 onClick={() => setEditingUser(null)}
                               >
@@ -488,7 +491,7 @@ const AdminUsers = () => {
             </CardContent>
           </Card>
         </div>
-      </DashboardLayout>
+      </ModernDashboardLayout>
     </AuthGuard>
   )
 }

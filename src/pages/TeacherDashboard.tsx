@@ -52,6 +52,7 @@ interface Message {
   isFile?: boolean
   fileName?: string
   fileSize?: number
+  aiResponse?: any
 }
 
 const isSafari = () => {
@@ -141,6 +142,11 @@ export default function TeacherDashboard() {
   const [lastRequestTime, setLastRequestTime] = useState<number>(0)
   const [isProcessing, setIsProcessing] = useState<boolean>(false)
 
+  // State for assignment creation tracking
+  const [currentSemester, setCurrentSemester] = useState<number | null>(null)
+  const [currentTopic, setCurrentTopic] = useState<string | null>(null)
+  const [currentDueDate, setCurrentDueDate] = useState<string | null>(null)
+
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -196,6 +202,151 @@ Ask me anything or upload files to get started with your teaching tasks.`,
     } finally {
       setLoading(false)
     }
+  }
+
+  // Function to parse assignment data from AI response
+  const parseAssignmentFromResponse = (content: string) => {
+    const lines = content.split('\n')
+    let title = ''
+    let description = content
+    let dueDate = currentDueDate || ''
+    
+    // Extract title
+    const titleMatch = content.match(/\*\*ASSIGNMENT TITLE\*\*:\s*(.+?)(?:\n|$)/i)
+    if (titleMatch) {
+      title = titleMatch[1].trim()
+    }
+    
+    // Extract description (everything after the title line)
+    const descMatch = content.match(/\*\*ASSIGNMENT DESCRIPTION\*\*:\s*([\s\S]*?)(?:\*\*DUE DATE\*\*|$)/i)
+    if (descMatch) {
+      description = descMatch[1].trim()
+    }
+
+    // Extract due date from content if not already set
+    const dueDateMatch = content.match(/\*\*DUE DATE\*\*:\s*(.+?)(?:\n|$)/i)
+    if (dueDateMatch && !dueDate) {
+      dueDate = dueDateMatch[1].trim()
+    }
+
+    return {
+      title: title || 'Assignment',
+      description,
+      dueDate,
+      semester: currentSemester || 1,
+      topic: currentTopic || '',
+      aiGeneratedContent: content
+    }
+  }
+
+  // Function to save assignment to database
+  const saveAssignmentToDatabase = async (assignmentData: any) => {
+    try {
+      console.log('Saving assignment:', assignmentData)
+      
+      // Convert due date to proper format
+      let formattedDueDate = new Date()
+      if (assignmentData.dueDate) {
+        // Handle different date formats
+        const dateStr = assignmentData.dueDate.replace(/\//g, '-')
+        const parsedDate = new Date(dateStr)
+        if (!isNaN(parsedDate.getTime())) {
+          formattedDueDate = parsedDate
+        }
+      }
+
+      const { data, error } = await supabase
+        .from('assignments')
+        .insert([
+          {
+            title: assignmentData.title,
+            description: assignmentData.description,
+            teacher_id: profile?.id,
+            semester: assignmentData.semester,
+            topic: assignmentData.topic,
+            due_date: formattedDueDate.toISOString(),
+            total_points: 100,
+            difficulty: 'medium',
+            ai_generated_content: assignmentData.aiGeneratedContent,
+            status: 'published'
+          }
+        ])
+        .select()
+        .single()
+
+      if (error) throw error
+
+      toast({
+        title: "Assignment Created Successfully!",
+        description: `Assignment has been created and assigned to all Semester ${assignmentData.semester} students.`
+      })
+
+      // Refresh assignments list
+      fetchAssignments()
+
+      return data
+    } catch (error) {
+      console.error('Error saving assignment:', error)
+      toast({
+        title: "Error",
+        description: "Failed to save assignment. Please try again.",
+        variant: "destructive"
+      })
+    }
+  }
+
+  // Function to detect if response contains a complete assignment
+  const isCompleteAssignment = (content: string) => {
+    return content.includes('ASSIGNMENT TITLE') && 
+           content.includes('ASSIGNMENT DESCRIPTION') && 
+           content.includes('DUE DATE')
+  }
+
+  // Function to extract semester from user message
+  const extractSemesterFromMessage = (message: string) => {
+    const semesterMatch = message.match(/sem\s*(\d+)|semester\s*(\d+)|\b(\d+)\b/i)
+    if (semesterMatch) {
+      const semester = parseInt(semesterMatch[1] || semesterMatch[2] || semesterMatch[3])
+      if (semester >= 1 && semester <= 8) {
+        return semester
+      }
+    }
+    return null
+  }
+
+  // Function to extract topic from message
+  const extractTopicFromMessage = (message: string) => {
+    const topicPatterns = [
+      /film and society part \d+/i,
+      /introduction to direction & screenwriting part \d+/i,
+      /film and society/i,
+      /direction.*screenwriting/i
+    ]
+    
+    for (const pattern of topicPatterns) {
+      const match = message.match(pattern)
+      if (match) {
+        return match[0]
+      }
+    }
+    return null
+  }
+
+  // Function to extract due date from message
+  const extractDueDateFromMessage = (message: string) => {
+    const datePatterns = [
+      /(\d{1,2})\/(\d{1,2})\/(\d{4})/,
+      /(\d{1,2})-(\d{1,2})-(\d{4})/,
+      /(\d{4})-(\d{1,2})-(\d{1,2})/
+    ]
+    
+    for (const pattern of datePatterns) {
+      const match = message.match(pattern)
+      if (match) {
+        return match[0]
+      }
+    }
+    return null
   }
 
   const scrollToBottom = (): void => {
@@ -381,10 +532,8 @@ Ask me anything or upload files to get started with your teaching tasks.`,
           if (update.type === "chain-success") {
             console.log("Chain success:", update.output)
             
-            // Extract conversation ID from multiple possible sources
             let extractedConversationId = null
             
-            // Try to get conversation ID from various places in the response
             if (update.conversation_id) {
               extractedConversationId = update.conversation_id
             } else if (jobInfo.conversation_id) {
@@ -432,7 +581,7 @@ Ask me anything or upload files to get started with your teaching tasks.`,
     }
   }
 
-  // Main message handler with comprehensive loop prevention
+  // Main message handler with assignment creation logic
   const handleSendMessage = useCallback(async (): Promise<void> => {
     // Early validation checks
     if (!inputMessage.trim() || isLoading || isProcessing) {
@@ -474,6 +623,16 @@ Ask me anything or upload files to get started with your teaching tasks.`,
     const messageId = generateMessageId("user")
     const currentInput = inputMessage.trim()
     
+    // Extract information from user message
+    const extractedSemester = extractSemesterFromMessage(currentInput)
+    const extractedTopic = extractTopicFromMessage(currentInput)
+    const extractedDueDate = extractDueDateFromMessage(currentInput)
+
+    // Update state with extracted information
+    if (extractedSemester) setCurrentSemester(extractedSemester)
+    if (extractedTopic) setCurrentTopic(extractedTopic)
+    if (extractedDueDate) setCurrentDueDate(extractedDueDate)
+    
     const userMessage: Message = {
       id: messageId,
       type: "user",
@@ -513,11 +672,28 @@ Ask me anything or upload files to get started with your teaching tasks.`,
             type: "agent",
             content: messageContent,
             timestamp: new Date(),
+            aiResponse: result.content
           }
 
           setMessages((prev) => [...prev, agentMessage])
           
-          // Improved conversation ID handling - always update if we get one
+          // Check if this is a complete assignment and save it
+          if (isCompleteAssignment(messageContent)) {
+            const assignmentData = parseAssignmentFromResponse(messageContent)
+            console.log("Complete assignment detected:", assignmentData)
+            
+            // Only save if we have all required data
+            if (assignmentData.title && assignmentData.semester && assignmentData.topic) {
+              await saveAssignmentToDatabase(assignmentData)
+              
+              // Reset assignment creation state
+              setCurrentSemester(null)
+              setCurrentTopic(null)
+              setCurrentDueDate(null)
+            }
+          }
+          
+          // Improved conversation ID handling
           if (result.conversationId) {
             const newConversationId = String(result.conversationId).trim()
             if (newConversationId.length > 0) {
@@ -525,7 +701,6 @@ Ask me anything or upload files to get started with your teaching tasks.`,
               setConversationId(newConversationId)
             }
           } else if (agentResponse.conversation_id) {
-            // Fallback to the initial response conversation ID
             const fallbackConversationId = String(agentResponse.conversation_id).trim()
             if (fallbackConversationId.length > 0) {
               console.log("Using fallback conversation ID:", fallbackConversationId)
@@ -536,7 +711,6 @@ Ask me anything or upload files to get started with your teaching tasks.`,
           throw new Error(result.error || "Processing failed")
         }
       } else {
-        // Check if the response itself contains a conversation ID
         if (agentResponse.conversation_id) {
           const directConversationId = String(agentResponse.conversation_id).trim()
           if (directConversationId.length > 0) {
@@ -575,7 +749,7 @@ Ask me anything or upload files to get started with your teaching tasks.`,
         return prev
       })
     }
-  }, [inputMessage, isLoading, isProcessing, conversationId, processedMessageIds, lastRequestTime, toast])
+  }, [inputMessage, isLoading, isProcessing, conversationId, processedMessageIds, lastRequestTime, toast, currentSemester, currentTopic, currentDueDate, profile])
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
     const file = event.target.files?.[0]
@@ -660,6 +834,9 @@ Ask me anything or upload files to get started with your teaching tasks.`,
   const resetConversation = () => {
     setConversationId(null)
     setProcessedMessageIds(new Set())
+    setCurrentSemester(null)
+    setCurrentTopic(null)
+    setCurrentDueDate(null)
     toast({
       title: "Conversation Reset",
       description: "Starting a new conversation with the AI Assistant.",
@@ -767,6 +944,31 @@ Ask me anything or upload files to get started with your teaching tasks.`,
                 </div>
               </CardContent>
             </Card>
+
+            <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-purple-50 hover:shadow-xl transition-all duration-300">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-purple-700">Current Context</CardTitle>
+                <div className="p-2 bg-purple-100 rounded-full">
+                  <Target className="h-4 w-4 text-purple-600" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-1">
+                  {currentSemester && (
+                    <div className="text-xs text-purple-600">Sem: {currentSemester}</div>
+                  )}
+                  {currentTopic && (
+                    <div className="text-xs text-purple-600">Topic: {currentTopic.substring(0, 20)}...</div>
+                  )}
+                  {currentDueDate && (
+                    <div className="text-xs text-purple-600">Due: {currentDueDate}</div>
+                  )}
+                  {!currentSemester && !currentTopic && !currentDueDate && (
+                    <div className="text-xs text-gray-400">No active context</div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           {/* AI Chat Interface */}
@@ -796,7 +998,7 @@ Ask me anything or upload files to get started with your teaching tasks.`,
                     <div>
                       <h2 className="font-medium">AI Assistant Manager</h2>
                       <p className="text-sm text-gray-600">
-                        Your intelligent teaching companion for creating assignments, running code, and managing educational content.
+                        Creates assignments automatically and saves them to your dashboard when complete.
                       </p>
                     </div>
                   </div>
@@ -837,6 +1039,11 @@ Ask me anything or upload files to get started with your teaching tasks.`,
                               {Math.round((message.fileSize || 0) / 1024)}KB)
                             </div>
                           )}
+                          {isCompleteAssignment(message.content) && (
+                            <div className="mt-2 p-2 bg-green-100 rounded text-xs text-green-800">
+                              ✅ Assignment will be saved automatically
+                            </div>
+                          )}
                           <div className="text-xs opacity-60 mt-1">
                             {message.timestamp.toLocaleTimeString()}
                           </div>
@@ -872,7 +1079,7 @@ Ask me anything or upload files to get started with your teaching tasks.`,
                     <div className="flex gap-2">
                       <div className="flex-1 relative">
                         <Textarea
-                          placeholder="Ask AI Assistant Manager anything about assignments, code, or teaching..."
+                          placeholder="Ask AI Assistant Manager to create assignments with semester, topic, and due date..."
                           value={inputMessage}
                           onChange={(e) => setInputMessage(e.target.value)}
                           onKeyPress={handleKeyPress}
@@ -913,7 +1120,7 @@ Ask me anything or upload files to get started with your teaching tasks.`,
 
                     <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
                       <div className="flex items-center gap-2">
-                        <span>✨ Send new message to AI Assistant</span>
+                        <span>✨ AI will auto-save complete assignments</span>
                         {conversationId && (
                           <Badge variant="outline" className="text-xs">
                             Chat Active: {conversationId.substring(0, 8)}...
@@ -943,6 +1150,48 @@ Ask me anything or upload files to get started with your teaching tasks.`,
               </div>
             </CardContent>
           </Card>
+
+          {/* Quick Actions */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300">
+              <CardContent className="p-6 text-center">
+                <div className="p-3 bg-blue-100 rounded-full w-fit mx-auto mb-4">
+                  <BookOpen className="h-6 w-6 text-blue-600" />
+                </div>
+                <h3 className="font-semibold text-lg mb-2">Manage Assignments</h3>
+                <p className="text-gray-600 text-sm mb-4">View, edit, and track all your assignments</p>
+                <Link to="/teacher/assignments">
+                  <Button className="w-full">View Assignments</Button>
+                </Link>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300">
+              <CardContent className="p-6 text-center">
+                <div className="p-3 bg-green-100 rounded-full w-fit mx-auto mb-4">
+                  <Users className="h-6 w-6 text-green-600" />
+                </div>
+                <h3 className="font-semibold text-lg mb-2">View Students</h3>
+                <p className="text-gray-600 text-sm mb-4">Manage students and their progress</p>
+                <Link to="/teacher/students">
+                  <Button className="w-full">View Students</Button>
+                </Link>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300">
+              <CardContent className="p-6 text-center">
+                <div className="p-3 bg-purple-100 rounded-full w-fit mx-auto mb-4">
+                  <FileText className="h-6 w-6 text-purple-600" />
+                </div>
+                <h3 className="font-semibold text-lg mb-2">Review Submissions</h3>
+                <p className="text-gray-600 text-sm mb-4">Grade and provide feedback</p>
+                <Link to="/teacher/assignments">
+                  <Button className="w-full">Review Work</Button>
+                </Link>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </ModernDashboardLayout>
     </AuthGuard>

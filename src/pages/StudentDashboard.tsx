@@ -23,6 +23,7 @@ import {
   Calendar,
   Award,
   PlayCircle,
+  ArrowRight,
 } from "lucide-react"
 import { format } from "date-fns"
 
@@ -31,29 +32,44 @@ interface Assignment {
   title: string
   description: string
   due_date: string
+  created_at: string
   submissions?: any[]
 }
 
 export default function StudentDashboard() {
   const { profile } = useAuth()
+  console.log("PROFILE", profile)
   const [assignments, setAssignments] = useState<Assignment[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetchAssignments()
-  }, [])
+    if (profile?.id && profile?.semester) {
+      fetchAssignments()
+    }
+  }, [profile])
 
   const fetchAssignments = async () => {
     try {
+      // First get assignments for the student's semester
+      const studentSemester = profile?.semester
+      
       const { data: assignmentsData } = await supabase
         .from("assignments")
         .select(`
           *,
-          submissions!inner(*)
+          submissions(*)
         `)
-        .order("due_date", { ascending: true })
+        .eq("semester", studentSemester) // Only get assignments for student's semester
+        .eq("status", "published") // Only get published assignments
+        .order("created_at", { ascending: false }) // Order by creation date, latest first
 
-      setAssignments(assignmentsData || [])
+      // Filter submissions to only include current student's submissions
+      const assignmentsWithUserSubmissions = assignmentsData?.map(assignment => ({
+        ...assignment,
+        submissions: assignment.submissions?.filter(sub => sub.student_id === profile?.id) || []
+      })) || []
+
+      setAssignments(assignmentsWithUserSubmissions)
     } catch (error) {
       console.error("Error fetching assignments:", error)
     } finally {
@@ -66,17 +82,20 @@ export default function StudentDashboard() {
     const isOverdue = new Date(assignment.due_date) < new Date()
 
     if (hasSubmission) {
-      return { status: "submitted", color: "bg-emerald-100 text-emerald-700 border-emerald-200", icon: CheckCircle }
+      return { status: "Submitted", color: "bg-emerald-100 text-emerald-700 border-emerald-200", icon: CheckCircle }
     } else if (isOverdue) {
-      return { status: "overdue", color: "bg-red-100 text-red-700 border-red-200", icon: AlertCircle }
+      return { status: "Overdue", color: "bg-red-100 text-red-700 border-red-200", icon: AlertCircle }
     } else {
-      return { status: "pending", color: "bg-amber-100 text-amber-700 border-amber-200", icon: Clock }
+      return { status: "Pending", color: "bg-amber-100 text-amber-700 border-amber-200", icon: Clock }
     }
   }
 
   const submittedCount = assignments.filter((a) => a.submissions && a.submissions.length > 0).length
   const pendingCount = assignments.filter((a) => !a.submissions || a.submissions.length === 0).length
   const completionRate = assignments.length > 0 ? Math.round((submittedCount / assignments.length) * 100) : 0
+
+  // Get only first 2 assignments for dashboard display (these will be the latest)
+  const displayedAssignments = assignments.slice(0, 2)
 
   return (
     <AuthGuard allowedRoles={["student"]}>
@@ -168,7 +187,6 @@ export default function StudentDashboard() {
             </Card>
           </div>
 
-
           <div>
             <div className="flex items-center gap-3 mb-6">
               <Zap className="h-6 w-6 text-indigo-600" />
@@ -237,7 +255,6 @@ export default function StudentDashboard() {
             </div>
           </div>
 
-
           <div>
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
@@ -271,51 +288,86 @@ export default function StudentDashboard() {
                 </CardContent>
               </Card>
             ) : (
-              <div className="space-y-4">
-                {assignments.map((assignment) => {
-                  const { status, color, icon: StatusIcon } = getAssignmentStatus(assignment)
-                  const isOverdue = new Date(assignment.due_date) < new Date()
+              <div className="space-y-6">
+                {/* Assignment Cards - Show only first 2 (latest) */}
+                <div className="space-y-4">
+                  {displayedAssignments.map((assignment) => {
+                    const { status, color, icon: StatusIcon } = getAssignmentStatus(assignment)
+                    const isOverdue = new Date(assignment.due_date) < new Date()
 
-                  return (
-                    <Card key={assignment.id} className="border-0 shadow-lg hover:shadow-xl transition-shadow">
-                      <CardContent className="p-6">
-                        <div className="flex items-start justify-between mb-4">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-2">
-                              <h3 className="text-xl font-semibold text-gray-900">{assignment.title}</h3>
-                              <Badge className={`${color} border`}>
-                                <StatusIcon className="h-3 w-3 mr-1" />
-                                {status}
-                              </Badge>
-                            </div>
-                            <p className="text-gray-600 mb-4">{assignment.description}</p>
-                            <div className="flex items-center gap-4 text-sm">
-                              <div
-                                className={`flex items-center gap-1 ${isOverdue ? "text-red-600" : "text-gray-500"}`}
-                              >
-                                <Calendar className="h-4 w-4" />
-                                Due: {format(new Date(assignment.due_date), "PPP")}
+                    // Get first line of description (up to first period or 100 characters)
+                    const shortDescription =
+                      assignment.description.split(".")[0].substring(0, 100) +
+                      (assignment.description.length > 100 ? "..." : "")
+
+                    return (
+                      <Card
+                        key={assignment.id}
+                        className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
+                      >
+                        <CardContent className="p-6">
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-3 mb-2">
+                                <h3 className="text-xl font-semibold text-gray-900">{assignment.title}</h3>
+                                <Badge className={`${color} border`}>
+                                  <StatusIcon className="h-3 w-3 mr-1" />
+                                  {status}
+                                </Badge>
+                                {/* New badge to show recently created assignments */}
+                                {new Date().getTime() - new Date(assignment.created_at).getTime() < 7 * 24 * 60 * 60 * 1000 && (
+                                  <Badge className="bg-gradient-to-r from-blue-500 to-purple-500 text-white border-0">
+                                    New
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="text-gray-600 mb-3">{shortDescription}</p>
+                              <div className="flex items-center gap-4 text-sm">
+                                <div
+                                  className={`flex items-center gap-1 ${isOverdue ? "text-red-600" : "text-gray-500"}`}
+                                >
+                                  <Calendar className="h-4 w-4" />
+                                  Due: {format(new Date(assignment.due_date), "MMM dd, yyyy")}
+                                </div>
+                                <div className="flex items-center gap-1 text-gray-500">
+                                  <Clock className="h-4 w-4" />
+                                  Created: {format(new Date(assignment.created_at), "MMM dd, yyyy")}
+                                </div>
                               </div>
                             </div>
+                            {/* <Link to={`/assignment/${assignment.id}`}>
+                              <Button
+                                className={`ml-6 ${
+                                  assignment.submissions && assignment.submissions.length > 0
+                                    ? "bg-emerald-600 hover:bg-emerald-700"
+                                    : "bg-indigo-600 hover:bg-indigo-700"
+                                }`}
+                              >
+                                {assignment.submissions && assignment.submissions.length > 0
+                                  ? "View Submission"
+                                  : "Start Assignment"}
+                                <ArrowRight className="h-4 w-4 ml-2" />
+                              </Button>
+                            </Link> */}
                           </div>
-                          <Link to={`/assignment/${assignment.id}`}>
-                            <Button
-                              className={`ml-4 ${
-                                assignment.submissions && assignment.submissions.length > 0
-                                  ? "bg-emerald-600 hover:bg-emerald-700"
-                                  : "bg-indigo-600 hover:bg-indigo-700"
-                              }`}
-                            >
-                              {assignment.submissions && assignment.submissions.length > 0
-                                ? "View Submission"
-                                : "Submit Work"}
-                            </Button>
-                          </Link>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )
-                })}
+                        </CardContent>
+                      </Card>
+                    )
+                  })}
+                </div>
+                {assignments.length > 2 && (
+                  <div className="text-center pt-4">
+                    <Link to="/student/assignments">
+                      <Button
+                        variant="outline"
+                        className="bg-white hover:bg-gray-50 border-2 border-indigo-200 hover:border-indigo-300 text-indigo-600 hover:text-indigo-700 px-6 py-2 h-auto text-md font-medium"
+                      >
+                        See All Assignments ({assignments.length})
+                        <ArrowRight className="h-5 w-5 ml-2" />
+                      </Button>
+                    </Link>
+                  </div>
+                )}
               </div>
             )}
           </div>

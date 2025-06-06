@@ -1,80 +1,94 @@
-import { useState, useEffect } from 'react';
-import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
-import { ModernDashboardLayout } from '@/components/ModernDashboardLayout';
-import { AuthGuard } from '@/components/AuthGuard';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
+"use client"
+
+import { useState, useEffect } from "react"
+import { useAuth } from "@/hooks/useAuth"
+import { supabase } from "@/integrations/supabase/client"
+import { ModernDashboardLayout } from "@/components/ModernDashboardLayout"
+import { AuthGuard } from "@/components/AuthGuard"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow
-} from '@/components/ui/table';
-import {
-  Eye, Users, FileText, Calendar, Download, Star, X
-} from 'lucide-react';
-import { format } from 'date-fns';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
-import { Input } from '@/components/ui/input';
+  Eye,
+  Users,
+  FileText,
+  Calendar,
+  Download,
+  Star,
+  X,
+  BookOpen,
+  Award,
+  CheckCircle,
+  AlertTriangle,
+  TrendingUp,
+  Target,
+} from "lucide-react"
+import { format } from "date-fns"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Textarea } from "@/components/ui/textarea"
+import { Input } from "@/components/ui/input"
+import { Progress } from "@/components/ui/progress"
 
 interface Assignment {
-  id: string;
-  title: string;
-  description: string;
-  due_date: string;
-  semester: number;
-  topic: string;
-  total_points: number;
-  difficulty: string;
-  status: string;
-  created_at: string;
-  enrollments?: any[];
-  submissions?: any[];
+  id: string
+  title: string
+  description: string
+  due_date: string
+  semester: number
+  topic: string
+  total_points: number
+  difficulty: string
+  status: string
+  created_at: string
+  enrollments?: any[]
+  submissions?: any[]
 }
 
 interface Submission {
-  id: string;
-  student_id: string;
-  status: string;
-  submission_date: string;
-  ai_grade?: number;
-  ai_overall_grade?: string;
-  ai_strengths?: string;
-  ai_areas_for_improvement?: string;
-  ai_recommendations?: string;
-  ai_rubric_breakdown?: string;
-  ai_academic_integrity?: string;
-  ai_status?: string;
-  ai_red_flags?: string;
-  ai_evaluation?: any;
-  teacher_grade?: number | null;
-  teacher_feedback?: string | null;
-  file_name?: string;
-  file_path?: string;
-  script_url?: string;
-  profiles?: { full_name: string };
+  id: string
+  student_id: string
+  status: string
+  submission_date: string
+  ai_grade?: number
+  ai_overall_grade?: string
+  ai_strengths?: string
+  ai_areas_for_improvement?: string
+  ai_recommendations?: string
+  ai_rubric_breakdown?: string
+  ai_academic_integrity?: string
+  ai_status?: string
+  ai_red_flags?: string
+  ai_evaluation?: any
+  teacher_grade?: number | null
+  teacher_feedback?: string | null
+  file_name?: string
+  file_path?: string
+  script_url?: string
+  profiles?: { full_name: string }
 }
 
 const TeacherAssignment = () => {
-  const { user } = useAuth();
-  const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('manage');
-  const [viewSubmission, setViewSubmission] = useState<Submission | null>(null);
-  const [gradeInput, setGradeInput] = useState('');
-  const [feedbackInput, setFeedbackInput] = useState('');
-  const [submitting, setSubmitting] = useState(false);
+  const { user } = useAuth()
+  const [assignments, setAssignments] = useState<Assignment[]>([])
+  const [loading, setLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState("manage")
+  const [viewSubmission, setViewSubmission] = useState<Submission | null>(null)
+  const [gradeInput, setGradeInput] = useState("")
+  const [feedbackInput, setFeedbackInput] = useState("")
+  const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
-    if (user) fetchAssignments();
-  }, [user]);
+    if (user) fetchAssignments()
+  }, [user])
 
   const fetchAssignments = async () => {
-    setLoading(true);
+    setLoading(true)
     try {
       const { data, error } = await supabase
-        .from('assignments')
+        .from("assignments")
         .select(`
           *,
           assignment_enrollments(count),
@@ -83,294 +97,579 @@ const TeacherAssignment = () => {
             profiles(full_name)
           )
         `)
-        .eq('teacher_id', user?.id)
-        .order('created_at', { ascending: false });
+        .eq("teacher_id", user?.id)
+        .order("created_at", { ascending: false })
 
-      if (error) throw error;
-      setAssignments(data || []);
+      if (error) throw error
+      setAssignments(data || [])
     } catch (error) {
-      console.error('Error fetching assignments:', error);
+      console.error("Error fetching assignments:", error)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   const downloadSubmission = async (filePath: string, fileName: string) => {
     try {
-      const { data, error } = await supabase.storage
-        .from('assignment-submissions')
-        .download(filePath);
-      if (error) throw error;
-      const url = URL.createObjectURL(data);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      const { data, error } = await supabase.storage.from("assignment-submissions").download(filePath)
+      if (error) throw error
+      const url = URL.createObjectURL(data)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = fileName
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
     } catch (error) {
-      alert('Download failed!');
+      alert("Download failed!")
     }
-  };
+  }
 
   const handleOpenSubmission = (submission: Submission) => {
-    setViewSubmission(submission);
-    setGradeInput(submission.teacher_grade?.toString() || '');
-    setFeedbackInput(submission.teacher_feedback || '');
-  };
+    setViewSubmission(submission)
+    setGradeInput(submission.teacher_grade?.toString() || "")
+    setFeedbackInput(submission.teacher_feedback || "")
+  }
 
   const handleGradeSubmit = async () => {
-    if (!viewSubmission) return;
-    setSubmitting(true);
+    if (!viewSubmission) return
+    setSubmitting(true)
     try {
-      const { error } = await supabase.from('submissions')
+      const { error } = await supabase
+        .from("submissions")
         .update({
           teacher_grade: gradeInput ? Number(gradeInput) : null,
           teacher_feedback: feedbackInput || null,
-          status: 'graded',
-          updated_at: new Date().toISOString()
+          status: "graded",
+          updated_at: new Date().toISOString(),
         })
-        .eq('id', viewSubmission.id);
+        .eq("id", viewSubmission.id)
 
-      if (error) throw error;
-      fetchAssignments();
-      setViewSubmission(null);
+      if (error) throw error
+      fetchAssignments()
+      setViewSubmission(null)
     } catch (error) {
-      alert('Failed to update grade/feedback!');
+      alert("Failed to update grade/feedback!")
     } finally {
-      setSubmitting(false);
+      setSubmitting(false)
     }
-  };
+  }
+
+  const capitalizeFirst = (str: string) => {
+    return str.charAt(0).toUpperCase() + str.slice(1)
+  }
+
+  const getStatusBadgeColor = (status: string) => {
+    switch (status.toLowerCase()) {
+      case "published":
+        return "bg-gradient-to-r from-green-500 to-emerald-500 text-white border-0"
+      case "draft":
+        return "bg-gradient-to-r from-gray-400 to-gray-500 text-white border-0"
+      case "submitted":
+        return "bg-gradient-to-r from-yellow-500 to-orange-500 text-white border-0"
+      case "graded":
+        return "bg-gradient-to-r from-blue-500 to-cyan-500 text-white border-0"
+      default:
+        return "bg-gradient-to-r from-gray-400 to-gray-500 text-white border-0"
+    }
+  }
+
+  const getGradeColor = (score: number) => {
+    if (score >= 90) return "text-green-600"
+    if (score >= 80) return "text-blue-600"
+    if (score >= 70) return "text-yellow-600"
+    if (score >= 60) return "text-orange-600"
+    return "text-red-600"
+  }
+
+  const getGradeBadgeColor = (grade: string) => {
+    switch (grade.toLowerCase()) {
+      case "excellent":
+        return "bg-gradient-to-r from-green-500 to-emerald-500 text-white border-0"
+      case "good":
+        return "bg-gradient-to-r from-blue-500 to-cyan-500 text-white border-0"
+      case "satisfactory":
+        return "bg-gradient-to-r from-yellow-500 to-orange-500 text-white border-0"
+      case "needs improvement":
+        return "bg-gradient-to-r from-red-500 to-pink-500 text-white border-0"
+      default:
+        return "bg-gradient-to-r from-gray-400 to-gray-500 text-white border-0"
+    }
+  }
+
+  if (loading) {
+    return (
+      <AuthGuard allowedRoles={["teacher"]}>
+        <ModernDashboardLayout>
+          <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center">
+            <div className="relative">
+              <div className="w-20 h-20 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+              <div className="absolute inset-0 w-20 h-20 border-4 border-transparent border-r-purple-400 rounded-full animate-spin animation-delay-150"></div>
+            </div>
+          </div>
+        </ModernDashboardLayout>
+      </AuthGuard>
+    )
+  }
 
   return (
-    <AuthGuard allowedRoles={['teacher']}>
+    <AuthGuard allowedRoles={["teacher"]}>
       <ModernDashboardLayout>
-        <div className="max-w-7xl mx-auto space-y-6">
-          <h1 className="text-3xl font-bold text-gray-900">Assignment Management</h1>
-
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <TabsList>
-              <TabsTrigger value="manage">Manage Assignments</TabsTrigger>
-              <TabsTrigger value="submissions">View Submissions</TabsTrigger>
-            </TabsList>
-
-            {/* Assignment overview */}
-            <TabsContent value="manage">
-              <div className="space-y-4">
-                {assignments.length === 0 ? (
-                  <Card>
-                    <CardContent className="text-center py-12">
-                      <FileText className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                      <h3 className="text-lg font-medium text-gray-900 mb-2">No assignments created</h3>
-                      <p className="text-gray-600">Create your first assignment to get started.</p>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <div className="grid gap-4">
-                    {assignments.map((assignment) => (
-                      <Card key={assignment.id}>
-                        <CardHeader>
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <CardTitle className="text-lg">{assignment.title}</CardTitle>
-                              <p className="text-sm text-gray-600 mt-1">{assignment.topic}</p>
-                            </div>
-                            <div className="flex gap-2">
-                              <Badge variant="outline">Sem {assignment.semester}</Badge>
-                              <Badge className={assignment.status === 'published' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}>
-                                {assignment.status}
-                              </Badge>
-                            </div>
-                          </div>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="grid md:grid-cols-4 gap-4 text-sm">
-                            <div className="flex items-center gap-2">
-                              <Calendar className="h-4 w-4 text-gray-400" />
-                              <span>Due: {format(new Date(assignment.due_date), 'MMM dd')}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Users className="h-4 w-4 text-gray-400" />
-                              <span>{assignment.enrollments?.[0]?.count || 0} students</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <FileText className="h-4 w-4 text-gray-400" />
-                              <span>{assignment.submissions?.length || 0} submissions</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium">{assignment.total_points} pts</span>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                )}
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
+          <div className="max-w-7xl mx-auto space-y-8 p-8">
+            {/* Header */}
+            <div className="text-center space-y-4">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl mb-4">
+                <BookOpen className="w-8 h-8 text-white" />
               </div>
-            </TabsContent>
+              <h1 className="text-5xl font-bold bg-gradient-to-r from-gray-900 via-blue-800 to-purple-800 bg-clip-text text-transparent">
+                Assignment Management
+              </h1>
+              <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+                Manage your assignments and review student submissions
+              </p>
+            </div>
 
-            {/* Submissions table */}
-            <TabsContent value="submissions">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Student Submissions</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Student</TableHead>
-                        <TableHead>Assignment</TableHead>
-                        <TableHead>Submitted</TableHead>
-                        <TableHead>AI Grade</TableHead>
-                        <TableHead>Teacher Grade</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {assignments.flatMap(assignment =>
-                        assignment.submissions?.map((submission: Submission) => (
-                          <TableRow key={submission.id}>
-                            <TableCell className="font-medium">
-                              {submission.profiles?.full_name}
-                            </TableCell>
-                            <TableCell>{assignment.title}</TableCell>
-                            <TableCell>
-                              {format(new Date(submission.submission_date), 'MMM dd, yyyy')}
-                            </TableCell>
-                            <TableCell>
-                              {submission.ai_grade ?? submission.ai_evaluation?.Score ?? 'N/A'}
-                            </TableCell>
-                            <TableCell>
-                              {submission.teacher_grade ?? 'Not graded'}
-                            </TableCell>
-                            <TableCell>
-                              <Badge className={
-                                submission.status === 'submitted'
-                                  ? 'bg-yellow-100 text-yellow-800'
-                                  : 'bg-green-100 text-green-800'
-                              }>
-                                {submission.status}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex gap-2">
-                                {submission.file_path && submission.file_name && (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => downloadSubmission(submission.file_path!, submission.file_name!)}
-                                  >
-                                    <Download className="h-4 w-4" />
-                                  </Button>
-                                )}
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleOpenSubmission(submission)}
-                                >
-                                  <Eye className="h-4 w-4" />
-                                </Button>
+            {/* Main Content */}
+            <div className="bg-white/70 backdrop-blur-sm rounded-3xl shadow-2xl border-0 overflow-hidden">
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                <div className="bg-gradient-to-r from-gray-50 to-blue-50 px-6 py-4">
+                  <TabsList className="bg-white/80 backdrop-blur-sm border-0 shadow-lg rounded-2xl p-1">
+                    <TabsTrigger
+                      value="manage"
+                      className="rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-purple-500 data-[state=active]:text-white transition-all duration-300"
+                    >
+                      <BookOpen className="h-4 w-4 mr-2" />
+                      Manage Assignments
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="submissions"
+                      className="rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-pink-500 data-[state=active]:text-white transition-all duration-300"
+                    >
+                      <FileText className="h-4 w-4 mr-2" />
+                      View Submissions
+                    </TabsTrigger>
+                  </TabsList>
+                </div>
+
+                {/* Assignment overview */}
+                <TabsContent value="manage" className="p-6">
+                  <div className="space-y-6">
+                    {assignments.length === 0 ? (
+                      <div className="bg-white rounded-2xl shadow-lg p-12 text-center border-0">
+                        <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-gray-400 to-gray-500 rounded-2xl mb-6">
+                          <FileText className="w-10 h-10 text-white" />
+                        </div>
+                        <h3 className="text-2xl font-bold text-gray-900 mb-4">No assignments created</h3>
+                        <p className="text-gray-600 text-lg">Create your first assignment to get started.</p>
+                      </div>
+                    ) : (
+                      <div className="grid gap-6">
+                        {assignments.map((assignment) => (
+                          <Card
+                            key={assignment.id}
+                            className="border-0 bg-white/80 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
+                          >
+                            <CardHeader className="pb-4">
+                              <div className="flex justify-between items-start">
+                                <div className="space-y-2">
+                                  <CardTitle className="text-xl font-bold text-gray-900">{assignment.title}</CardTitle>
+                                  <p className="text-gray-600 font-medium">{assignment.topic}</p>
+                                </div>
+                                <div className="flex gap-3">
+                                  <Badge className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white border-0">
+                                    Sem {assignment.semester}
+                                  </Badge>
+                                  <Badge className={getStatusBadgeColor(assignment.status)}>
+                                    {capitalizeFirst(assignment.status)}
+                                  </Badge>
+                                </div>
                               </div>
-                            </TableCell>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="grid md:grid-cols-4 gap-6">
+                                <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl">
+                                  <div className="p-2 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-lg">
+                                    <Calendar className="h-4 w-4 text-white" />
+                                  </div>
+                                  <div>
+                                    <div className="text-xs text-gray-600 font-medium">Due Date</div>
+                                    <div className="font-bold text-gray-900">
+                                      {format(new Date(assignment.due_date), "MMM dd")}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl">
+                                  <div className="p-2 bg-gradient-to-r from-green-500 to-emerald-500 rounded-lg">
+                                    <Users className="h-4 w-4 text-white" />
+                                  </div>
+                                  <div>
+                                    <div className="text-xs text-gray-600 font-medium">Students</div>
+                                    <div className="font-bold text-gray-900">
+                                      {assignment.enrollments?.[0]?.count || 0}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl">
+                                  <div className="p-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg">
+                                    <FileText className="h-4 w-4 text-white" />
+                                  </div>
+                                  <div>
+                                    <div className="text-xs text-gray-600 font-medium">Submissions</div>
+                                    <div className="font-bold text-gray-900">{assignment.submissions?.length || 0}</div>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl">
+                                  <div className="p-2 bg-gradient-to-r from-orange-500 to-amber-500 rounded-lg">
+                                    <Award className="h-4 w-4 text-white" />
+                                  </div>
+                                  <div>
+                                    <div className="text-xs text-gray-600 font-medium">Total Points</div>
+                                    <div className="font-bold text-gray-900">{assignment.total_points}</div>
+                                  </div>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </TabsContent>
+
+                {/* Submissions table */}
+                <TabsContent value="submissions" className="p-6">
+                  <div className="bg-white rounded-2xl shadow-lg overflow-hidden border-0">
+                    <div className="bg-gradient-to-r from-purple-50 to-pink-50 px-6 py-4 border-b border-gray-100">
+                      <h2 className="text-2xl font-bold text-gray-900">Student Submissions</h2>
+                      <p className="text-gray-600 mt-1">Review and grade student submissions</p>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="bg-gradient-to-r from-gray-50 to-blue-50 hover:from-gray-50 hover:to-blue-50 border-0">
+                            <TableHead className="font-semibold text-gray-700 py-4">Student</TableHead>
+                            <TableHead className="font-semibold text-gray-700 py-4">Assignment</TableHead>
+                            <TableHead className="font-semibold text-gray-700 py-4">Submitted</TableHead>
+                            <TableHead className="font-semibold text-gray-700 py-4">AI Grade</TableHead>
+                            <TableHead className="font-semibold text-gray-700 py-4">Teacher Grade</TableHead>
+                            <TableHead className="font-semibold text-gray-700 py-4">Status</TableHead>
+                            <TableHead className="font-semibold text-gray-700 py-4">Actions</TableHead>
                           </TableRow>
-                        )) || []
-                      )}
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
-        </div>
-
-        {/* Submission Review Modal */}
-        <Dialog open={!!viewSubmission} onOpenChange={() => setViewSubmission(null)}>
-          <DialogContent className="max-w-2xl w-full max-h-[90vh] flex flex-col">
-            <DialogHeader>
-              <DialogTitle>
-                Submission by {viewSubmission?.profiles?.full_name}
-              </DialogTitle>
-              <div className="text-sm text-gray-600 mb-2">
-                <span>Submitted: {viewSubmission?.submission_date && format(new Date(viewSubmission.submission_date), 'PPpp')}</span>
-              </div>
-            </DialogHeader>
-
-            {viewSubmission && (
-              <div className="flex-1 min-h-0 overflow-y-auto py-2 space-y-4">
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <div className="font-semibold mb-2">AI Evaluation:</div>
-                  <div className="text-xs whitespace-pre-wrap">
-                    {viewSubmission.ai_evaluation
-                      ? typeof viewSubmission.ai_evaluation === "string"
-                        ? viewSubmission.ai_evaluation
-                        : JSON.stringify(viewSubmission.ai_evaluation, null, 2)
-                      : "No evaluation"}
+                        </TableHeader>
+                        <TableBody>
+                          {assignments.flatMap(
+                            (assignment) =>
+                              assignment.submissions?.map((submission: Submission) => (
+                                <TableRow
+                                  key={submission.id}
+                                  className="hover:bg-purple-50/50 transition-colors duration-200 border-0"
+                                >
+                                  <TableCell className="font-medium text-gray-900 py-4">
+                                    {submission.ai_evaluation?.["Administrative Details"]?.Student ||
+                                      submission.profiles?.full_name}
+                                  </TableCell>
+                                  <TableCell className="text-gray-600 py-4">{assignment.title}</TableCell>
+                                  <TableCell className="text-gray-600 py-4">
+                                    {format(new Date(submission.submission_date), "MMM dd, yyyy")}
+                                  </TableCell>
+                                  <TableCell className="text-gray-600 py-4">
+                                    {submission.ai_grade ?? submission.ai_evaluation?.Score ?? "N/A"}
+                                  </TableCell>
+                                  <TableCell className="text-gray-600 py-4">
+                                    {submission.teacher_grade ?? "Not graded"}
+                                  </TableCell>
+                                  <TableCell className="py-4">
+                                    <Badge className={getStatusBadgeColor(submission.status)}>
+                                      {capitalizeFirst(submission.status)}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell className="py-4">
+                                    <div className="flex gap-2">
+                                      {submission.file_path && submission.file_name && (
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() =>
+                                            downloadSubmission(submission.file_path!, submission.file_name!)
+                                          }
+                                          className="hover:bg-blue-50 border-blue-200"
+                                        >
+                                          <Download className="h-4 w-4" />
+                                        </Button>
+                                      )}
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleOpenSubmission(submission)}
+                                        className="bg-gradient-to-r from-purple-500 to-pink-500 text-white border-0 hover:from-purple-600 hover:to-pink-600"
+                                      >
+                                        <Eye className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              )) || [],
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
                   </div>
-                  <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-                    <div><b>AI Grade:</b> {viewSubmission.ai_grade ?? viewSubmission.ai_evaluation?.Score ?? "N/A"}</div>
-                    <div><b>AI Overall:</b> {viewSubmission.ai_overall_grade ?? viewSubmission.ai_evaluation?.["Overall Grade"] ?? "N/A"}</div>
-                    <div><b>Strengths:</b> {viewSubmission.ai_strengths ?? viewSubmission.ai_evaluation?.["Constructive Feedback"]?.Strengths ?? "N/A"}</div>
-                    <div><b>Areas for Improvement:</b> {viewSubmission.ai_areas_for_improvement ?? viewSubmission.ai_evaluation?.["Constructive Feedback"]?.["Areas for Improvement"] ?? "N/A"}</div>
-                    <div><b>Recommendations:</b> {viewSubmission.ai_recommendations ?? viewSubmission.ai_evaluation?.["Constructive Feedback"]?.Recommendations ?? "N/A"}</div>
-                    <div><b>Academic Integrity:</b> {viewSubmission.ai_academic_integrity ?? viewSubmission.ai_evaluation?.["Faculty Progress Summary"]?.["Academic Integrity"] ?? "N/A"}</div>
+                </TabsContent>
+              </Tabs>
+            </div>
+          </div>
+
+          {/* Submission Review Modal */}
+          <Dialog open={!!viewSubmission} onOpenChange={() => setViewSubmission(null)}>
+            <DialogContent className="max-w-6xl w-full max-h-[90vh] flex flex-col bg-white/95 backdrop-blur-sm border-0 shadow-2xl">
+              <DialogHeader>
+                <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+                  Submission Review:{" "}
+                  {viewSubmission?.ai_evaluation?.["Administrative Details"]?.Student ||
+                    viewSubmission?.profiles?.full_name}
+                </DialogTitle>
+                <div className="text-sm text-gray-600 mb-2">
+                  <span>
+                    Assignment: {viewSubmission?.ai_evaluation?.["Administrative Details"]?.Assignment} • Submitted:{" "}
+                    {viewSubmission?.submission_date && format(new Date(viewSubmission.submission_date), "PPpp")}
+                  </span>
+                </div>
+              </DialogHeader>
+
+              {viewSubmission && (
+                <div className="flex-1 min-h-0 overflow-y-auto py-2 space-y-6">
+                  {/* Overall Score Section */}
+                  <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-2xl p-6 border border-blue-100">
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center gap-3">
+                        <div className="p-3 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl">
+                          <Star className="w-6 h-6 text-white" />
+                        </div>
+                        <div>
+                          <h3 className="text-2xl font-bold text-gray-900">AI Evaluation Summary</h3>
+                          <p className="text-gray-600">Automated assessment results</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div
+                          className={`text-4xl font-bold ${getGradeColor(viewSubmission.ai_evaluation?.Score || 0)}`}
+                        >
+                          {viewSubmission.ai_evaluation?.Score || "N/A"}
+                        </div>
+                        <Badge className={getGradeBadgeColor(viewSubmission.ai_evaluation?.["Overall Grade"] || "")}>
+                          {viewSubmission.ai_evaluation?.["Overall Grade"] || "N/A"}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    {/* Administrative Details */}
+                    {viewSubmission.ai_evaluation?.["Administrative Details"] && (
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                        <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4">
+                          <div className="text-xs text-gray-600 font-medium">Student</div>
+                          <div className="font-bold text-gray-900">
+                            {viewSubmission.ai_evaluation["Administrative Details"].Student}
+                          </div>
+                        </div>
+                        <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4">
+                          <div className="text-xs text-gray-600 font-medium">Assignment</div>
+                          <div className="font-bold text-gray-900">
+                            {viewSubmission.ai_evaluation["Administrative Details"].Assignment}
+                          </div>
+                        </div>
+                        <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4">
+                          <div className="text-xs text-gray-600 font-medium">Evaluation Date</div>
+                          <div className="font-bold text-gray-900">
+                            {viewSubmission.ai_evaluation["Administrative Details"]["Evaluation Date"]}
+                          </div>
+                        </div>
+                        <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4">
+                          <div className="text-xs text-gray-600 font-medium">Submission Date</div>
+                          <div className="font-bold text-gray-900">
+                            {format(
+                              new Date(viewSubmission.ai_evaluation["Administrative Details"]["Submission Date"]),
+                              "MMM dd, yyyy",
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Academic Integrity Status */}
+                    {viewSubmission.ai_evaluation?.["Faculty Progress Summary"] && (
+                      <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 mb-6">
+                        <div className="flex items-center gap-3 mb-3">
+                          <CheckCircle className="w-5 h-5 text-green-600" />
+                          <h4 className="font-bold text-gray-900">Academic Integrity Status</h4>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div>
+                            <div className="text-xs text-gray-600 font-medium">Status</div>
+                            <Badge className="bg-gradient-to-r from-green-500 to-emerald-500 text-white border-0">
+                              {viewSubmission.ai_evaluation["Faculty Progress Summary"].Status}
+                            </Badge>
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-600 font-medium">Red Flags</div>
+                            <div className="font-medium text-gray-900">
+                              {viewSubmission.ai_evaluation["Faculty Progress Summary"]["Red Flags"]}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-600 font-medium">Academic Integrity</div>
+                            <div className="font-medium text-green-600">
+                              {viewSubmission.ai_evaluation["Faculty Progress Summary"]["Academic Integrity"]}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <div className="mt-2">
-                    <b>Rubric Breakdown:</b>
-                    <div className="text-xs mt-1 whitespace-pre-wrap">
-                      {viewSubmission.ai_rubric_breakdown
-                        ? typeof viewSubmission.ai_rubric_breakdown === "string"
-                          ? viewSubmission.ai_rubric_breakdown
-                          : JSON.stringify(viewSubmission.ai_rubric_breakdown, null, 2)
-                        : viewSubmission.ai_evaluation?.["Rubric-Based Breakdown"]
-                          ? JSON.stringify(viewSubmission.ai_evaluation["Rubric-Based Breakdown"], null, 2)
-                          : "N/A"}
+
+                  {/* Rubric Breakdown */}
+                  {viewSubmission.ai_evaluation?.["Rubric-Based Breakdown"] && (
+                    <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-2xl p-6 border border-purple-100">
+                      <div className="flex items-center gap-3 mb-6">
+                        <div className="p-3 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl">
+                          <Target className="w-6 h-6 text-white" />
+                        </div>
+                        <div>
+                          <h3 className="text-2xl font-bold text-gray-900">Rubric-Based Assessment</h3>
+                          <p className="text-gray-600">Detailed breakdown by criteria</p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        {Object.entries(viewSubmission.ai_evaluation["Rubric-Based Breakdown"]).map(
+                          ([criterion, details]: [string, any]) => (
+                            <div key={criterion} className="bg-white/80 backdrop-blur-sm rounded-xl p-4">
+                              <div className="flex items-center justify-between mb-3">
+                                <h4 className="font-bold text-gray-900">{criterion}</h4>
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-lg font-bold ${getGradeColor(details.Score)}`}>
+                                    {details.Score}
+                                  </span>
+                                  <span className="text-gray-500">/ 30</span>
+                                </div>
+                              </div>
+                              <Progress value={(details.Score / 30) * 100} className="mb-3" />
+                              <p className="text-sm text-gray-700">{details.Assessment}</p>
+                            </div>
+                          ),
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Constructive Feedback */}
+                  {viewSubmission.ai_evaluation?.["Constructive Feedback"] && (
+                    <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl p-6 border border-green-100">
+                      <div className="flex items-center gap-3 mb-6">
+                        <div className="p-3 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl">
+                          <TrendingUp className="w-6 h-6 text-white" />
+                        </div>
+                        <div>
+                          <h3 className="text-2xl font-bold text-gray-900">Constructive Feedback</h3>
+                          <p className="text-gray-600">Detailed analysis and recommendations</p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4">
+                          <div className="flex items-center gap-2 mb-3">
+                            <CheckCircle className="w-5 h-5 text-green-600" />
+                            <h4 className="font-bold text-green-700">Strengths</h4>
+                          </div>
+                          <p className="text-sm text-gray-700">
+                            {viewSubmission.ai_evaluation["Constructive Feedback"].Strengths}
+                          </p>
+                        </div>
+
+                        <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4">
+                          <div className="flex items-center gap-2 mb-3">
+                            <AlertTriangle className="w-5 h-5 text-orange-600" />
+                            <h4 className="font-bold text-orange-700">Areas for Improvement</h4>
+                          </div>
+                          <p className="text-sm text-gray-700">
+                            {viewSubmission.ai_evaluation["Constructive Feedback"]["Areas for Improvement"]}
+                          </p>
+                        </div>
+
+                        <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4">
+                          <div className="flex items-center gap-2 mb-3">
+                            <Star className="w-5 h-5 text-purple-600" />
+                            <h4 className="font-bold text-purple-700">Recommendations</h4>
+                          </div>
+                          <p className="text-sm text-gray-700">
+                            {viewSubmission.ai_evaluation["Constructive Feedback"].Recommendations}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Teacher Grading Section */}
+                  <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl p-6 border border-amber-100">
+                    <div className="flex items-center gap-3 mb-6">
+                      <div className="p-3 bg-gradient-to-r from-amber-500 to-orange-500 rounded-xl">
+                        <Award className="w-6 h-6 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="text-2xl font-bold text-gray-900">Teacher Assessment</h3>
+                        <p className="text-gray-600">Provide your grade and feedback</p>
+                      </div>
+                    </div>
+                    <div className="space-y-4">
+                      <Input
+                        type="number"
+                        value={gradeInput}
+                        min={0}
+                        max={100}
+                        placeholder="Enter grade (0-100)"
+                        onChange={(e) => setGradeInput(e.target.value)}
+                        className="border-amber-200 focus:border-amber-400 focus:ring-amber-400 h-12"
+                      />
+                      <Textarea
+                        value={feedbackInput}
+                        onChange={(e) => setFeedbackInput(e.target.value)}
+                        placeholder="Enter detailed feedback for the student..."
+                        rows={4}
+                        className="border-amber-200 focus:border-amber-400 focus:ring-amber-400"
+                      />
                     </div>
                   </div>
                 </div>
-                <div className="bg-white border rounded-lg p-4">
-                  <div className="font-semibold mb-2">Teacher Grade & Feedback</div>
-                  <Input
-                    type="number"
-                    value={gradeInput}
-                    min={0}
-                    max={100}
-                    placeholder="Enter grade"
-                    onChange={e => setGradeInput(e.target.value)}
-                    className="mb-2"
-                  />
-                  <Textarea
-                    value={feedbackInput}
-                    onChange={e => setFeedbackInput(e.target.value)}
-                    placeholder="Enter feedback"
-                    rows={3}
-                  />
-                  <DialogFooter className="mt-2">
-                    <Button
-                      onClick={handleGradeSubmit}
-                      disabled={submitting || gradeInput === ''}
-                    >
-                      {submitting ? "Saving..." : "Save Grade"}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => setViewSubmission(null)}
-                      className="ml-2"
-                    >
-                      <X className="h-4 w-4" />
-                      Close
-                    </Button>
-                  </DialogFooter>
-                </div>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
+              )}
+
+              <DialogFooter className="flex gap-3 pt-4 border-t border-gray-100">
+                <Button
+                  onClick={handleGradeSubmit}
+                  disabled={submitting || gradeInput === ""}
+                  className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 border-0 px-6 py-3 h-auto"
+                >
+                  {submitting ? "Saving..." : "Save Grade"}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setViewSubmission(null)}
+                  className="hover:bg-gray-50 border-gray-200 px-6 py-3 h-auto"
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  Close
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
       </ModernDashboardLayout>
     </AuthGuard>
-  );
-};
+  )
+}
 
-export default TeacherAssignment;
+export default TeacherAssignment

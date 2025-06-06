@@ -55,6 +55,16 @@ interface Message {
   aiResponse?: any
 }
 
+interface Profile {
+  id: string;
+  full_name: string;
+  email: string;
+  role: string;
+  semester?: number;
+  created_at: string;
+  updated_at: string;
+}
+
 const isSafari = () => {
   const ua = navigator.userAgent.toLowerCase()
   return ua.indexOf("safari") !== -1 && ua.indexOf("chrome") === -1
@@ -193,7 +203,7 @@ Ask me anything or upload files to get started with your teaching tasks.`,
           *,
           submissions(*)
         `)
-        .eq("teacher_id", profile?.id)
+        .eq("teacher_id", (profile as Profile)?.id)
         .order("created_at", { ascending: false })
 
       setAssignments(assignmentsData || [])
@@ -206,37 +216,72 @@ Ask me anything or upload files to get started with your teaching tasks.`,
 
   // Function to parse assignment data from AI response
   const parseAssignmentFromResponse = (content: string) => {
-    const lines = content.split('\n')
+    console.log('Parsing assignment from content:', content)
+    
     let title = ''
     let description = content
     let dueDate = currentDueDate || ''
     
-    // Extract title
-    const titleMatch = content.match(/\*\*ASSIGNMENT TITLE\*\*:\s*(.+?)(?:\n|$)/i)
-    if (titleMatch) {
-      title = titleMatch[1].trim()
+    // Extract title with more flexible patterns
+    const titlePatterns = [
+      /\*\*ASSIGNMENT TITLE\*\*:\s*(.+?)(?:\n|$)/i,
+      /ASSIGNMENT TITLE:\s*(.+?)(?:\n|$)/i,
+      /Assignment Title:\s*(.+?)(?:\n|$)/i,
+      /Title:\s*(.+?)(?:\n|$)/i
+    ]
+    
+    for (const pattern of titlePatterns) {
+      const match = content.match(pattern)
+      if (match) {
+        title = match[1].trim()
+        console.log('Found title:', title)
+        break
+      }
     }
     
-    // Extract description (everything after the title line)
-    const descMatch = content.match(/\*\*ASSIGNMENT DESCRIPTION\*\*:\s*([\s\S]*?)(?:\*\*DUE DATE\*\*|$)/i)
-    if (descMatch) {
-      description = descMatch[1].trim()
+    // Extract description with more flexible patterns
+    const descPatterns = [
+      /\*\*ASSIGNMENT DESCRIPTION\*\*:\s*([\s\S]*?)(?:\*\*DUE DATE\*\*|$)/i,
+      /ASSIGNMENT DESCRIPTION:\s*([\s\S]*?)(?:DUE DATE|$)/i,
+      /Assignment Description:\s*([\s\S]*?)(?:Due Date|$)/i
+    ]
+    
+    for (const pattern of descPatterns) {
+      const match = content.match(pattern)
+      if (match) {
+        description = match[1].trim()
+        console.log('Found description length:', description.length)
+        break
+      }
     }
 
     // Extract due date from content if not already set
-    const dueDateMatch = content.match(/\*\*DUE DATE\*\*:\s*(.+?)(?:\n|$)/i)
-    if (dueDateMatch && !dueDate) {
-      dueDate = dueDateMatch[1].trim()
+    const dueDatePatterns = [
+      /\*\*DUE DATE\*\*:\s*(.+?)(?:\n|$)/i,
+      /DUE DATE:\s*(.+?)(?:\n|$)/i,
+      /Due Date:\s*(.+?)(?:\n|$)/i
+    ]
+    
+    for (const pattern of dueDatePatterns) {
+      const match = content.match(pattern)
+      if (match && !dueDate) {
+        dueDate = match[1].trim()
+        console.log('Found due date:', dueDate)
+        break
+      }
     }
 
-    return {
-      title: title || 'Assignment',
+    const result = {
+      title: title || 'AI Generated Assignment',
       description,
       dueDate,
       semester: currentSemester || 1,
       topic: currentTopic || '',
       aiGeneratedContent: content
     }
+    
+    console.log('Parsed assignment data:', result)
+    return result
   }
 
   // Function to save assignment to database
@@ -261,7 +306,7 @@ Ask me anything or upload files to get started with your teaching tasks.`,
           {
             title: assignmentData.title,
             description: assignmentData.description,
-            teacher_id: profile?.id,
+            teacher_id: (profile as Profile)?.id,
             semester: assignmentData.semester,
             topic: assignmentData.topic,
             due_date: formattedDueDate.toISOString(),
@@ -275,6 +320,8 @@ Ask me anything or upload files to get started with your teaching tasks.`,
         .single()
 
       if (error) throw error
+
+      console.log('Assignment saved successfully:', data)
 
       toast({
         title: "Assignment Created Successfully!",
@@ -297,9 +344,16 @@ Ask me anything or upload files to get started with your teaching tasks.`,
 
   // Function to detect if response contains a complete assignment
   const isCompleteAssignment = (content: string) => {
-    return content.includes('ASSIGNMENT TITLE') && 
-           content.includes('ASSIGNMENT DESCRIPTION') && 
-           content.includes('DUE DATE')
+    console.log('Checking if complete assignment:', content.substring(0, 200))
+    
+    const hasTitle = /\*\*ASSIGNMENT TITLE\*\*|ASSIGNMENT TITLE|Assignment Title/i.test(content)
+    const hasDescription = /\*\*ASSIGNMENT DESCRIPTION\*\*|ASSIGNMENT DESCRIPTION|Assignment Description/i.test(content)
+    const hasDueDate = /\*\*DUE DATE\*\*|DUE DATE|Due Date/i.test(content) || currentDueDate
+    
+    const isComplete = hasTitle && hasDescription && hasDueDate
+    console.log('Assignment completeness check:', { hasTitle, hasDescription, hasDueDate, isComplete })
+    
+    return isComplete
   }
 
   // Function to extract semester from user message
@@ -629,9 +683,18 @@ Ask me anything or upload files to get started with your teaching tasks.`,
     const extractedDueDate = extractDueDateFromMessage(currentInput)
 
     // Update state with extracted information
-    if (extractedSemester) setCurrentSemester(extractedSemester)
-    if (extractedTopic) setCurrentTopic(extractedTopic)
-    if (extractedDueDate) setCurrentDueDate(extractedDueDate)
+    if (extractedSemester) {
+      setCurrentSemester(extractedSemester)
+      console.log('Set current semester:', extractedSemester)
+    }
+    if (extractedTopic) {
+      setCurrentTopic(extractedTopic)
+      console.log('Set current topic:', extractedTopic)
+    }
+    if (extractedDueDate) {
+      setCurrentDueDate(extractedDueDate)
+      console.log('Set current due date:', extractedDueDate)
+    }
     
     const userMessage: Message = {
       id: messageId,
@@ -684,13 +747,18 @@ Ask me anything or upload files to get started with your teaching tasks.`,
             
             // Only save if we have all required data
             if (assignmentData.title && assignmentData.semester && assignmentData.topic) {
+              console.log('Saving assignment with data:', assignmentData)
               await saveAssignmentToDatabase(assignmentData)
               
               // Reset assignment creation state
               setCurrentSemester(null)
               setCurrentTopic(null)
               setCurrentDueDate(null)
+            } else {
+              console.log('Assignment data incomplete, not saving:', assignmentData)
             }
+          } else {
+            console.log('Not a complete assignment, checking for partial data')
           }
           
           // Improved conversation ID handling
@@ -864,7 +932,7 @@ Ask me anything or upload files to get started with your teaching tasks.`,
                 </div>
                 <div>
                   <h1 className="text-3xl font-bold">
-                    {getGreeting()}, {profile?.full_name?.split(" ")[0] || "Teacher"}!
+                    {getGreeting()}, {(profile as Profile)?.full_name?.split(" ")[0] || "Teacher"}!
                   </h1>
                   <p className="text-white/90 text-lg">{getInspirationalMessage()}</p>
                 </div>

@@ -49,6 +49,16 @@ interface Submission {
   teacher_feedback: string | null;
 }
 
+interface Profile {
+  id: string;
+  full_name: string;
+  email: string;
+  role: string;
+  semester?: number;
+  created_at: string;
+  updated_at: string;
+}
+
 const StudentAssignments = () => {
   const { user, profile } = useAuth();
   const [assignments, setAssignments] = useState<Assignment[]>([]);
@@ -57,7 +67,7 @@ const StudentAssignments = () => {
   const [showSubmissionDialog, setShowSubmissionDialog] = useState(false);
 
   useEffect(() => {
-    if (user && profile?.semester) {
+    if (user && (profile as Profile)?.semester) {
       fetchAssignments();
     }
   }, [user, profile]);
@@ -173,7 +183,7 @@ const StudentAssignments = () => {
             <div>
               <h1 className="text-3xl font-bold text-gray-900">My Assignments</h1>
               <p className="mt-2 text-gray-600">
-                Semester {profile?.semester} assignments and submissions
+                Semester {(profile as Profile)?.semester} assignments and submissions
               </p>
             </div>
           </div>

@@ -9,32 +9,95 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      assignment_enrollments: {
+        Row: {
+          assigned_at: string
+          assignment_id: string
+          id: string
+          status: string | null
+          student_id: string
+        }
+        Insert: {
+          assigned_at?: string
+          assignment_id: string
+          id?: string
+          status?: string | null
+          student_id: string
+        }
+        Update: {
+          assigned_at?: string
+          assignment_id?: string
+          id?: string
+          status?: string | null
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assignment_enrollments_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assignment_enrollments_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       assignments: {
         Row: {
+          ai_generated_content: string | null
           created_at: string
           description: string
+          difficulty: string | null
           due_date: string
+          estimated_time: number | null
           id: string
+          semester: number | null
+          status: string | null
+          subject: string | null
           teacher_id: string
           title: string
+          topic: string | null
+          total_points: number | null
           updated_at: string
         }
         Insert: {
+          ai_generated_content?: string | null
           created_at?: string
           description: string
+          difficulty?: string | null
           due_date: string
+          estimated_time?: number | null
           id?: string
+          semester?: number | null
+          status?: string | null
+          subject?: string | null
           teacher_id: string
           title: string
+          topic?: string | null
+          total_points?: number | null
           updated_at?: string
         }
         Update: {
+          ai_generated_content?: string | null
           created_at?: string
           description?: string
+          difficulty?: string | null
           due_date?: string
+          estimated_time?: number | null
           id?: string
+          semester?: number | null
+          status?: string | null
+          subject?: string | null
           teacher_id?: string
           title?: string
+          topic?: string | null
+          total_points?: number | null
           updated_at?: string
         }
         Relationships: [
@@ -116,6 +179,7 @@ export type Database = {
           full_name: string
           id: string
           role: string
+          semester: number | null
           updated_at: string
         }
         Insert: {
@@ -124,6 +188,7 @@ export type Database = {
           full_name: string
           id: string
           role: string
+          semester?: number | null
           updated_at?: string
         }
         Update: {
@@ -132,6 +197,7 @@ export type Database = {
           full_name?: string
           id?: string
           role?: string
+          semester?: number | null
           updated_at?: string
         }
         Relationships: []
@@ -254,33 +320,54 @@ export type Database = {
       }
       submissions: {
         Row: {
+          ai_evaluation: Json | null
           ai_feedback: Json | null
           assignment_id: string
           created_at: string
+          file_name: string | null
+          file_path: string | null
           grade: number | null
           id: string
           script_url: string | null
+          status: string | null
           student_id: string
+          submission_date: string | null
+          teacher_feedback: string | null
+          teacher_grade: number | null
           updated_at: string
         }
         Insert: {
+          ai_evaluation?: Json | null
           ai_feedback?: Json | null
           assignment_id: string
           created_at?: string
+          file_name?: string | null
+          file_path?: string | null
           grade?: number | null
           id?: string
           script_url?: string | null
+          status?: string | null
           student_id: string
+          submission_date?: string | null
+          teacher_feedback?: string | null
+          teacher_grade?: number | null
           updated_at?: string
         }
         Update: {
+          ai_evaluation?: Json | null
           ai_feedback?: Json | null
           assignment_id?: string
           created_at?: string
+          file_name?: string | null
+          file_path?: string | null
           grade?: number | null
           id?: string
           script_url?: string | null
+          status?: string | null
           student_id?: string
+          submission_date?: string | null
+          teacher_feedback?: string | null
+          teacher_grade?: number | null
           updated_at?: string
         }
         Relationships: [

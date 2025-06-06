@@ -103,18 +103,18 @@ export function AppSidebar() {
             icon: BookOpen,
             description: "Create and manage assignments",
           },
-          {
-            name: "Submissions",
-            href: "/teacher/student-submission",
-            icon: FileText,
-            description: "Review student submissions",
-          },
-          {
-            name: "Students",
-            href: "/teacher/students",
-            icon: GraduationCap,
-            description: "Manage your students",
-          },
+          // {
+          //   name: "Submissions",
+          //   href: "/teacher/student-submission",
+          //   icon: FileText,
+          //   description: "Review student submissions",
+          // },
+          // {
+          //   name: "Students",
+          //   href: "/teacher/students",
+          //   icon: GraduationCap,
+          //   description: "Manage your students",
+          // },
         ]
       case "student":
         return [

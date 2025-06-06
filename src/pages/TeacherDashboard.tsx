@@ -1040,6 +1040,48 @@ Ask me anything or upload files to get started with your teaching tasks.`,
                 </div>
               </CardContent>
             </Card>
+
+            
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300">
+              <CardContent className="p-6 text-center">
+                <div className="p-3 bg-blue-100 rounded-full w-fit mx-auto mb-4">
+                  <BookOpen className="h-6 w-6 text-blue-600" />
+                </div>
+                <h3 className="font-semibold text-lg mb-2">Manage Assignments</h3>
+                <p className="text-gray-600 text-sm mb-4">View, edit, and track all your assignments</p>
+                <Link to="/teacher/assignments">
+                  <Button className="w-full">View Assignments</Button>
+                </Link>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300">
+              <CardContent className="p-6 text-center">
+                <div className="p-3 bg-green-100 rounded-full w-fit mx-auto mb-4">
+                  <Users className="h-6 w-6 text-green-600" />
+                </div>
+                <h3 className="font-semibold text-lg mb-2">View Students</h3>
+                <p className="text-gray-600 text-sm mb-4">Manage students and their progress</p>
+                <Link to="/teacher/students">
+                  <Button className="w-full">View Students</Button>
+                </Link>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300">
+              <CardContent className="p-6 text-center">
+                <div className="p-3 bg-purple-100 rounded-full w-fit mx-auto mb-4">
+                  <FileText className="h-6 w-6 text-purple-600" />
+                </div>
+                <h3 className="font-semibold text-lg mb-2">Review Submissions</h3>
+                <p className="text-gray-600 text-sm mb-4">Grade and provide feedback</p>
+                <Link to="/teacher/assignments">
+                  <Button className="w-full">Review Work</Button>
+                </Link>
+              </CardContent>
+            </Card>
           </div>
 
           {/* AI Chat Interface */}
@@ -1221,48 +1263,6 @@ Ask me anything or upload files to get started with your teaching tasks.`,
               </div>
             </CardContent>
           </Card>
-
-          {/* Quick Actions */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300">
-              <CardContent className="p-6 text-center">
-                <div className="p-3 bg-blue-100 rounded-full w-fit mx-auto mb-4">
-                  <BookOpen className="h-6 w-6 text-blue-600" />
-                </div>
-                <h3 className="font-semibold text-lg mb-2">Manage Assignments</h3>
-                <p className="text-gray-600 text-sm mb-4">View, edit, and track all your assignments</p>
-                <Link to="/teacher/assignments">
-                  <Button className="w-full">View Assignments</Button>
-                </Link>
-              </CardContent>
-            </Card>
-
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300">
-              <CardContent className="p-6 text-center">
-                <div className="p-3 bg-green-100 rounded-full w-fit mx-auto mb-4">
-                  <Users className="h-6 w-6 text-green-600" />
-                </div>
-                <h3 className="font-semibold text-lg mb-2">View Students</h3>
-                <p className="text-gray-600 text-sm mb-4">Manage students and their progress</p>
-                <Link to="/teacher/students">
-                  <Button className="w-full">View Students</Button>
-                </Link>
-              </CardContent>
-            </Card>
-
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300">
-              <CardContent className="p-6 text-center">
-                <div className="p-3 bg-purple-100 rounded-full w-fit mx-auto mb-4">
-                  <FileText className="h-6 w-6 text-purple-600" />
-                </div>
-                <h3 className="font-semibold text-lg mb-2">Review Submissions</h3>
-                <p className="text-gray-600 text-sm mb-4">Grade and provide feedback</p>
-                <Link to="/teacher/assignments">
-                  <Button className="w-full">Review Work</Button>
-                </Link>
-              </CardContent>
-            </Card>
-          </div>
         </div>
       </ModernDashboardLayout>
     </AuthGuard>

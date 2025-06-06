@@ -205,16 +205,7 @@ export default function StudentAssignments() {
               teacher_feedback,
               file_name,
               file_path,
-              grade,
-              ai_grade,
-              ai_overall_grade,
-              ai_strengths,
-              ai_areas_for_improvement,
-              ai_recommendations,
-              ai_rubric_breakdown,
-              ai_academic_integrity,
-              ai_status,
-              ai_red_flags
+              grade
             )
           )
         `)

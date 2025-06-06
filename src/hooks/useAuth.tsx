@@ -42,12 +42,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    console.log('Auth provider initializing...');
     
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('Auth state change:', event, session?.user?.email);
         setSession(session);
         setUser(session?.user ?? null);
         
@@ -73,7 +71,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                   ...profileData,
                   role: profileData.role as 'admin' | 'teacher' | 'student'
                 });
-                console.log('Profile loaded:', profileData.role);
               }
             } catch (error) {
               console.error('Error in fetchProfile:', error);

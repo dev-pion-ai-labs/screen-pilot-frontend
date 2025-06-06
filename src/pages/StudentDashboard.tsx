@@ -23,6 +23,7 @@ import {
   Calendar,
   Award,
   PlayCircle,
+  ArrowRight,
 } from "lucide-react"
 import { format } from "date-fns"
 
@@ -77,6 +78,9 @@ export default function StudentDashboard() {
   const submittedCount = assignments.filter((a) => a.submissions && a.submissions.length > 0).length
   const pendingCount = assignments.filter((a) => !a.submissions || a.submissions.length === 0).length
   const completionRate = assignments.length > 0 ? Math.round((submittedCount / assignments.length) * 100) : 0
+
+  // Get only first 2 assignments for dashboard display
+  const displayedAssignments = assignments.slice(0, 2)
 
   return (
     <AuthGuard allowedRoles={["student"]}>
@@ -168,7 +172,6 @@ export default function StudentDashboard() {
             </Card>
           </div>
 
-
           <div>
             <div className="flex items-center gap-3 mb-6">
               <Zap className="h-6 w-6 text-indigo-600" />
@@ -237,7 +240,6 @@ export default function StudentDashboard() {
             </div>
           </div>
 
-
           <div>
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
@@ -271,51 +273,76 @@ export default function StudentDashboard() {
                 </CardContent>
               </Card>
             ) : (
-              <div className="space-y-4">
-                {assignments.map((assignment) => {
-                  const { status, color, icon: StatusIcon } = getAssignmentStatus(assignment)
-                  const isOverdue = new Date(assignment.due_date) < new Date()
+              <div className="space-y-6">
+                {/* Assignment Cards - Show only first 2 */}
+                <div className="space-y-4">
+                  {displayedAssignments.map((assignment) => {
+                    const { status, color, icon: StatusIcon } = getAssignmentStatus(assignment)
+                    const isOverdue = new Date(assignment.due_date) < new Date()
 
-                  return (
-                    <Card key={assignment.id} className="border-0 shadow-lg hover:shadow-xl transition-shadow">
-                      <CardContent className="p-6">
-                        <div className="flex items-start justify-between mb-4">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-2">
-                              <h3 className="text-xl font-semibold text-gray-900">{assignment.title}</h3>
-                              <Badge className={`${color} border`}>
-                                <StatusIcon className="h-3 w-3 mr-1" />
-                                {status}
-                              </Badge>
-                            </div>
-                            <p className="text-gray-600 mb-4">{assignment.description}</p>
-                            <div className="flex items-center gap-4 text-sm">
-                              <div
-                                className={`flex items-center gap-1 ${isOverdue ? "text-red-600" : "text-gray-500"}`}
-                              >
-                                <Calendar className="h-4 w-4" />
-                                Due: {format(new Date(assignment.due_date), "PPP")}
+                    // Get first line of description (up to first period or 100 characters)
+                    const shortDescription =
+                      assignment.description.split(".")[0].substring(0, 100) +
+                      (assignment.description.length > 100 ? "..." : "")
+
+                    return (
+                      <Card
+                        key={assignment.id}
+                        className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
+                      >
+                        <CardContent className="p-6">
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-3 mb-2">
+                                <h3 className="text-xl font-semibold text-gray-900">{assignment.title}</h3>
+                                <Badge className={`${color} border`}>
+                                  <StatusIcon className="h-3 w-3 mr-1" />
+                                  {status}
+                                </Badge>
+                              </div>
+                              <p className="text-gray-600 mb-3">{shortDescription}</p>
+                              <div className="flex items-center gap-4 text-sm">
+                                <div
+                                  className={`flex items-center gap-1 ${isOverdue ? "text-red-600" : "text-gray-500"}`}
+                                >
+                                  <Calendar className="h-4 w-4" />
+                                  Due: {format(new Date(assignment.due_date), "MMM dd, yyyy")}
+                                </div>
                               </div>
                             </div>
+                            {/* <Link to={`/assignment/${assignment.id}`}>
+                              <Button
+                                className={`ml-6 ${
+                                  assignment.submissions && assignment.submissions.length > 0
+                                    ? "bg-emerald-600 hover:bg-emerald-700"
+                                    : "bg-indigo-600 hover:bg-indigo-700"
+                                }`}
+                              >
+                                {assignment.submissions && assignment.submissions.length > 0
+                                  ? "View Submission"
+                                  : "Start Assignment"}
+                                <ArrowRight className="h-4 w-4 ml-2" />
+                              </Button>
+                            </Link> */}
                           </div>
-                          <Link to={`/assignment/${assignment.id}`}>
-                            <Button
-                              className={`ml-4 ${
-                                assignment.submissions && assignment.submissions.length > 0
-                                  ? "bg-emerald-600 hover:bg-emerald-700"
-                                  : "bg-indigo-600 hover:bg-indigo-700"
-                              }`}
-                            >
-                              {assignment.submissions && assignment.submissions.length > 0
-                                ? "View Submission"
-                                : "Submit Work"}
-                            </Button>
-                          </Link>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )
-                })}
+                        </CardContent>
+                      </Card>
+                    )
+                  })}
+                </div>
+                {assignments.length > 2 && (
+                  <div className="text-center pt-4">
+                    <Link to="/student/assignments">
+                      <Button
+                        variant="outline"
+                        className="bg-white hover:bg-gray-50 border-2 border-indigo-200 hover:border-indigo-300 text-indigo-600 hover:text-indigo-700 px-6 py-2 h-auto text-md font-medium"
+                      >
+                        See All Assignments ({assignments.length})
+                        <ArrowRight className="h-5 w-5 ml-2" />
+                      </Button>
+                    </Link>
+                  </div>
+                )}
               </div>
             )}
           </div>

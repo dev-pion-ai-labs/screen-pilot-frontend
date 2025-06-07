@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect } from "react"
@@ -43,7 +42,7 @@ interface Assignment {
   difficulty: string
   status: string
   created_at: string
-  enrollments?: any[]
+  assignment_enrollments?: any[]
   submissions?: any[]
 }
 
@@ -80,6 +79,48 @@ const TeacherAssignment = () => {
   const [feedbackInput, setFeedbackInput] = useState("")
   const [submitting, setSubmitting] = useState(false)
 
+  // Add filter states
+  const [semesterFilter, setSemesterFilter] = useState<string>("all")
+  const [dueDateFilter, setDueDateFilter] = useState<string>("all")
+  const [submissionDateFilter, setSubmissionDateFilter] = useState<string>("all")
+
+  // Filter functions
+  const filterAssignments = (assignments: Assignment[]) => {
+    return assignments.filter(assignment => {
+      const semesterMatch = semesterFilter === "all" || assignment.semester === parseInt(semesterFilter)
+      const dueDateMatch = dueDateFilter === "all" || isWithinDateRange(assignment.due_date, dueDateFilter)
+      return semesterMatch && dueDateMatch
+    })
+  }
+
+  const filterSubmissions = (submissions: Submission[]) => {
+    return submissions.filter(submission => {
+      const semesterMatch = semesterFilter === "all" ||
+        assignments.find(a => a.submissions?.some(s => s.id === submission.id))?.semester === parseInt(semesterFilter)
+      const submissionDateMatch = submissionDateFilter === "all" ||
+        isWithinDateRange(submission.submission_date, submissionDateFilter)
+      return semesterMatch && submissionDateMatch
+    })
+  }
+
+  const isWithinDateRange = (date: string, filter: string) => {
+    const submissionDate = new Date(date)
+    const today = new Date()
+    const oneWeekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)
+    const oneMonthAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000)
+
+    switch (filter) {
+      case "today":
+        return submissionDate.toDateString() === today.toDateString()
+      case "week":
+        return submissionDate >= oneWeekAgo && submissionDate <= today
+      case "month":
+        return submissionDate >= oneMonthAgo && submissionDate <= today
+      default:
+        return true
+    }
+  }
+
   useEffect(() => {
     if (user) fetchAssignments()
   }, [user])
@@ -90,24 +131,39 @@ const TeacherAssignment = () => {
       const { data, error } = await supabase
         .from("assignments")
         .select(`
-          *,
-          assignment_enrollments(count),
-          submissions(
-            *,
-            profiles(full_name)
-          )
-        `)
+    *,
+    assignment_enrollments(count),
+    submissions(
+      *,
+      profiles:profiles!submissions_student_id_fkey(
+        id,
+        full_name
+      )
+    )
+  `)
         .eq("teacher_id", user?.id)
         .order("created_at", { ascending: false })
 
+
       if (error) throw error
+      console.log("✅ Assignments fetched:", data)
+      data?.forEach(a => {
+        a.submissions?.forEach(s => {
+          console.log(`📄 Submission: ${s.id} | Student: ${s.student_id} | Name: ${s.profiles?.full_name}`)
+        })
+      })
       setAssignments(data || [])
     } catch (error) {
-      console.error("Error fetching assignments:", error)
+      console.error("❌ Error fetching assignments:", error)
     } finally {
       setLoading(false)
     }
   }
+
+
+
+
+
 
   const downloadSubmission = async (filePath: string, fileName: string) => {
     try {
@@ -213,6 +269,9 @@ const TeacherAssignment = () => {
     )
   }
 
+
+
+
   return (
     <AuthGuard allowedRoles={["teacher"]}>
       <ModernDashboardLayout>
@@ -256,6 +315,37 @@ const TeacherAssignment = () => {
                 {/* Assignment overview */}
                 <TabsContent value="manage" className="p-6">
                   <div className="space-y-6">
+                    {/* Filters for Manage Assignments */}
+                    <div className="flex gap-4 mb-6">
+                      <div className="flex-1">
+                        <label className="text-sm font-medium text-gray-700 mb-1 block">Semester</label>
+                        <select
+                          value={semesterFilter}
+                          onChange={(e) => setSemesterFilter(e.target.value)}
+                          className="w-full rounded-lg border-gray-200 focus:border-blue-500 focus:ring-blue-500"
+                        >
+                          <option value="all">All Semesters</option>
+                          <option value="1">Semester 1</option>
+                          <option value="2">Semester 2</option>
+                          <option value="3">Semester 3</option>
+                          <option value="4">Semester 4</option>
+                        </select>
+                      </div>
+                      <div className="flex-1">
+                        <label className="text-sm font-medium text-gray-700 mb-1 block">Due Date</label>
+                        <select
+                          value={dueDateFilter}
+                          onChange={(e) => setDueDateFilter(e.target.value)}
+                          className="w-full rounded-lg border-gray-200 focus:border-blue-500 focus:ring-blue-500"
+                        >
+                          <option value="all">All Time</option>
+                          <option value="today">Today</option>
+                          <option value="week">This Week</option>
+                          <option value="month">This Month</option>
+                        </select>
+                      </div>
+                    </div>
+
                     {assignments.length === 0 ? (
                       <div className="bg-white rounded-2xl shadow-lg p-12 text-center border-0">
                         <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-gray-400 to-gray-500 rounded-2xl mb-6">
@@ -266,7 +356,7 @@ const TeacherAssignment = () => {
                       </div>
                     ) : (
                       <div className="grid gap-6">
-                        {assignments.map((assignment) => (
+                        {filterAssignments(assignments).map((assignment) => (
                           <Card
                             key={assignment.id}
                             className="border-0 bg-white/80 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
@@ -308,7 +398,7 @@ const TeacherAssignment = () => {
                                   <div>
                                     <div className="text-xs text-gray-600 font-medium">Students</div>
                                     <div className="font-bold text-gray-900">
-                                      {assignment.enrollments?.[0]?.count || 0}
+                                      {assignment.assignment_enrollments?.[0]?.count || 0}
                                     </div>
                                   </div>
                                 </div>
@@ -347,6 +437,37 @@ const TeacherAssignment = () => {
                     <div className="bg-gradient-to-r from-purple-50 to-pink-50 px-6 py-4 border-b border-gray-100">
                       <h2 className="text-2xl font-bold text-gray-900">Student Submissions</h2>
                       <p className="text-gray-600 mt-1">Review and grade student submissions</p>
+
+                      {/* Filters for Submissions */}
+                      <div className="flex gap-4 mt-4">
+                        <div className="flex-1">
+                          <label className="text-sm font-medium text-gray-700 mb-1 block">Semester</label>
+                          <select
+                            value={semesterFilter}
+                            onChange={(e) => setSemesterFilter(e.target.value)}
+                            className="w-full rounded-lg border-gray-200 focus:border-purple-500 focus:ring-purple-500"
+                          >
+                            <option value="all">All Semesters</option>
+                            <option value="1">Semester 1</option>
+                            <option value="2">Semester 2</option>
+                            <option value="3">Semester 3</option>
+                            <option value="4">Semester 4</option>
+                          </select>
+                        </div>
+                        <div className="flex-1">
+                          <label className="text-sm font-medium text-gray-700 mb-1 block">Submission Date</label>
+                          <select
+                            value={submissionDateFilter}
+                            onChange={(e) => setSubmissionDateFilter(e.target.value)}
+                            className="w-full rounded-lg border-gray-200 focus:border-purple-500 focus:ring-purple-500"
+                          >
+                            <option value="all">All Time</option>
+                            <option value="today">Today</option>
+                            <option value="week">This Week</option>
+                            <option value="month">This Month</option>
+                          </select>
+                        </div>
+                      </div>
                     </div>
 
                     <div className="overflow-x-auto">
@@ -365,14 +486,14 @@ const TeacherAssignment = () => {
                         <TableBody>
                           {assignments.flatMap(
                             (assignment) =>
-                              assignment.submissions?.map((submission: Submission) => (
+                              filterSubmissions(assignment.submissions || []).map((submission: Submission) => (
                                 <TableRow
                                   key={submission.id}
                                   className="hover:bg-purple-50/50 transition-colors duration-200 border-0"
                                 >
                                   <TableCell className="font-medium text-gray-900 py-4">
-                                    {submission.ai_evaluation?.["Administrative Details"]?.Student ||
-                                      submission.profiles?.full_name}
+                                    {submission.profiles?.full_name || "Unknown Student"}
+
                                   </TableCell>
                                   <TableCell className="text-gray-600 py-4">{assignment.title}</TableCell>
                                   <TableCell className="text-gray-600 py-4">
@@ -414,7 +535,7 @@ const TeacherAssignment = () => {
                                     </div>
                                   </TableCell>
                                 </TableRow>
-                              )) || [],
+                              )),
                           )}
                         </TableBody>
                       </Table>
@@ -431,13 +552,16 @@ const TeacherAssignment = () => {
               <DialogHeader>
                 <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
                   Submission Review:{" "}
-                  {viewSubmission?.ai_evaluation?.["Administrative Details"]?.Student ||
-                    viewSubmission?.profiles?.full_name}
+                  {viewSubmission?.profiles?.full_name || "Unknown Student"}
                 </DialogTitle>
                 <div className="text-sm text-gray-600 mb-2">
                   <span>
-                    Assignment: {viewSubmission?.ai_evaluation?.["Administrative Details"]?.Assignment} • Submitted:{" "}
-                    {viewSubmission?.submission_date && format(new Date(viewSubmission.submission_date), "PPpp")}
+                    Assignment: {viewSubmission?.ai_evaluation?.["Administrative Details"]?.Assignment?.Title || "Unknown Assignment"} • Submitted:{" "}
+                    {(() => {
+                      const rawDate = viewSubmission?.ai_evaluation?.["Administrative Details"]?.["Submission Date"]
+                      const parsedDate = Date.parse(rawDate)
+                      return isNaN(parsedDate) ? rawDate : format(new Date(parsedDate), "PPpp")
+                    })()}
                   </span>
                 </div>
               </DialogHeader>
@@ -469,40 +593,41 @@ const TeacherAssignment = () => {
                     </div>
 
                     {/* Administrative Details */}
-                    {viewSubmission.ai_evaluation?.["Administrative Details"] && (
+                    {viewSubmission?.ai_evaluation?.["Administrative Details"] && (
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                         <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4">
                           <div className="text-xs text-gray-600 font-medium">Student</div>
                           <div className="font-bold text-gray-900">
-                            {viewSubmission.ai_evaluation["Administrative Details"].Student}
+                            {viewSubmission.profiles?.full_name || "Unknown Student"}
                           </div>
                         </div>
                         <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4">
                           <div className="text-xs text-gray-600 font-medium">Assignment</div>
                           <div className="font-bold text-gray-900">
-                            {viewSubmission.ai_evaluation["Administrative Details"].Assignment}
+                            {viewSubmission?.ai_evaluation["Administrative Details"].Assignment?.Title || "Unknown Assignment"}
                           </div>
                         </div>
                         <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4">
                           <div className="text-xs text-gray-600 font-medium">Evaluation Date</div>
                           <div className="font-bold text-gray-900">
-                            {viewSubmission.ai_evaluation["Administrative Details"]["Evaluation Date"]}
+                            {viewSubmission?.ai_evaluation["Administrative Details"]["Evaluation Date"] || "N/A"}
                           </div>
                         </div>
                         <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4">
                           <div className="text-xs text-gray-600 font-medium">Submission Date</div>
                           <div className="font-bold text-gray-900">
-                            {format(
-                              new Date(viewSubmission.ai_evaluation["Administrative Details"]["Submission Date"]),
-                              "MMM dd, yyyy",
-                            )}
+                            {(() => {
+                              const rawDate = viewSubmission?.ai_evaluation["Administrative Details"]["Submission Date"]
+                              const parsedDate = Date.parse(rawDate)
+                              return isNaN(parsedDate) ? rawDate : format(new Date(parsedDate), "MMM dd, yyyy")
+                            })()}
                           </div>
                         </div>
                       </div>
                     )}
 
                     {/* Academic Integrity Status */}
-                    {viewSubmission.ai_evaluation?.["Faculty Progress Summary"] && (
+                    {viewSubmission?.ai_evaluation?.["Faculty Progress Summary"] && (
                       <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 mb-6">
                         <div className="flex items-center gap-3 mb-3">
                           <CheckCircle className="w-5 h-5 text-green-600" />
@@ -512,19 +637,19 @@ const TeacherAssignment = () => {
                           <div>
                             <div className="text-xs text-gray-600 font-medium">Status</div>
                             <Badge className="bg-gradient-to-r from-green-500 to-emerald-500 text-white border-0">
-                              {viewSubmission.ai_evaluation["Faculty Progress Summary"].Status}
+                              {viewSubmission.ai_evaluation["Faculty Progress Summary"].Status || "N/A"}
                             </Badge>
                           </div>
                           <div>
                             <div className="text-xs text-gray-600 font-medium">Red Flags</div>
                             <div className="font-medium text-gray-900">
-                              {viewSubmission.ai_evaluation["Faculty Progress Summary"]["Red Flags"]}
+                              {viewSubmission.ai_evaluation["Faculty Progress Summary"]["Red Flags"] || "None"}
                             </div>
                           </div>
                           <div>
                             <div className="text-xs text-gray-600 font-medium">Academic Integrity</div>
                             <div className="font-medium text-green-600">
-                              {viewSubmission.ai_evaluation["Faculty Progress Summary"]["Academic Integrity"]}
+                              {viewSubmission.ai_evaluation["Faculty Progress Summary"]["Academic Integrity"] || "N/A"}
                             </div>
                           </div>
                         </div>

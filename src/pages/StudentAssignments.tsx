@@ -106,96 +106,165 @@ interface Profile {
 }
 
 // --- Helper: Extract text from uploaded file (supports .txt, .pdf, .docx) ---
-// async function extractTextFromFile(file: File, publicUrl: string): Promise<string> {
-//   const ext = file.name.split(".").pop()?.toLowerCase()
-//   if (ext === "txt") {
-//     // Read text directly
-//     return await file.text()
-//   }
-//   if (ext === "pdf") {
-//     // Give the storage a second to make file available
-//     await new Promise((res) => setTimeout(res, 2000))
-//     const response = await fetch(RELEVANCE_CONFIG.extractPdf.endpoint, {
-//       method: "POST",
-//       headers: { Authorization: RELEVANCE_CONFIG.extractPdf.authorization, "Content-Type": "application/json" },
-//       body: JSON.stringify({ url: publicUrl }),
-//     })
-//     const data = await response.json()
-//     if (data?.result?.text) return data.result.text
-//     if (data?.output) return data.output
-//     throw new Error("Failed to extract text from PDF.")
-//   }
-
-//   if (ext === "docx") {
-//     // Use RelevanceAI DOCX extractor (send public URL)
-//     const response = await fetch(RELEVANCE_CONFIG.extractDocx.endpoint, {
-//       method: "POST",
-//       headers: { Authorization: RELEVANCE_CONFIG.extractDocx.authorization, "Content-Type": "application/json" },
-//       body: JSON.stringify({ url: publicUrl }),
-//     })
-//     const data = await response.json()
-//     if (data?.result?.text) return data.result.text
-//     if (data?.output) return data.output
-//     throw new Error("Failed to extract text from DOCX.")
-//   }
-//   throw new Error("Unsupported file type")
-// }
-
-// --- Helper: Extract text from uploaded file (supports .txt, .pdf, .docx) ---
 async function extractTextFromFile(file: File, publicUrl: string): Promise<string> {
   const ext = file.name.split(".").pop()?.toLowerCase()
+  console.log(`[File Processing] Starting extraction for file: ${file.name} (${ext})`)
+
   if (ext === "txt") {
-    // Read text directly
-    return await file.text()
+    console.log("[TXT Processing] Reading text file directly")
+    const text = await file.text()
+    console.log("[TXT Processing] Successfully read text file, length:", text.length)
+    return text
   }
+
   if (ext === "pdf") {
-    // Give the storage a second to make file available
+    console.log("[PDF Processing] Starting PDF extraction")
+    console.log("[PDF Processing] File URL:", publicUrl)
+
+    // Wait for storage availability
+    console.log("[PDF Processing] Waiting for file availability...")
     await new Promise((res) => setTimeout(res, 2000))
+
+    console.log("[PDF Processing] Sending request to PDF extraction API")
     const response = await fetch(RELEVANCE_CONFIG.extractPdf.endpoint, {
       method: "POST",
-      headers: { Authorization: RELEVANCE_CONFIG.extractPdf.authorization, "Content-Type": "application/json" },
-      body: JSON.stringify({ file_url: publicUrl }), // Changed from 'url' to 'file_url'
+      headers: {
+        Authorization: RELEVANCE_CONFIG.extractPdf.authorization,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ file_url: publicUrl }),
     })
+
+    if (!response.ok) {
+      console.error("[PDF Processing] API Error:", {
+        status: response.status,
+        statusText: response.statusText
+      })
+      throw new Error(`PDF extraction API error: ${response.status} ${response.statusText}`)
+    }
+
     const data = await response.json()
-    if (data?.result?.text) return data.result.text
-    if (data?.output) return data.output
-    throw new Error("Failed to extract text from PDF.")
+    console.log("[PDF Processing] Raw API Response:", JSON.stringify(data, null, 2))
+
+    // Check all possible response formats
+    const possibleTexts = [
+      data?.result?.text,
+      data?.output,
+      data?.data,
+      data?.scanned_data,
+      data?.text,
+    ]
+
+    console.log("[PDF Processing] Checking possible text fields:", {
+      hasResultText: !!data?.result?.text,
+      hasOutput: !!data?.output,
+      hasData: !!data?.data,
+      hasScannedData: !!data?.scanned_data,
+      hasText: !!data?.text
+    })
+
+    const extracted = possibleTexts.find((v) => typeof v === "string" && v.trim().length > 0)
+
+    if (extracted) {
+      console.log("[PDF Processing] Successfully extracted text, length:", extracted.length)
+      return extracted
+    }
+
+    console.error("[PDF Processing] Failed to extract text. Response structure:", {
+      hasResult: !!data?.result,
+      hasOutput: !!data?.output,
+      hasData: !!data?.data,
+      hasScannedData: !!data?.scanned_data,
+      hasText: !!data?.text
+    })
+
+    throw new Error(
+      "❌ PDF appears to be image-based or contains no extractable text. Try uploading a searchable/text-based PDF instead.",
+    )
   }
 
   if (ext === "docx") {
-    // Use RelevanceAI DOCX extractor (send public URL)
+    console.log("[DOCX Processing] Starting DOCX extraction")
+    console.log("[DOCX Processing] File URL:", publicUrl)
+
     const response = await fetch(RELEVANCE_CONFIG.extractDocx.endpoint, {
       method: "POST",
-      headers: { Authorization: RELEVANCE_CONFIG.extractDocx.authorization, "Content-Type": "application/json" },
-      body: JSON.stringify({ doc_url: publicUrl }), // Changed from 'url' to 'doc_url'
+      headers: {
+        Authorization: RELEVANCE_CONFIG.extractDocx.authorization,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ doc_url: publicUrl }),
     })
+
     const data = await response.json()
-    if (data?.result?.text) return data.result.text
-    if (data?.output) return data.output
-    throw new Error("Failed to extract text from DOCX.")
+    console.log("[DOCX Processing] Raw API Response:", JSON.stringify(data, null, 2))
+
+    if (data?.result?.text) {
+      console.log("[DOCX Processing] Extracted from result.text")
+      return data.result.text
+    }
+    if (data?.output) {
+      console.log("[DOCX Processing] Extracted from output")
+      return data.output
+    }
+    if (data?.text) {
+      console.log("[DOCX Processing] Extracted from text")
+      return data.text
+    }
+
+
+    console.error("[DOCX Processing] Failed to extract text. Response structure:", {
+      hasResult: !!data?.result,
+      hasOutput: !!data?.output
+    })
+    throw new Error("❌ Failed to extract text from DOCX.")
   }
-  throw new Error("Unsupported file type")
+
+  console.error("[File Processing] Unsupported file type:", ext)
+  throw new Error("❌ Unsupported file type")
 }
 
 // --- Helper: Parse AI Evaluation Result ---
 function parseAIFeedback(aiResult: any) {
+  console.log("[AI Feedback] Starting to parse AI feedback")
+  console.log("[AI Feedback] Raw AI Result:", JSON.stringify(aiResult, null, 2))
+
   let parsed = aiResult
 
   if (aiResult?.raw) {
+    console.log("[AI Feedback] Found raw field, attempting to parse")
     let raw = aiResult.raw
     if (typeof raw === "string" && raw.startsWith("```json")) {
+      console.log("[AI Feedback] Found JSON code block, cleaning up")
       raw = raw.replace(/```json|```/g, "").trim()
     }
     try {
       parsed = JSON.parse(raw)
-    } catch {
-      parsed = aiResult
+      console.log("[AI Feedback] Successfully parsed raw JSON")
+    } catch (e) {
+      console.warn("[AI Feedback] Not valid JSON, extracting from raw Markdown")
+      parsed = {
+        rawText: raw,
+        Score: raw.match(/Score:\s*(\d+)/)?.[1] || null,
+        "Overall Grade": raw.match(/Grade:\s*(\w+)/)?.[1] || null,
+        "Constructive Feedback": {
+          Strengths: extractSection(raw, "Strengths"),
+          "Areas for Improvement": extractSection(raw, "Areas for Improvement"),
+          Recommendations: extractSection(raw, "Recommendations"),
+        },
+        "Faculty Progress Summary": {
+          "Academic Integrity": extractLineValue(raw, "Academic Integrity"),
+          Status: extractLineValue(raw, "Status"),
+          "Red Flags": extractLineValue(raw, "Red Flags"),
+        }
+      }
     }
   }
+
   const get = (obj: any, path: string, fallback: any = null) =>
     path.split(".").reduce((res, key) => (res && res[key] !== undefined ? res[key] : fallback), obj)
 
-  return {
+  const result = {
     ai_grade: String(get(parsed, "Score") || ""),
     ai_overall_grade: get(parsed, "Overall Grade") || "",
     ai_strengths: get(parsed, "Constructive Feedback.Strengths") || "",
@@ -209,7 +278,36 @@ function parseAIFeedback(aiResult: any) {
     ai_evaluation: parsed,
     grade: get(parsed, "Score") || null,
   }
+
+  console.log("[AI Feedback] Parsed result:", {
+    hasGrade: !!result.ai_grade,
+    hasOverallGrade: !!result.ai_overall_grade,
+    hasStrengths: !!result.ai_strengths,
+    hasAreasForImprovement: !!result.ai_areas_for_improvement,
+    hasRecommendations: !!result.ai_recommendations,
+    hasRubricBreakdown: !!result.ai_rubric_breakdown,
+    hasAcademicIntegrity: !!result.ai_academic_integrity,
+    hasStatus: !!result.ai_status,
+    hasRedFlags: !!result.ai_red_flags
+  })
+
+  return result
 }
+
+// 🔧 Helper to extract sections like "Strengths", "Recommendations"
+function extractSection(text: string, sectionTitle: string): string {
+  const regex = new RegExp(`\\*\\*${sectionTitle}\\*\\*:\\s*([\\s\\S]*?)(\\n\\*\\*|\\n##|\\n$)`)
+  const match = text.match(regex)
+  return match ? match[1].trim() : ""
+}
+
+// 🔧 Helper to extract single-line entries like "Academic Integrity: Clean"
+function extractLineValue(text: string, label: string): string {
+  const regex = new RegExp(`${label}:\\s*(.*)`)
+  const match = text.match(regex)
+  return match ? match[1].trim() : ""
+}
+
 
 // Helper to format assignment description with markdown-like styling
 const formatAssignmentDescription = (description: string) => {
@@ -1202,59 +1300,3 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
     </AuthGuard>
   )
 }
-
-
-
-
-// // --- Helper: Extract text from uploaded file (supports .txt, .pdf, .docx) ---
-// async function extractTextFromFile(file: File, publicUrl: string): Promise<string> {
-//   const ext = file.name.split(".").pop()?.toLowerCase()
-//   if (ext === "txt") {
-//     // Read text directly
-//     return await file.text()
-//   }
-//   if (ext === "pdf") {
-//     // Give the storage a second to make file available
-//     await new Promise((res) => setTimeout(res, 2000))
-//     const response = await fetch(RELEVANCE_CONFIG.extractPdf.endpoint, {
-//       method: "POST",
-//       headers: { Authorization: RELEVANCE_CONFIG.extractPdf.authorization, "Content-Type": "application/json" },
-//       body: JSON.stringify({ file_url: publicUrl }), // Changed from 'url' to 'file_url'
-//     })
-    
-//     if (!response.ok) {
-//       throw new Error(`PDF extraction API error: ${response.status} ${response.statusText}`)
-//     }
-    
-//     const data = await response.json()
-//     console.log("PDF extraction response:", data) // Debug log
-    
-//     // Check multiple possible response formats
-//     if (data?.result?.text) return data.result.text
-//     if (data?.output) return data.output
-//     if (data?.data && typeof data.data === 'string') return data.data
-//     if (data?.scanned_data && typeof data.scanned_data === 'string') return data.scanned_data
-//     if (data?.text) return data.text
-    
-//     // If we get here, the PDF might be image-based or the extraction failed
-//     if (data?.data === null && data?.scanned_data === null) {
-//       throw new Error("PDF appears to be image-based or contains no extractable text. Please ensure your PDF contains selectable text or try converting it to a text-based format.")
-//     }
-    
-//     throw new Error(`Failed to extract text from PDF. Response: ${JSON.stringify(data)}`)
-//   }
-
-//   if (ext === "docx") {
-//     // Use RelevanceAI DOCX extractor (send public URL)
-//     const response = await fetch(RELEVANCE_CONFIG.extractDocx.endpoint, {
-//       method: "POST",
-//       headers: { Authorization: RELEVANCE_CONFIG.extractDocx.authorization, "Content-Type": "application/json" },
-//       body: JSON.stringify({ doc_url: publicUrl }), // Changed from 'url' to 'doc_url'
-//     })
-//     const data = await response.json()
-//     if (data?.result?.text) return data.result.text
-//     if (data?.output) return data.output
-//     throw new Error("Failed to extract text from DOCX.")
-//   }
-//   throw new Error("Unsupported file type")
-// }

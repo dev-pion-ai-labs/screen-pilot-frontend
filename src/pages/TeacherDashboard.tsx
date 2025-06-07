@@ -215,12 +215,17 @@ Ask me anything or upload files to get started with your teaching tasks.`,
   }
 
   // Function to parse assignment data from AI response
-  const parseAssignmentFromResponse = (content: string) => {
-    console.log('Parsing assignment from content:', content)
+  const parseAssignmentFromResponse = (content: string, semester: number | null, topic: string | null, dueDate: string | null) => {
+    console.log('🔍 Parsing assignment with parameters:', {
+      content: content.substring(0, 100) + '...',
+      semester,
+      topic,
+      dueDate
+    })
 
     let title = ''
     let description = content
-    let dueDate = currentDueDate || ''
+    let parsedDueDate = dueDate
 
     // Extract title with more flexible patterns
     const titlePatterns = [
@@ -234,7 +239,7 @@ Ask me anything or upload files to get started with your teaching tasks.`,
       const match = content.match(pattern)
       if (match) {
         title = match[1].trim()
-        console.log('Found title:', title)
+        console.log('📝 Found title:', title)
         break
       }
     }
@@ -250,7 +255,7 @@ Ask me anything or upload files to get started with your teaching tasks.`,
       const match = content.match(pattern)
       if (match) {
         description = match[1].trim()
-        console.log('Found description length:', description.length)
+        console.log('📄 Found description length:', description.length)
         break
       }
     }
@@ -264,40 +269,81 @@ Ask me anything or upload files to get started with your teaching tasks.`,
 
     for (const pattern of dueDatePatterns) {
       const match = content.match(pattern)
-      if (match && !dueDate) {
-        dueDate = match[1].trim()
-        console.log('Found due date:', dueDate)
+      if (match && !parsedDueDate) {
+        parsedDueDate = match[1].trim()
+        console.log('📅 Found due date in content:', parsedDueDate)
         break
       }
+    }
+
+    // Format the due date if it exists
+    let formattedDueDate = null
+    if (parsedDueDate) {
+      try {
+        // Handle DD/MM/YYYY format
+        const [day, month, year] = parsedDueDate.split(/[\/\-]/).map(num => parseInt(num, 10))
+        if (day && month && year) {
+          // Create date with proper month (0-based index)
+          const date = new Date(year, month - 1, day)
+          if (!isNaN(date.getTime())) {
+            formattedDueDate = date.toISOString()
+            console.log('📅 Formatted due date:', formattedDueDate)
+          } else {
+            console.log('⚠️ Invalid date values:', { day, month, year })
+          }
+        } else {
+          console.log('⚠️ Invalid date format:', parsedDueDate)
+        }
+      } catch (error) {
+        console.error('❌ Error formatting date:', error)
+      }
+    }
+
+    // Ensure we have a valid due date
+    if (!formattedDueDate) {
+      // Set a default due date (30 days from now) if none provided
+      const defaultDate = new Date()
+      defaultDate.setDate(defaultDate.getDate() + 30)
+      formattedDueDate = defaultDate.toISOString()
+      console.log('📅 Using default due date:', formattedDueDate)
+    }
+
+    // Ensure we have a valid semester
+    if (!semester) {
+      console.log('⚠️ No semester provided, using current semester:', currentSemester)
+      semester = currentSemester
     }
 
     const result = {
       title: title || 'AI Generated Assignment',
       description,
-      dueDate,
-      semester: currentSemester || 1,
-      topic: currentTopic || '',
+      dueDate: formattedDueDate,
+      semester: semester || 1,
+      topic: topic || '',
       aiGeneratedContent: content
     }
 
-    console.log('Parsed assignment data:', result)
+    console.log('✅ Final parsed assignment data:', result)
     return result
   }
 
   // Function to save assignment to database
   const saveAssignmentToDatabase = async (assignmentData: any) => {
     try {
-      console.log('Saving assignment:', assignmentData)
+      console.log('💾 Saving assignment with data:', assignmentData)
 
-      // Convert due date to proper format
-      let formattedDueDate = new Date()
-      if (assignmentData.dueDate) {
-        // Handle different date formats
-        const dateStr = assignmentData.dueDate.replace(/\//g, '-')
-        const parsedDate = new Date(dateStr)
-        if (!isNaN(parsedDate.getTime())) {
-          formattedDueDate = parsedDate
-        }
+      // Ensure we have a valid semester
+      if (!assignmentData.semester) {
+        console.log('⚠️ No semester in assignment data, using current semester:', currentSemester)
+        assignmentData.semester = currentSemester || 1
+      }
+
+      // Ensure we have a valid due date
+      if (!assignmentData.dueDate) {
+        const defaultDate = new Date()
+        defaultDate.setDate(defaultDate.getDate() + 30)
+        assignmentData.dueDate = defaultDate.toISOString()
+        console.log('📅 Using default due date for database:', assignmentData.dueDate)
       }
 
       const { data, error } = await supabase
@@ -309,7 +355,7 @@ Ask me anything or upload files to get started with your teaching tasks.`,
             teacher_id: (profile as Profile)?.id,
             semester: assignmentData.semester,
             topic: assignmentData.topic,
-            due_date: formattedDueDate.toISOString(),
+            due_date: assignmentData.dueDate,
             total_points: 100,
             difficulty: 'medium',
             ai_generated_content: assignmentData.aiGeneratedContent,
@@ -319,9 +365,12 @@ Ask me anything or upload files to get started with your teaching tasks.`,
         .select()
         .single()
 
-      if (error) throw error
+      if (error) {
+        console.error('❌ Error saving assignment:', error)
+        throw error
+      }
 
-      console.log('Assignment saved successfully:', data)
+      console.log('✅ Assignment saved successfully:', data)
 
       toast({
         title: "Assignment Created Successfully!",
@@ -333,7 +382,7 @@ Ask me anything or upload files to get started with your teaching tasks.`,
 
       return data
     } catch (error) {
-      console.error('Error saving assignment:', error)
+      console.error('❌ Error saving assignment:', error)
       toast({
         title: "Error",
         description: "Failed to save assignment. Please try again.",
@@ -358,14 +407,23 @@ Ask me anything or upload files to get started with your teaching tasks.`,
 
   // Function to extract semester from user message
   const extractSemesterFromMessage = (message: string) => {
-    const semesterMatch = message.match(/sem\s*(\d+)|semester\s*(\d+)|\b(\d+)\b/i)
-    if (semesterMatch) {
-      const semester = parseInt(semesterMatch[1] || semesterMatch[2] || semesterMatch[3])
+    console.log('🔍 Extracting semester from message:', message);
+
+    // Only match explicit semester selection, not any lone digit
+    const explicitMatch = message.match(/\b(?:sem|semester)\s*(\d{1,2})\b/i);
+    if (explicitMatch) {
+      const semester = parseInt(explicitMatch[1]);
+      console.log('📚 Found explicit semester match:', semester);
       if (semester >= 1 && semester <= 8) {
-        return semester
+        return semester;
       }
     }
-    return null
+
+    // Don't fall back to lone digit or number in the message!
+    // This prevents accidental semester detection from "Part 1", etc.
+
+    console.log('❌ No valid semester found in message');
+    return null;
   }
 
   // Function to extract topic from message
@@ -388,18 +446,27 @@ Ask me anything or upload files to get started with your teaching tasks.`,
 
   // Function to extract due date from message
   const extractDueDateFromMessage = (message: string) => {
+    console.log('🔍 Starting due date extraction from message:', message)
+
     const datePatterns = [
       /(\d{1,2})\/(\d{1,2})\/(\d{4})/,
       /(\d{1,2})-(\d{1,2})-(\d{4})/,
       /(\d{4})-(\d{1,2})-(\d{1,2})/
     ]
 
+    console.log('📅 Testing date patterns:', datePatterns)
+
     for (const pattern of datePatterns) {
       const match = message.match(pattern)
+      console.log('🔎 Testing pattern:', pattern, 'Match result:', match)
+
       if (match) {
+        console.log('✅ Found matching date:', match[0])
         return match[0]
       }
     }
+
+    console.log('❌ No date pattern matched in message')
     return null
   }
 
@@ -644,6 +711,7 @@ Ask me anything or upload files to get started with your teaching tasks.`,
     }
 
     if (!isValidMessage(inputMessage)) {
+      console.log("Invalid message length:", inputMessage.length)
       toast({
         title: "Invalid Message",
         description: "Message is too long or empty. Please try again.",
@@ -655,6 +723,7 @@ Ask me anything or upload files to get started with your teaching tasks.`,
     // Rate limiting
     const now = Date.now()
     if (now - lastRequestTime < MIN_REQUEST_INTERVAL) {
+      console.log("Rate limit hit:", { now, lastRequestTime, diff: now - lastRequestTime })
       toast({
         title: "Please wait",
         description: "Please wait a moment before sending another message.",
@@ -666,7 +735,7 @@ Ask me anything or upload files to get started with your teaching tasks.`,
     // Duplicate prevention
     const messageKey = `${inputMessage.trim()}_${Math.floor(now / 5000)}` // 5-second window
     if (processedMessageIds.has(messageKey)) {
-      console.log("Duplicate message detected, skipping...")
+      console.log("Duplicate message detected:", messageKey)
       return
     }
 
@@ -678,22 +747,31 @@ Ask me anything or upload files to get started with your teaching tasks.`,
     const currentInput = inputMessage.trim()
 
     // Extract information from user message
+    console.log('🔍 Starting information extraction from message:', currentInput)
+
     const extractedSemester = extractSemesterFromMessage(currentInput)
+    console.log('📚 Extracted semester:', extractedSemester)
+
     const extractedTopic = extractTopicFromMessage(currentInput)
+    console.log('📝 Extracted topic:', extractedTopic)
+
     const extractedDueDate = extractDueDateFromMessage(currentInput)
+    console.log('📅 Extracted due date:', extractedDueDate)
 
     // Update state with extracted information
     if (extractedSemester) {
       setCurrentSemester(extractedSemester)
-      console.log('Set current semester:', extractedSemester)
+      console.log('✅ Set current semester:', extractedSemester)
     }
     if (extractedTopic) {
       setCurrentTopic(extractedTopic)
-      console.log('Set current topic:', extractedTopic)
+      console.log('✅ Set current topic:', extractedTopic)
     }
     if (extractedDueDate) {
       setCurrentDueDate(extractedDueDate)
-      console.log('Set current due date:', extractedDueDate)
+      console.log('✅ Set current due date:', extractedDueDate)
+    } else {
+      console.log('⚠️ No due date extracted from message')
     }
 
     const userMessage: Message = {
@@ -724,7 +802,7 @@ Ask me anything or upload files to get started with your teaching tasks.`,
 
         if (result.success) {
           const messageContent = processAgentResponse(result.content)
-          console.log("Processed content:", messageContent)
+          console.log("📝 Processed content:", messageContent)
 
           if (!messageContent || messageContent.trim().length === 0) {
             throw new Error("Empty response received")
@@ -740,28 +818,43 @@ Ask me anything or upload files to get started with your teaching tasks.`,
 
           setMessages((prev) => [...prev, agentMessage])
 
+          // Use the current semester if no new semester was extracted
+          const semesterToUse = extractedSemester || currentSemester
+          const topicToUse = extractedTopic || currentTopic
+          const dueDateToUse = extractedDueDate || currentDueDate
+
+          console.log('📊 Using values:', {
+            semester: semesterToUse,
+            topic: topicToUse,
+            dueDate: dueDateToUse
+          })
+
           // Check if this is a complete assignment and save it
           if (isCompleteAssignment(messageContent)) {
-            const assignmentData = parseAssignmentFromResponse(messageContent)
-            console.log("Complete assignment detected:", assignmentData)
+            const assignmentData = parseAssignmentFromResponse(
+              messageContent,
+              semesterToUse,
+              topicToUse,
+              dueDateToUse
+            )
+            console.log("📋 Complete assignment detected:", assignmentData)
 
             // Only save if we have all required data
             if (assignmentData.title && assignmentData.semester && assignmentData.topic) {
-              console.log('Saving assignment with data:', assignmentData)
+              console.log('💾 Saving assignment with data:', assignmentData)
               await saveAssignmentToDatabase(assignmentData)
 
               // Reset assignment creation state
               setCurrentSemester(null)
               setCurrentTopic(null)
               setCurrentDueDate(null)
-              setConversationId(null)  // If you want a totally new chat context
-              setInputMessage("")      // Clear any input
-
+              setConversationId(null)
+              setInputMessage("")
             } else {
-              console.log('Assignment data incomplete, not saving:', assignmentData)
+              console.log('⚠️ Assignment data incomplete:', assignmentData)
             }
           } else {
-            console.log('Not a complete assignment, checking for partial data')
+            console.log('ℹ️ Not a complete assignment, checking for partial data')
           }
 
           // Improved conversation ID handling
@@ -1041,7 +1134,7 @@ Ask me anything or upload files to get started with your teaching tasks.`,
               </CardContent>
             </Card>
 
-            
+
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300">

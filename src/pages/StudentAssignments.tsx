@@ -35,6 +35,9 @@ import {
   GraduationCap,
   ChevronDown,
   ChevronUp,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react"
 import { format, isAfter } from "date-fns"
 import { v4 as uuidv4 } from "uuid"
@@ -224,6 +227,33 @@ async function extractTextFromFile(file: File, publicUrl: string): Promise<strin
   throw new Error("❌ Unsupported file type")
 }
 
+// Helper function to convert UTC to IST
+const convertToIST = (utcDate: string): string => {
+  const date = new Date(utcDate);
+  
+  // Add 5 hours and 30 minutes for IST
+  const istDate = new Date(date.getTime() + (5.5 * 60 * 60 * 1000));
+  
+  // Format the date
+  return format(istDate, "dd MMM yyyy, hh:mm a") + " IST";
+};
+
+// Alternative function if you want to use the browser's timezone
+const convertToLocalTime = (utcDate: string): string => {
+  const date = new Date(utcDate);
+  
+  // This will convert to IST if the user's browser is set to IST
+  return date.toLocaleString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  }) + " IST";
+};
+
 // --- Helper: Parse AI Evaluation Result ---
 function parseAIFeedback(aiResult: any) {
   console.log("[AI Feedback] Starting to parse AI feedback")
@@ -309,71 +339,190 @@ function extractLineValue(text: string, label: string): string {
 }
 
 
-// Helper to format assignment description with markdown-like styling
+// Helper to format assignment description - preserves all content
+// Helper to format assignment description - fixed to handle all cases properly
 const formatAssignmentDescription = (description: string) => {
   if (!description) return null
 
-  // Split into paragraphs
-  const paragraphs = description.split(/\n\n+/)
+  // Process the text line by line
+  const lines = description.split('\n')
+  const elements = []
+  let currentParagraph = []
+  let inList = false
+  let listItems = []
+  let listType = null
 
-  return (
-    <div className="space-y-4">
-      {paragraphs.map((paragraph, idx) => {
-        // Handle headers (###)
-        if (paragraph.startsWith("###")) {
-          return (
-            <h3 key={idx} className="text-xl font-bold text-gray-800 mt-6 mb-2">
-              {paragraph.replace(/^###\s*/, "")}
-            </h3>
-          )
-        }
-
-        // Handle lists
-        if (paragraph.includes("\n- ")) {
-          const [listTitle, ...items] = paragraph.split("\n- ")
-          return (
-            <div key={idx}>
-              {listTitle && <p className="mb-2">{formatInlineStyles(listTitle)}</p>}
-              <ul className="list-disc pl-5 space-y-1">
-                {items.map((item, i) => (
-                  <li key={i}>{formatInlineStyles(item)}</li>
-                ))}
-              </ul>
-            </div>
-          )
-        }
-
-        // Handle numbered lists (1., 2., etc)
-        if (/^\d+\.\s/.test(paragraph)) {
-          return (
-            <div key={idx} className="pl-5">
-              {formatInlineStyles(paragraph)}
-            </div>
-          )
-        }
-
-        // Regular paragraph with inline formatting
-        return (
-          <p key={idx} className="text-gray-700">
-            {formatInlineStyles(paragraph)}
+  lines.forEach((line, index) => {
+    const trimmedLine = line.trim()
+    
+    // Check if this is a header line (starts with ### or **)
+    if (trimmedLine.startsWith('###')) {
+      // Save any pending paragraph
+      if (currentParagraph.length > 0) {
+        elements.push(
+          <p key={`para-${elements.length}`} className="text-gray-700 leading-relaxed mb-4">
+            {currentParagraph.join(' ')}
           </p>
         )
-      })}
-    </div>
-  )
+        currentParagraph = []
+      }
+      
+      elements.push(
+        <h3 key={`h3-${index}`} className="text-xl font-bold text-gray-900 mt-6 mb-3">
+          {trimmedLine.replace(/^###\s*/, '')}
+        </h3>
+      )
+    }
+    // Check if line contains **bold text**
+    else if (trimmedLine.includes('**')) {
+      // Check if it's a header (ends with :)
+      if (trimmedLine.match(/\*\*[^*]+:\*\*/)) {
+        // Save any pending content
+        if (currentParagraph.length > 0) {
+          elements.push(
+            <p key={`para-${elements.length}`} className="text-gray-700 leading-relaxed mb-4">
+              {currentParagraph.join(' ')}
+            </p>
+          )
+          currentParagraph = []
+        }
+        
+        // Add the header
+        elements.push(
+          <h4 key={`h4-${index}`} className="font-bold text-gray-900 mt-4 mb-2">
+            {trimmedLine.replace(/\*\*/g, '')}
+          </h4>
+        )
+      } else {
+        // It's inline bold text - add to current paragraph
+        currentParagraph.push(trimmedLine)
+      }
+    }
+    // Check if it's a bullet point (handle both - and *)
+    else if (trimmedLine.startsWith('- ') || trimmedLine.startsWith('* ')) {
+      if (!inList) {
+        // Save any pending paragraph
+        if (currentParagraph.length > 0) {
+          elements.push(
+            <p key={`para-${elements.length}`} className="text-gray-700 leading-relaxed mb-4">
+              {formatInlineText(currentParagraph.join(' '))}
+            </p>
+          )
+          currentParagraph = []
+        }
+        inList = true
+        listType = 'bullet'
+        listItems = []
+      }
+      listItems.push(trimmedLine.substring(2))
+    }
+    // Check if it's a numbered list
+    else if (trimmedLine.match(/^\d+\.\s/)) {
+      if (!inList) {
+        // Save any pending paragraph
+        if (currentParagraph.length > 0) {
+          elements.push(
+            <p key={`para-${elements.length}`} className="text-gray-700 leading-relaxed mb-4">
+              {formatInlineText(currentParagraph.join(' '))}
+            </p>
+          )
+          currentParagraph = []
+        }
+        inList = true
+        listType = 'numbered'
+        listItems = []
+      }
+      const content = trimmedLine.replace(/^\d+\.\s*/, '')
+      listItems.push(content)
+    }
+    // Empty line - might signal end of list or paragraph
+    else if (trimmedLine === '') {
+      if (inList && listItems.length > 0) {
+        // End the list
+        if (listType === 'bullet') {
+          elements.push(
+            <ul key={`ul-${elements.length}`} className="list-disc pl-6 space-y-2 mb-4">
+              {listItems.map((item, i) => (
+                <li key={i} className="text-gray-700">{formatInlineText(item)}</li>
+              ))}
+            </ul>
+          )
+        } else {
+          elements.push(
+            <ol key={`ol-${elements.length}`} className="list-decimal pl-6 space-y-2 mb-4">
+              {listItems.map((item, i) => (
+                <li key={i} className="text-gray-700">{formatInlineText(item)}</li>
+              ))}
+            </ol>
+          )
+        }
+        listItems = []
+        inList = false
+      } else if (currentParagraph.length > 0) {
+        elements.push(
+          <p key={`para-${elements.length}`} className="text-gray-700 leading-relaxed mb-4">
+            {formatInlineText(currentParagraph.join(' '))}
+          </p>
+        )
+        currentParagraph = []
+      }
+    }
+    // Regular text
+    else {
+      if (inList) {
+        // This might be continuation of the last list item
+        if (listItems.length > 0 && !trimmedLine.match(/^\d+\.\s/) && !trimmedLine.startsWith('* ')) {
+          listItems[listItems.length - 1] += ' ' + trimmedLine
+        }
+      } else {
+        currentParagraph.push(trimmedLine)
+      }
+    }
+  })
+
+  // Handle any remaining content
+  if (inList && listItems.length > 0) {
+    if (listType === 'bullet') {
+      elements.push(
+        <ul key={`ul-${elements.length}`} className="list-disc pl-6 space-y-2 mb-4">
+          {listItems.map((item, i) => (
+            <li key={i} className="text-gray-700">{formatInlineText(item)}</li>
+          ))}
+        </ul>
+      )
+    } else {
+      elements.push(
+        <ol key={`ol-${elements.length}`} className="list-decimal pl-6 space-y-2 mb-4">
+          {listItems.map((item, i) => (
+            <li key={i} className="text-gray-700">{formatInlineText(item)}</li>
+          ))}
+        </ol>
+      )
+    }
+  } else if (currentParagraph.length > 0) {
+    elements.push(
+      <p key={`para-${elements.length}`} className="text-gray-700 leading-relaxed mb-4">
+        {formatInlineText(currentParagraph.join(' '))}
+      </p>
+    )
+  }
+
+  return <div className="space-y-2">{elements}</div>
 }
 
-// Helper for inline text formatting
-const formatInlineStyles = (text: string) => {
-  // Replace **bold** with <strong>
-  const parts = text.split(/(\*\*.*?\*\*)/g)
-
+// Helper to format inline text with bold support
+const formatInlineText = (text: string) => {
+  if (!text) return text
+  
+  // Split by ** markers
+  const parts = text.split(/(\*\*[^*]+\*\*)/)
+  
   return (
     <>
       {parts.map((part, i) => {
-        if (part.startsWith("**") && part.endsWith("**")) {
+        if (part.startsWith('**') && part.endsWith('**')) {
           return (
-            <strong key={i} className="font-bold">
+            <strong key={i} className="font-semibold text-gray-900">
               {part.slice(2, -2)}
             </strong>
           )
@@ -397,6 +546,7 @@ export default function StudentAssignments() {
   const [additionalNotes, setAdditionalNotes] = useState("")
   const [searchTerm, setSearchTerm] = useState("")
   const [filterStatus, setFilterStatus] = useState<string>("all")
+  const [sortBy, setSortBy] = useState<string>("due_date_nearest")
   const [showFullEvaluation, setShowFullEvaluation] = useState(true)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -689,15 +839,31 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
     }
   }
 
-  // Filter assignments
-  const filteredAssignments = assignments.filter((assignment) => {
-    const matchesSearch =
-      assignment.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      assignment.topic.toLowerCase().includes(searchTerm.toLowerCase())
-    const status = getSubmissionStatus(assignment)
-    const matchesFilter = filterStatus === "all" || status === filterStatus
-    return matchesSearch && matchesFilter
-  })
+  // Filter and Sort assignments
+  const filteredAndSortedAssignments = assignments
+    .filter((assignment) => {
+      const matchesSearch =
+        assignment.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        assignment.topic.toLowerCase().includes(searchTerm.toLowerCase())
+      const status = getSubmissionStatus(assignment)
+      const matchesFilter = filterStatus === "all" || status === filterStatus
+      return matchesSearch && matchesFilter
+    })
+    .sort((a, b) => {
+      switch (sortBy) {
+        case "latest":
+          // Sort by created date, newest first
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        case "due_date_nearest":
+          // Sort by due date, nearest first
+          return new Date(a.due_date).getTime() - new Date(b.due_date).getTime()
+        case "due_date_farthest":
+          // Sort by due date, farthest first
+          return new Date(b.due_date).getTime() - new Date(a.due_date).getTime()
+        default:
+          return 0
+      }
+    })
 
   // Statistics
   const submittedCount = assignments.filter(
@@ -834,11 +1000,37 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
                       <SelectItem value="graded">Graded</SelectItem>
                     </SelectContent>
                   </Select>
+                  <Select value={sortBy} onValueChange={setSortBy}>
+                    <SelectTrigger className="w-56 h-12 border-gray-200 focus:border-blue-400 focus:ring-blue-400 bg-white/80 backdrop-blur-sm">
+                      <ArrowUpDown className="h-4 w-4 mr-2" />
+                      <SelectValue placeholder="Sort by" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="due_date_nearest">
+                        <div className="flex items-center">
+                          <ArrowUp className="h-4 w-4 mr-2" />
+                          Due Date (Nearest First)
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="due_date_farthest">
+                        <div className="flex items-center">
+                          <ArrowDown className="h-4 w-4 mr-2" />
+                          Due Date (Farthest First)
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="latest">
+                        <div className="flex items-center">
+                          <Clock className="h-4 w-4 mr-2" />
+                          Latest Assignment
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
               <div className="p-6">
-                {filteredAssignments.length === 0 ? (
+                {filteredAndSortedAssignments.length === 0 ? (
                   <div className="text-center py-12">
                     <div className="w-24 h-24 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-6">
                       <BookOpen className="h-12 w-12 text-gray-400" />
@@ -854,7 +1046,7 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
                   </div>
                 ) : (
                   <div className="grid gap-6">
-                    {filteredAssignments.map((assignment) => {
+                    {filteredAndSortedAssignments.map((assignment) => {
                       const status = getSubmissionStatus(assignment)
                       const isOverdue = isAfter(new Date(), new Date(assignment.due_date))
                       const submission = assignment.submissions?.[0]
@@ -990,21 +1182,30 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
                 </DialogHeader>
 
                 <div className="flex-1 overflow-y-auto py-4">
-                  {/* Assignment Description with Markdown-style formatting */}
-                  <div className="prose max-w-none mb-6">
-                    {formatAssignmentDescription(selectedAssignment?.description || "")}
-
-                    {/* Due date and points */}
-                    <div className="flex justify-between items-center mt-4 text-sm text-gray-600 border-t border-gray-200 pt-4">
-                      <div>
-                        <strong>Due:</strong>{" "}
-                        {selectedAssignment && format(new Date(selectedAssignment.due_date), "MMMM d, yyyy")}
-                      </div>
-                      <div>
-                        <strong>Points:</strong> {selectedAssignment?.total_points}
-                      </div>
-                    </div>
-                  </div>
+                {/* Assignment Description with better formatting */}
+{/* Assignment Description with better formatting */}
+<div className="mb-6">
+  <div className="bg-gray-50/50 rounded-xl p-6 border border-gray-100">
+    {formatAssignmentDescription(selectedAssignment?.description || "")}
+  </div>
+  
+  {/* Due date and points */}
+  <div className="flex justify-between items-center mt-4 p-4 bg-white rounded-lg border border-gray-200">
+    <div className="flex items-center gap-2">
+      <Calendar className="h-4 w-4 text-blue-600" />
+      <span className="text-gray-600">
+        <span className="font-medium">Due:</span>{" "}
+        {selectedAssignment && format(new Date(selectedAssignment.due_date), "MMMM d, yyyy")}
+      </span>
+    </div>
+    <div className="flex items-center gap-2">
+      <Target className="h-4 w-4 text-purple-600" />
+      <span className="text-gray-600">
+        <span className="font-medium">Points:</span> {selectedAssignment?.total_points}
+      </span>
+    </div>
+  </div>
+</div>
 
                   {/* Assignment Details */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -1034,183 +1235,220 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
                   </div>
 
                   {/* Submission Display */}
-                  {selectedAssignment?.submissions && selectedAssignment.submissions.length > 0 && (
-                    <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl p-6 border border-green-200 mb-6">
-                      <h3 className="text-xl font-bold text-green-800 mb-4 flex items-center gap-2">
-                        <CheckCircle className="h-5 w-5" />
-                        Your Submission
-                      </h3>
-                      {selectedAssignment.submissions.map((submission) => (
-                        <div key={submission.id} className="space-y-4">
-                          <div className="flex items-center justify-between">
-                            <span className="font-medium text-green-700">Submitted Successfully</span>
-                            <span className="text-sm text-green-600">
-                              {format(new Date(submission.submission_date), "PPp")}
-                            </span>
+{selectedAssignment?.submissions && selectedAssignment.submissions.length > 0 && (
+  <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl p-6 border border-green-200 mb-6">
+    <h3 className="text-xl font-bold text-green-800 mb-4 flex items-center gap-2">
+      <CheckCircle className="h-5 w-5" />
+      Your Submission
+    </h3>
+    {selectedAssignment.submissions.map((submission) => (
+      <div key={submission.id} className="space-y-4">
+        <div className="flex items-center justify-between">
+          <span className="font-medium text-green-700">Submitted Successfully</span>
+          <span className="text-sm text-green-600">
+            {format(new Date(submission.submission_date), "PPp")}
+          </span>
+        </div>
+
+        {/* Teacher Grade and Feedback Section */}
+        {(submission.teacher_grade !== null || submission.teacher_feedback) && (
+          <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-4 border border-indigo-200 mb-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Award className="h-5 w-5 text-indigo-600" />
+              <h4 className="font-bold text-indigo-800">Teacher Evaluation</h4>
+            </div>
+            
+            {submission.teacher_grade !== null && (
+              <div className="flex items-center gap-4 mb-3">
+                <div className="bg-white/80 rounded-lg px-4 py-2">
+                  <span className="text-sm font-medium text-gray-600">Teacher Grade: </span>
+                  <span className="text-2xl font-bold text-indigo-700">{submission.teacher_grade}/100</span>
+                </div>
+                <Badge className={`${
+                  submission.teacher_grade >= 90 ? 'bg-gradient-to-r from-green-500 to-emerald-500' :
+                  submission.teacher_grade >= 80 ? 'bg-gradient-to-r from-blue-500 to-cyan-500' :
+                  submission.teacher_grade >= 70 ? 'bg-gradient-to-r from-yellow-500 to-orange-500' :
+                  submission.teacher_grade >= 60 ? 'bg-gradient-to-r from-orange-500 to-red-500' :
+                  'bg-gradient-to-r from-red-500 to-pink-500'
+                } text-white border-0`}>
+                  {submission.teacher_grade >= 90 ? 'Excellent' :
+                   submission.teacher_grade >= 80 ? 'Good' :
+                   submission.teacher_grade >= 70 ? 'Satisfactory' :
+                   submission.teacher_grade >= 60 ? 'Pass' : 'Fail'}
+                </Badge>
+              </div>
+            )}
+            
+            {submission.teacher_feedback && (
+              <div className="bg-white/60 rounded-lg p-3">
+                <div className="text-sm font-medium text-gray-700 mb-1">Teacher Feedback:</div>
+                <div className="text-sm text-gray-800 italic">"{submission.teacher_feedback}"</div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {submission.ai_evaluation && (
+          <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-green-200">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="font-bold text-gray-900 flex items-center gap-2">
+                <Star className="h-4 w-4 text-yellow-500" />
+                AI Evaluation Results
+              </h4>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowFullEvaluation(!showFullEvaluation)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                {showFullEvaluation ? (
+                  <ChevronUp className="h-4 w-4 mr-1" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 mr-1" />
+                )}
+                {showFullEvaluation ? "Hide Details" : "Show Details"}
+              </Button>
+            </div>
+
+            {/* Score and Grade */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg p-3">
+                <div className="text-sm text-blue-600 font-medium">Score</div>
+                <div className="text-2xl font-bold text-blue-900">
+                  {submission.ai_evaluation?.Score || submission.ai_grade || "N/A"}
+                </div>
+              </div>
+              <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-3">
+                <div className="text-sm text-purple-600 font-medium">Overall Grade</div>
+                <div className="text-lg font-bold text-purple-900">
+                  {submission.ai_evaluation?.["Overall Grade"] ||
+                    submission.ai_overall_grade ||
+                    "N/A"}
+                </div>
+              </div>
+            </div>
+
+            {showFullEvaluation && (
+              <div className="space-y-6">
+                {submission.ai_evaluation?.["Administrative Details"] && (
+                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <h5 className="font-semibold text-gray-800 mb-3">Administrative Details</h5>
+                    <div className="grid grid-cols-2 gap-3">
+                      {Object.entries(submission.ai_evaluation["Administrative Details"]).map(
+                        ([key, value]) => (
+                          <div key={key} className="text-sm">
+                            <span className="font-medium text-gray-700">{key}: </span>
+                            <span className="text-gray-600">{String(value)}</span>
                           </div>
-
-                          {submission.ai_evaluation && (
-                            <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-green-200">
-                              <div className="flex items-center justify-between mb-3">
-                                <h4 className="font-bold text-gray-900 flex items-center gap-2">
-                                  <Star className="h-4 w-4 text-yellow-500" />
-                                  AI Evaluation Results
-                                </h4>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => setShowFullEvaluation(!showFullEvaluation)}
-                                  className="text-gray-500 hover:text-gray-700"
-                                >
-                                  {showFullEvaluation ? (
-                                    <ChevronUp className="h-4 w-4 mr-1" />
-                                  ) : (
-                                    <ChevronDown className="h-4 w-4 mr-1" />
-                                  )}
-                                  {showFullEvaluation ? "Hide Details" : "Show Details"}
-                                </Button>
-                              </div>
-
-                              {/* Score and Grade */}
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                                <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg p-3">
-                                  <div className="text-sm text-blue-600 font-medium">Score</div>
-                                  <div className="text-2xl font-bold text-blue-900">
-                                    {submission.ai_evaluation?.Score || submission.ai_grade || "N/A"}
-                                  </div>
-                                </div>
-                                <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-3">
-                                  <div className="text-sm text-purple-600 font-medium">Overall Grade</div>
-                                  <div className="text-lg font-bold text-purple-900">
-                                    {submission.ai_evaluation?.["Overall Grade"] ||
-                                      submission.ai_overall_grade ||
-                                      "N/A"}
-                                  </div>
-                                </div>
-                              </div>
-
-                              {showFullEvaluation && (
-                                <div className="space-y-6">
-                                  {/* Administrative Details */}
-                                  {submission.ai_evaluation?.["Administrative Details"] && (
-                                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                                      <h5 className="font-semibold text-gray-800 mb-3">Administrative Details</h5>
-                                      <div className="grid grid-cols-2 gap-3">
-                                        {Object.entries(submission.ai_evaluation["Administrative Details"]).map(
-                                          ([key, value]) => (
-                                            <div key={key} className="text-sm">
-                                              <span className="font-medium text-gray-700">{key}: </span>
-                                              <span className="text-gray-600">{String(value)}</span>
-                                            </div>
-                                          ),
-                                        )}
-                                      </div>
-                                    </div>
-                                  )}
-
-                                  {/* Constructive Feedback */}
-                                  {submission.ai_evaluation?.["Constructive Feedback"] && (
-                                    <div className="space-y-3">
-                                      <h5 className="font-semibold text-gray-800">Constructive Feedback</h5>
-
-                                      <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-3">
-                                        <div className="font-medium text-green-800 mb-1">Strengths</div>
-                                        <div className="text-sm text-green-700">
-                                          {submission.ai_evaluation["Constructive Feedback"].Strengths ||
-                                            "Not provided"}
-                                        </div>
-                                      </div>
-
-                                      <div className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-lg p-3">
-                                        <div className="font-medium text-orange-800 mb-1">Areas for Improvement</div>
-                                        <div className="text-sm text-orange-700">
-                                          {submission.ai_evaluation["Constructive Feedback"]["Areas for Improvement"] ||
-                                            "Not provided"}
-                                        </div>
-                                      </div>
-
-                                      <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-3">
-                                        <div className="font-medium text-purple-800 mb-1">Recommendations</div>
-                                        <div className="text-sm text-purple-700">
-                                          {submission.ai_evaluation["Constructive Feedback"].Recommendations ||
-                                            "Not provided"}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  )}
-
-                                  {/* Rubric-Based Breakdown */}
-                                  {submission.ai_evaluation?.["Rubric-Based Breakdown"] && (
-                                    <div className="space-y-3">
-                                      <h5 className="font-semibold text-gray-800">Rubric-Based Breakdown</h5>
-
-                                      {Object.entries(submission.ai_evaluation["Rubric-Based Breakdown"]).map(
-                                        ([criterion, details]: [string, any]) => (
-                                          <div
-                                            key={criterion}
-                                            className="bg-white rounded-lg p-3 border border-gray-200"
-                                          >
-                                            <div className="flex items-center justify-between mb-2">
-                                              <div className="font-medium text-gray-800">{criterion}</div>
-                                              <div className="text-sm">
-                                                <span className="font-bold text-blue-600">{details.Score}</span>
-                                                <span className="text-gray-500"> / 30</span>
-                                              </div>
-                                            </div>
-                                            <Progress value={(details.Score / 30) * 100} className="h-2 mb-2" />
-                                            <div className="text-sm text-gray-600">{details.Assessment}</div>
-                                          </div>
-                                        ),
-                                      )}
-                                    </div>
-                                  )}
-
-                                  {/* Faculty Progress Summary */}
-                                  {submission.ai_evaluation?.["Faculty Progress Summary"] && (
-                                    <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                                      <h5 className="font-semibold text-blue-800 mb-3">Faculty Progress Summary</h5>
-                                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                        <div className="text-sm">
-                                          <span className="font-medium text-blue-700">Status: </span>
-                                          <span className="text-blue-600">
-                                            {submission.ai_evaluation["Faculty Progress Summary"].Status}
-                                          </span>
-                                        </div>
-                                        <div className="text-sm">
-                                          <span className="font-medium text-blue-700">Red Flags: </span>
-                                          <span className="text-blue-600">
-                                            {submission.ai_evaluation["Faculty Progress Summary"]["Red Flags"]}
-                                          </span>
-                                        </div>
-                                        <div className="text-sm">
-                                          <span className="font-medium text-blue-700">Academic Integrity: </span>
-                                          <span className="text-green-600">
-                                            {submission.ai_evaluation["Faculty Progress Summary"]["Academic Integrity"]}
-                                          </span>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  )}
-
-                                  {/* Raw JSON Data */}
-                                  <div className="mt-4 pt-4 border-t border-gray-200">
-                                    <details className="text-sm">
-                                      <summary className="cursor-pointer text-gray-500 hover:text-gray-700 font-medium">
-                                        View Raw Evaluation Data
-                                      </summary>
-                                      <pre className="mt-2 p-4 bg-gray-50 rounded-lg overflow-auto text-xs text-gray-700 max-h-60">
-                                        {JSON.stringify(submission.ai_evaluation, null, 2)}
-                                      </pre>
-                                    </details>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      ))}
+                        ),
+                      )}
                     </div>
-                  )}
+                  </div>
+                )}
+
+                {/* Constructive Feedback */}
+                {submission.ai_evaluation?.["Constructive Feedback"] && (
+                  <div className="space-y-3">
+                    <h5 className="font-semibold text-gray-800">Constructive Feedback</h5>
+
+                    <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-3">
+                      <div className="font-medium text-green-800 mb-1">Strengths</div>
+                      <div className="text-sm text-green-700">
+                        {submission.ai_evaluation["Constructive Feedback"].Strengths ||
+                          "Not provided"}
+                      </div>
+                    </div>
+
+                    <div className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-lg p-3">
+                      <div className="font-medium text-orange-800 mb-1">Areas for Improvement</div>
+                      <div className="text-sm text-orange-700">
+                        {submission.ai_evaluation["Constructive Feedback"]["Areas for Improvement"] ||
+                          "Not provided"}
+                      </div>
+                    </div>
+
+                    <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-3">
+                      <div className="font-medium text-purple-800 mb-1">Recommendations</div>
+                      <div className="text-sm text-purple-700">
+                        {submission.ai_evaluation["Constructive Feedback"].Recommendations ||
+                          "Not provided"}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Rubric-Based Breakdown */}
+                {submission.ai_evaluation?.["Rubric-Based Breakdown"] && (
+                  <div className="space-y-3">
+                    <h5 className="font-semibold text-gray-800">Rubric-Based Breakdown</h5>
+
+                    {Object.entries(submission.ai_evaluation["Rubric-Based Breakdown"]).map(
+                      ([criterion, details]: [string, any]) => (
+                        <div
+                          key={criterion}
+                          className="bg-white rounded-lg p-3 border border-gray-200"
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="font-medium text-gray-800">{criterion}</div>
+                            <div className="text-sm">
+                              <span className="font-bold text-blue-600">{details.Score}</span>
+                              <span className="text-gray-500"> / 30</span>
+                            </div>
+                          </div>
+                          <Progress value={(details.Score / 30) * 100} className="h-2 mb-2" />
+                          <div className="text-sm text-gray-600">{details.Assessment}</div>
+                        </div>
+                      ),
+                    )}
+                  </div>
+                )}
+
+                {/* Faculty Progress Summary */}
+                {submission.ai_evaluation?.["Faculty Progress Summary"] && (
+                  <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                    <h5 className="font-semibold text-blue-800 mb-3">Faculty Progress Summary</h5>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div className="text-sm">
+                        <span className="font-medium text-blue-700">Status: </span>
+                        <span className="text-blue-600">
+                          {submission.ai_evaluation["Faculty Progress Summary"].Status}
+                        </span>
+                      </div>
+                      <div className="text-sm">
+                        <span className="font-medium text-blue-700">Red Flags: </span>
+                        <span className="text-blue-600">
+                          {submission.ai_evaluation["Faculty Progress Summary"]["Red Flags"]}
+                        </span>
+                      </div>
+                      <div className="text-sm">
+                        <span className="font-medium text-blue-700">Academic Integrity: </span>
+                        <span className="text-green-600">
+                          {submission.ai_evaluation["Faculty Progress Summary"]["Academic Integrity"]}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Raw JSON Data */}
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  <details className="text-sm">
+                    <summary className="cursor-pointer text-gray-500 hover:text-gray-700 font-medium">
+                      View Raw Evaluation Data
+                    </summary>
+                    <pre className="mt-2 p-4 bg-gray-50 rounded-lg overflow-auto text-xs text-gray-700 max-h-60">
+                      {JSON.stringify(submission.ai_evaluation, null, 2)}
+                    </pre>
+                  </details>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    ))}
+  </div>
+)}
 
                   {/* Submission Form */}
                   {selectedAssignment &&

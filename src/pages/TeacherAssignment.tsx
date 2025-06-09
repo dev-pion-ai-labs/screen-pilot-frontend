@@ -86,19 +86,21 @@ const TeacherAssignment = () => {
 
   // Filter functions
   const filterAssignments = (assignments: Assignment[]) => {
-    return assignments.filter(assignment => {
-      const semesterMatch = semesterFilter === "all" || assignment.semester === parseInt(semesterFilter)
+    return assignments.filter((assignment) => {
+      const semesterMatch = semesterFilter === "all" || assignment.semester === Number.parseInt(semesterFilter)
       const dueDateMatch = dueDateFilter === "all" || isWithinDateRange(assignment.due_date, dueDateFilter)
       return semesterMatch && dueDateMatch
     })
   }
 
   const filterSubmissions = (submissions: Submission[]) => {
-    return submissions.filter(submission => {
-      const semesterMatch = semesterFilter === "all" ||
-        assignments.find(a => a.submissions?.some(s => s.id === submission.id))?.semester === parseInt(semesterFilter)
-      const submissionDateMatch = submissionDateFilter === "all" ||
-        isWithinDateRange(submission.submission_date, submissionDateFilter)
+    return submissions.filter((submission) => {
+      const semesterMatch =
+        semesterFilter === "all" ||
+        assignments.find((a) => a.submissions?.some((s) => s.id === submission.id))?.semester ===
+          Number.parseInt(semesterFilter)
+      const submissionDateMatch =
+        submissionDateFilter === "all" || isWithinDateRange(submission.submission_date, submissionDateFilter)
       return semesterMatch && submissionDateMatch
     })
   }
@@ -144,11 +146,10 @@ const TeacherAssignment = () => {
         .eq("teacher_id", user?.id)
         .order("created_at", { ascending: false })
 
-
       if (error) throw error
       console.log("✅ Assignments fetched:", data)
-      data?.forEach(a => {
-        a.submissions?.forEach(s => {
+      data?.forEach((a) => {
+        a.submissions?.forEach((s) => {
           console.log(`📄 Submission: ${s.id} | Student: ${s.student_id} | Name: ${s.profiles?.full_name}`)
         })
       })
@@ -159,11 +160,6 @@ const TeacherAssignment = () => {
       setLoading(false)
     }
   }
-
-
-
-
-
 
   const downloadSubmission = async (filePath: string, fileName: string) => {
     try {
@@ -269,9 +265,6 @@ const TeacherAssignment = () => {
     )
   }
 
-
-
-
   return (
     <AuthGuard allowedRoles={["teacher"]}>
       <ModernDashboardLayout>
@@ -316,33 +309,41 @@ const TeacherAssignment = () => {
                 <TabsContent value="manage" className="p-6">
                   <div className="space-y-6">
                     {/* Filters for Manage Assignments */}
-                    <div className="flex gap-4 mb-6">
-                      <div className="flex-1">
-                        <label className="text-sm font-medium text-gray-700 mb-1 block">Semester</label>
-                        <select
-                          value={semesterFilter}
-                          onChange={(e) => setSemesterFilter(e.target.value)}
-                          className="w-full rounded-lg border-gray-200 focus:border-blue-500 focus:ring-blue-500"
-                        >
-                          <option value="all">All Semesters</option>
-                          <option value="1">Semester 1</option>
-                          <option value="2">Semester 2</option>
-                          <option value="3">Semester 3</option>
-                          <option value="4">Semester 4</option>
-                        </select>
-                      </div>
-                      <div className="flex-1">
-                        <label className="text-sm font-medium text-gray-700 mb-1 block">Due Date</label>
-                        <select
-                          value={dueDateFilter}
-                          onChange={(e) => setDueDateFilter(e.target.value)}
-                          className="w-full rounded-lg border-gray-200 focus:border-blue-500 focus:ring-blue-500"
-                        >
-                          <option value="all">All Time</option>
-                          <option value="today">Today</option>
-                          <option value="week">This Week</option>
-                          <option value="month">This Month</option>
-                        </select>
+                    <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border-0 mb-6">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                        <div className="p-2 bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg">
+                          <Calendar className="h-4 w-4 text-white" />
+                        </div>
+                        Filter Assignments
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <label className="text-sm font-semibold text-gray-700 mb-2 block">Semester</label>
+                          <select
+                            value={semesterFilter}
+                            onChange={(e) => setSemesterFilter(e.target.value)}
+                            className="w-full h-12 px-4 rounded-xl border-2 border-gray-200 bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all duration-200 font-medium text-gray-700"
+                          >
+                            <option value="all">All Semesters</option>
+                            <option value="1">Semester 1</option>
+                            <option value="2">Semester 2</option>
+                            <option value="3">Semester 3</option>
+                            <option value="4">Semester 4</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-sm font-semibold text-gray-700 mb-2 block">Due Date</label>
+                          <select
+                            value={dueDateFilter}
+                            onChange={(e) => setDueDateFilter(e.target.value)}
+                            className="w-full h-12 px-4 rounded-xl border-2 border-gray-200 bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all duration-200 font-medium text-gray-700"
+                          >
+                            <option value="all">All Time</option>
+                            <option value="today">Today</option>
+                            <option value="week">This Week</option>
+                            <option value="month">This Month</option>
+                          </select>
+                        </div>
                       </div>
                     </div>
 
@@ -439,33 +440,41 @@ const TeacherAssignment = () => {
                       <p className="text-gray-600 mt-1">Review and grade student submissions</p>
 
                       {/* Filters for Submissions */}
-                      <div className="flex gap-4 mt-4">
-                        <div className="flex-1">
-                          <label className="text-sm font-medium text-gray-700 mb-1 block">Semester</label>
-                          <select
-                            value={semesterFilter}
-                            onChange={(e) => setSemesterFilter(e.target.value)}
-                            className="w-full rounded-lg border-gray-200 focus:border-purple-500 focus:ring-purple-500"
-                          >
-                            <option value="all">All Semesters</option>
-                            <option value="1">Semester 1</option>
-                            <option value="2">Semester 2</option>
-                            <option value="3">Semester 3</option>
-                            <option value="4">Semester 4</option>
-                          </select>
-                        </div>
-                        <div className="flex-1">
-                          <label className="text-sm font-medium text-gray-700 mb-1 block">Submission Date</label>
-                          <select
-                            value={submissionDateFilter}
-                            onChange={(e) => setSubmissionDateFilter(e.target.value)}
-                            className="w-full rounded-lg border-gray-200 focus:border-purple-500 focus:ring-purple-500"
-                          >
-                            <option value="all">All Time</option>
-                            <option value="today">Today</option>
-                            <option value="week">This Week</option>
-                            <option value="month">This Month</option>
-                          </select>
+                      <div className="bg-white/90 backdrop-blur-sm rounded-xl p-4 mb-4 border border-purple-100">
+                        <h4 className="text-md font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                          <div className="p-1.5 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg">
+                            <FileText className="h-3.5 w-3.5 text-white" />
+                          </div>
+                          Filter Submissions
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="text-sm font-semibold text-gray-700 mb-2 block">Semester</label>
+                            <select
+                              value={semesterFilter}
+                              onChange={(e) => setSemesterFilter(e.target.value)}
+                              className="w-full h-10 px-3 rounded-lg border-2 border-gray-200 bg-white focus:border-purple-500 focus:ring-4 focus:ring-purple-100 transition-all duration-200 font-medium text-gray-700"
+                            >
+                              <option value="all">All Semesters</option>
+                              <option value="1">Semester 1</option>
+                              <option value="2">Semester 2</option>
+                              <option value="3">Semester 3</option>
+                              <option value="4">Semester 4</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-sm font-semibold text-gray-700 mb-2 block">Submission Date</label>
+                            <select
+                              value={submissionDateFilter}
+                              onChange={(e) => setSubmissionDateFilter(e.target.value)}
+                              className="w-full h-10 px-3 rounded-lg border-2 border-gray-200 bg-white focus:border-purple-500 focus:ring-4 focus:ring-purple-100 transition-all duration-200 font-medium text-gray-700"
+                            >
+                              <option value="all">All Time</option>
+                              <option value="today">Today</option>
+                              <option value="week">This Week</option>
+                              <option value="month">This Month</option>
+                            </select>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -484,58 +493,54 @@ const TeacherAssignment = () => {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {assignments.flatMap(
-                            (assignment) =>
-                              filterSubmissions(assignment.submissions || []).map((submission: Submission) => (
-                                <TableRow
-                                  key={submission.id}
-                                  className="hover:bg-purple-50/50 transition-colors duration-200 border-0"
-                                >
-                                  <TableCell className="font-medium text-gray-900 py-4">
-                                    {submission.profiles?.full_name || "Unknown Student"}
-
-                                  </TableCell>
-                                  <TableCell className="text-gray-600 py-4">{assignment.title}</TableCell>
-                                  <TableCell className="text-gray-600 py-4">
-                                    {format(new Date(submission.submission_date), "MMM dd, yyyy")}
-                                  </TableCell>
-                                  <TableCell className="text-gray-600 py-4">
-                                    {submission.ai_grade ?? submission.ai_evaluation?.Score ?? "N/A"}
-                                  </TableCell>
-                                  <TableCell className="text-gray-600 py-4">
-                                    {submission.teacher_grade ?? "Not graded"}
-                                  </TableCell>
-                                  <TableCell className="py-4">
-                                    <Badge className={getStatusBadgeColor(submission.status)}>
-                                      {capitalizeFirst(submission.status)}
-                                    </Badge>
-                                  </TableCell>
-                                  <TableCell className="py-4">
-                                    <div className="flex gap-2">
-                                      {submission.file_path && submission.file_name && (
-                                        <Button
-                                          variant="outline"
-                                          size="sm"
-                                          onClick={() =>
-                                            downloadSubmission(submission.file_path!, submission.file_name!)
-                                          }
-                                          className="hover:bg-blue-50 border-blue-200"
-                                        >
-                                          <Download className="h-4 w-4" />
-                                        </Button>
-                                      )}
+                          {assignments.flatMap((assignment) =>
+                            filterSubmissions(assignment.submissions || []).map((submission: Submission) => (
+                              <TableRow
+                                key={submission.id}
+                                className="hover:bg-purple-50/50 transition-colors duration-200 border-0"
+                              >
+                                <TableCell className="font-medium text-gray-900 py-4">
+                                  {submission.profiles?.full_name || "Unknown Student"}
+                                </TableCell>
+                                <TableCell className="text-gray-600 py-4">{assignment.title}</TableCell>
+                                <TableCell className="text-gray-600 py-4">
+                                  {format(new Date(submission.submission_date), "MMM dd, yyyy")}
+                                </TableCell>
+                                <TableCell className="text-gray-600 py-4">
+                                  {submission.ai_grade ?? submission.ai_evaluation?.Score ?? "N/A"}
+                                </TableCell>
+                                <TableCell className="text-gray-600 py-4">
+                                  {submission.teacher_grade ?? "Not graded"}
+                                </TableCell>
+                                <TableCell className="py-4">
+                                  <Badge className={getStatusBadgeColor(submission.status)}>
+                                    {capitalizeFirst(submission.status)}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="py-4">
+                                  <div className="flex gap-2">
+                                    {submission.file_path && submission.file_name && (
                                       <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={() => handleOpenSubmission(submission)}
-                                        className="bg-gradient-to-r from-purple-500 to-pink-500 text-white border-0 hover:from-purple-600 hover:to-pink-600"
+                                        onClick={() => downloadSubmission(submission.file_path!, submission.file_name!)}
+                                        className="hover:bg-blue-50 border-blue-200"
                                       >
-                                        <Eye className="h-4 w-4" />
+                                        <Download className="h-4 w-4" />
                                       </Button>
-                                    </div>
-                                  </TableCell>
-                                </TableRow>
-                              )),
+                                    )}
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleOpenSubmission(submission)}
+                                      className="bg-gradient-to-r from-purple-500 to-pink-500 text-white border-0 hover:from-purple-600 hover:to-pink-600"
+                                    >
+                                      <Eye className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            )),
                           )}
                         </TableBody>
                       </Table>
@@ -551,13 +556,14 @@ const TeacherAssignment = () => {
             <DialogContent className="max-w-6xl w-full max-h-[90vh] flex flex-col bg-white/95 backdrop-blur-sm border-0 shadow-2xl">
               <DialogHeader>
                 <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-                  Submission Review:{" "}
-                  {viewSubmission?.profiles?.full_name || "Unknown Student"}
+                  Submission Review: {viewSubmission?.profiles?.full_name || "Unknown Student"}
                 </DialogTitle>
                 <div className="text-sm text-gray-600 mb-2">
                   <span>
-                    Assignment: {viewSubmission?.ai_evaluation?.["Administrative Details"]?.Assignment?.Title || "Unknown Assignment"} • Submitted:{" "}
-                    {(() => {
+                    Assignment:{" "}
+                    {viewSubmission?.ai_evaluation?.["Administrative Details"]?.Assignment?.Title ||
+                      "Unknown Assignment"}{" "}
+                    • Submitted: {(() => {
                       const rawDate = viewSubmission?.ai_evaluation?.["Administrative Details"]?.["Submission Date"]
                       const parsedDate = Date.parse(rawDate)
                       return isNaN(parsedDate) ? rawDate : format(new Date(parsedDate), "PPpp")
@@ -604,7 +610,8 @@ const TeacherAssignment = () => {
                         <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4">
                           <div className="text-xs text-gray-600 font-medium">Assignment</div>
                           <div className="font-bold text-gray-900">
-                            {viewSubmission?.ai_evaluation["Administrative Details"].Assignment?.Title || "Unknown Assignment"}
+                            {viewSubmission?.ai_evaluation["Administrative Details"].Assignment?.Title ||
+                              "Unknown Assignment"}
                           </div>
                         </div>
                         <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4">

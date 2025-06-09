@@ -35,6 +35,9 @@ import {
   GraduationCap,
   ChevronDown,
   ChevronUp,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react"
 import { format, isAfter } from "date-fns"
 import { v4 as uuidv4 } from "uuid"
@@ -397,6 +400,7 @@ export default function StudentAssignments() {
   const [additionalNotes, setAdditionalNotes] = useState("")
   const [searchTerm, setSearchTerm] = useState("")
   const [filterStatus, setFilterStatus] = useState<string>("all")
+  const [sortBy, setSortBy] = useState<string>("due_date_nearest")
   const [showFullEvaluation, setShowFullEvaluation] = useState(true)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -689,15 +693,31 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
     }
   }
 
-  // Filter assignments
-  const filteredAssignments = assignments.filter((assignment) => {
-    const matchesSearch =
-      assignment.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      assignment.topic.toLowerCase().includes(searchTerm.toLowerCase())
-    const status = getSubmissionStatus(assignment)
-    const matchesFilter = filterStatus === "all" || status === filterStatus
-    return matchesSearch && matchesFilter
-  })
+  // Filter and Sort assignments
+  const filteredAndSortedAssignments = assignments
+    .filter((assignment) => {
+      const matchesSearch =
+        assignment.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        assignment.topic.toLowerCase().includes(searchTerm.toLowerCase())
+      const status = getSubmissionStatus(assignment)
+      const matchesFilter = filterStatus === "all" || status === filterStatus
+      return matchesSearch && matchesFilter
+    })
+    .sort((a, b) => {
+      switch (sortBy) {
+        case "latest":
+          // Sort by created date, newest first
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        case "due_date_nearest":
+          // Sort by due date, nearest first
+          return new Date(a.due_date).getTime() - new Date(b.due_date).getTime()
+        case "due_date_farthest":
+          // Sort by due date, farthest first
+          return new Date(b.due_date).getTime() - new Date(a.due_date).getTime()
+        default:
+          return 0
+      }
+    })
 
   // Statistics
   const submittedCount = assignments.filter(
@@ -834,11 +854,37 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
                       <SelectItem value="graded">Graded</SelectItem>
                     </SelectContent>
                   </Select>
+                  <Select value={sortBy} onValueChange={setSortBy}>
+                    <SelectTrigger className="w-56 h-12 border-gray-200 focus:border-blue-400 focus:ring-blue-400 bg-white/80 backdrop-blur-sm">
+                      <ArrowUpDown className="h-4 w-4 mr-2" />
+                      <SelectValue placeholder="Sort by" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="due_date_nearest">
+                        <div className="flex items-center">
+                          <ArrowUp className="h-4 w-4 mr-2" />
+                          Due Date (Nearest First)
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="due_date_farthest">
+                        <div className="flex items-center">
+                          <ArrowDown className="h-4 w-4 mr-2" />
+                          Due Date (Farthest First)
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="latest">
+                        <div className="flex items-center">
+                          <Clock className="h-4 w-4 mr-2" />
+                          Latest Assignment
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
               <div className="p-6">
-                {filteredAssignments.length === 0 ? (
+                {filteredAndSortedAssignments.length === 0 ? (
                   <div className="text-center py-12">
                     <div className="w-24 h-24 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-6">
                       <BookOpen className="h-12 w-12 text-gray-400" />
@@ -854,7 +900,7 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
                   </div>
                 ) : (
                   <div className="grid gap-6">
-                    {filteredAssignments.map((assignment) => {
+                    {filteredAndSortedAssignments.map((assignment) => {
                       const status = getSubmissionStatus(assignment)
                       const isOverdue = isAfter(new Date(), new Date(assignment.due_date))
                       const submission = assignment.submissions?.[0]

@@ -339,71 +339,190 @@ function extractLineValue(text: string, label: string): string {
 }
 
 
-// Helper to format assignment description with markdown-like styling
+// Helper to format assignment description - preserves all content
+// Helper to format assignment description - fixed to handle all cases properly
 const formatAssignmentDescription = (description: string) => {
   if (!description) return null
 
-  // Split into paragraphs
-  const paragraphs = description.split(/\n\n+/)
+  // Process the text line by line
+  const lines = description.split('\n')
+  const elements = []
+  let currentParagraph = []
+  let inList = false
+  let listItems = []
+  let listType = null
 
-  return (
-    <div className="space-y-4">
-      {paragraphs.map((paragraph, idx) => {
-        // Handle headers (###)
-        if (paragraph.startsWith("###")) {
-          return (
-            <h3 key={idx} className="text-xl font-bold text-gray-800 mt-6 mb-2">
-              {paragraph.replace(/^###\s*/, "")}
-            </h3>
-          )
-        }
-
-        // Handle lists
-        if (paragraph.includes("\n- ")) {
-          const [listTitle, ...items] = paragraph.split("\n- ")
-          return (
-            <div key={idx}>
-              {listTitle && <p className="mb-2">{formatInlineStyles(listTitle)}</p>}
-              <ul className="list-disc pl-5 space-y-1">
-                {items.map((item, i) => (
-                  <li key={i}>{formatInlineStyles(item)}</li>
-                ))}
-              </ul>
-            </div>
-          )
-        }
-
-        // Handle numbered lists (1., 2., etc)
-        if (/^\d+\.\s/.test(paragraph)) {
-          return (
-            <div key={idx} className="pl-5">
-              {formatInlineStyles(paragraph)}
-            </div>
-          )
-        }
-
-        // Regular paragraph with inline formatting
-        return (
-          <p key={idx} className="text-gray-700">
-            {formatInlineStyles(paragraph)}
+  lines.forEach((line, index) => {
+    const trimmedLine = line.trim()
+    
+    // Check if this is a header line (starts with ### or **)
+    if (trimmedLine.startsWith('###')) {
+      // Save any pending paragraph
+      if (currentParagraph.length > 0) {
+        elements.push(
+          <p key={`para-${elements.length}`} className="text-gray-700 leading-relaxed mb-4">
+            {currentParagraph.join(' ')}
           </p>
         )
-      })}
-    </div>
-  )
+        currentParagraph = []
+      }
+      
+      elements.push(
+        <h3 key={`h3-${index}`} className="text-xl font-bold text-gray-900 mt-6 mb-3">
+          {trimmedLine.replace(/^###\s*/, '')}
+        </h3>
+      )
+    }
+    // Check if line contains **bold text**
+    else if (trimmedLine.includes('**')) {
+      // Check if it's a header (ends with :)
+      if (trimmedLine.match(/\*\*[^*]+:\*\*/)) {
+        // Save any pending content
+        if (currentParagraph.length > 0) {
+          elements.push(
+            <p key={`para-${elements.length}`} className="text-gray-700 leading-relaxed mb-4">
+              {currentParagraph.join(' ')}
+            </p>
+          )
+          currentParagraph = []
+        }
+        
+        // Add the header
+        elements.push(
+          <h4 key={`h4-${index}`} className="font-bold text-gray-900 mt-4 mb-2">
+            {trimmedLine.replace(/\*\*/g, '')}
+          </h4>
+        )
+      } else {
+        // It's inline bold text - add to current paragraph
+        currentParagraph.push(trimmedLine)
+      }
+    }
+    // Check if it's a bullet point (handle both - and *)
+    else if (trimmedLine.startsWith('- ') || trimmedLine.startsWith('* ')) {
+      if (!inList) {
+        // Save any pending paragraph
+        if (currentParagraph.length > 0) {
+          elements.push(
+            <p key={`para-${elements.length}`} className="text-gray-700 leading-relaxed mb-4">
+              {formatInlineText(currentParagraph.join(' '))}
+            </p>
+          )
+          currentParagraph = []
+        }
+        inList = true
+        listType = 'bullet'
+        listItems = []
+      }
+      listItems.push(trimmedLine.substring(2))
+    }
+    // Check if it's a numbered list
+    else if (trimmedLine.match(/^\d+\.\s/)) {
+      if (!inList) {
+        // Save any pending paragraph
+        if (currentParagraph.length > 0) {
+          elements.push(
+            <p key={`para-${elements.length}`} className="text-gray-700 leading-relaxed mb-4">
+              {formatInlineText(currentParagraph.join(' '))}
+            </p>
+          )
+          currentParagraph = []
+        }
+        inList = true
+        listType = 'numbered'
+        listItems = []
+      }
+      const content = trimmedLine.replace(/^\d+\.\s*/, '')
+      listItems.push(content)
+    }
+    // Empty line - might signal end of list or paragraph
+    else if (trimmedLine === '') {
+      if (inList && listItems.length > 0) {
+        // End the list
+        if (listType === 'bullet') {
+          elements.push(
+            <ul key={`ul-${elements.length}`} className="list-disc pl-6 space-y-2 mb-4">
+              {listItems.map((item, i) => (
+                <li key={i} className="text-gray-700">{formatInlineText(item)}</li>
+              ))}
+            </ul>
+          )
+        } else {
+          elements.push(
+            <ol key={`ol-${elements.length}`} className="list-decimal pl-6 space-y-2 mb-4">
+              {listItems.map((item, i) => (
+                <li key={i} className="text-gray-700">{formatInlineText(item)}</li>
+              ))}
+            </ol>
+          )
+        }
+        listItems = []
+        inList = false
+      } else if (currentParagraph.length > 0) {
+        elements.push(
+          <p key={`para-${elements.length}`} className="text-gray-700 leading-relaxed mb-4">
+            {formatInlineText(currentParagraph.join(' '))}
+          </p>
+        )
+        currentParagraph = []
+      }
+    }
+    // Regular text
+    else {
+      if (inList) {
+        // This might be continuation of the last list item
+        if (listItems.length > 0 && !trimmedLine.match(/^\d+\.\s/) && !trimmedLine.startsWith('* ')) {
+          listItems[listItems.length - 1] += ' ' + trimmedLine
+        }
+      } else {
+        currentParagraph.push(trimmedLine)
+      }
+    }
+  })
+
+  // Handle any remaining content
+  if (inList && listItems.length > 0) {
+    if (listType === 'bullet') {
+      elements.push(
+        <ul key={`ul-${elements.length}`} className="list-disc pl-6 space-y-2 mb-4">
+          {listItems.map((item, i) => (
+            <li key={i} className="text-gray-700">{formatInlineText(item)}</li>
+          ))}
+        </ul>
+      )
+    } else {
+      elements.push(
+        <ol key={`ol-${elements.length}`} className="list-decimal pl-6 space-y-2 mb-4">
+          {listItems.map((item, i) => (
+            <li key={i} className="text-gray-700">{formatInlineText(item)}</li>
+          ))}
+        </ol>
+      )
+    }
+  } else if (currentParagraph.length > 0) {
+    elements.push(
+      <p key={`para-${elements.length}`} className="text-gray-700 leading-relaxed mb-4">
+        {formatInlineText(currentParagraph.join(' '))}
+      </p>
+    )
+  }
+
+  return <div className="space-y-2">{elements}</div>
 }
 
-// Helper for inline text formatting
-const formatInlineStyles = (text: string) => {
-  // Replace **bold** with <strong>
-  const parts = text.split(/(\*\*.*?\*\*)/g)
-
+// Helper to format inline text with bold support
+const formatInlineText = (text: string) => {
+  if (!text) return text
+  
+  // Split by ** markers
+  const parts = text.split(/(\*\*[^*]+\*\*)/)
+  
   return (
     <>
       {parts.map((part, i) => {
-        if (part.startsWith("**") && part.endsWith("**")) {
+        if (part.startsWith('**') && part.endsWith('**')) {
           return (
-            <strong key={i} className="font-bold">
+            <strong key={i} className="font-semibold text-gray-900">
               {part.slice(2, -2)}
             </strong>
           )
@@ -1063,18 +1182,30 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
                 </DialogHeader>
 
                 <div className="flex-1 overflow-y-auto py-4">
-                  <div className="prose max-w-none mb-6">
-                    {formatAssignmentDescription(selectedAssignment?.description || "")}
-                    <div className="flex justify-between items-center mt-4 text-sm text-gray-600 border-t border-gray-200 pt-4">
-                      <div>
-                        <strong>Due:</strong>{" "}
-                        {selectedAssignment && format(new Date(selectedAssignment.due_date), "MMMM d, yyyy")}
-                      </div>
-                      <div>
-                        <strong>Points:</strong> {selectedAssignment?.total_points}
-                      </div>
-                    </div>
-                  </div>
+                {/* Assignment Description with better formatting */}
+{/* Assignment Description with better formatting */}
+<div className="mb-6">
+  <div className="bg-gray-50/50 rounded-xl p-6 border border-gray-100">
+    {formatAssignmentDescription(selectedAssignment?.description || "")}
+  </div>
+  
+  {/* Due date and points */}
+  <div className="flex justify-between items-center mt-4 p-4 bg-white rounded-lg border border-gray-200">
+    <div className="flex items-center gap-2">
+      <Calendar className="h-4 w-4 text-blue-600" />
+      <span className="text-gray-600">
+        <span className="font-medium">Due:</span>{" "}
+        {selectedAssignment && format(new Date(selectedAssignment.due_date), "MMMM d, yyyy")}
+      </span>
+    </div>
+    <div className="flex items-center gap-2">
+      <Target className="h-4 w-4 text-purple-600" />
+      <span className="text-gray-600">
+        <span className="font-medium">Points:</span> {selectedAssignment?.total_points}
+      </span>
+    </div>
+  </div>
+</div>
 
                   {/* Assignment Details */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">

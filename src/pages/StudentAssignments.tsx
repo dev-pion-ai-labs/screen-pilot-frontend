@@ -84,7 +84,7 @@ interface Submission {
   file_name: string | null
   file_path: string | null
   grade: number | null
-  ai_grade?: string | null
+  ai_grade?: number | null
   ai_overall_grade?: string | null
   ai_strengths?: string | null
   ai_areas_for_improvement?: string | null
@@ -580,6 +580,8 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
       // 4. Parse AI result
       const aiData = parseAIFeedback(aiResult)
       // 5. Insert to submissions (all fields)
+      console.log("AI DATA ", aiData);
+
       const submissionId = uuidv4()
       const now = new Date().toISOString()
       const { error: insertErr } = await supabase.from("submissions").insert([

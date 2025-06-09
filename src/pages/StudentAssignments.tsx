@@ -1430,7 +1430,17 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
                   </div>
                 )}
 
-             
+                {/* Raw JSON Data
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  <details className="text-sm">
+                    <summary className="cursor-pointer text-gray-500 hover:text-gray-700 font-medium">
+                      View Raw Evaluation Data
+                    </summary>
+                    <pre className="mt-2 p-4 bg-gray-50 rounded-lg overflow-auto text-xs text-gray-700 max-h-60">
+                      {JSON.stringify(submission.ai_evaluation, null, 2)}
+                    </pre>
+                  </details>
+                </div> */}
               </div>
             )}
           </div>

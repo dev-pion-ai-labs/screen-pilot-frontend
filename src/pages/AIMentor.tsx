@@ -398,15 +398,13 @@
 //   )
 // }
 
-
 "use client"
 
 import { AuthGuard } from "@/components/AuthGuard"
 import { ModernDashboardLayout } from "@/components/ModernDashboardLayout"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Phone, PhoneOff, Mic, MicOff, Volume2, VolumeX, Brain, Sparkles, MessageSquare, Clock } from "lucide-react"
+import { Phone, PhoneOff, Mic, MicOff, Volume2, VolumeX, Brain, Sparkles, Clock, Zap, Stars, Waves } from "lucide-react"
 import { useState, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import Vapi from "@vapi-ai/web"
@@ -418,17 +416,10 @@ export default function AIMentorPage() {
   const [isMuted, setIsMuted] = useState(false)
   const [isSpeakerOn, setIsSpeakerOn] = useState(true)
   const [connectionStatus, setConnectionStatus] = useState<"disconnected" | "connecting" | "connected">("disconnected")
-  const [transcript, setTranscript] = useState<Array<{ role: string; text: string; timestamp: Date }>>([])
   const [callDuration, setCallDuration] = useState(0)
-  const [mentorStats, setMentorStats] = useState({
-    sessionsCompleted: 12,
-    averageRating: 4.8,
-    totalMinutes: 145,
-    topicsDiscussed: ["Math", "Study Tips", "Exam Prep"],
-  })
   const [isListening, setIsListening] = useState(false)
+  const [currentMessage, setCurrentMessage] = useState("")
   const callIntervalRef = useRef<NodeJS.Timeout>()
-  const transcriptEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     vapi.on("call-start", () => {
@@ -441,7 +432,7 @@ export default function AIMentorPage() {
       setConnectionStatus("disconnected")
       setIsCallActive(false)
       stopCallTimer()
-      updateMentorStats()
+      setCurrentMessage("")
     })
 
     vapi.on("speech-start", () => {
@@ -454,14 +445,9 @@ export default function AIMentorPage() {
 
     vapi.on("message", (message) => {
       if (message.type === "transcript" && message.transcript) {
-        setTranscript((prev) => [
-          ...prev,
-          {
-            role: message.role === "assistant" ? "AI Mentor" : "You",
-            text: message.transcript,
-            timestamp: new Date(),
-          },
-        ])
+        if (message.role === "assistant") {
+          setCurrentMessage(message.transcript)
+        }
       }
     })
 
@@ -476,10 +462,6 @@ export default function AIMentorPage() {
     }
   }, [])
 
-  useEffect(() => {
-    transcriptEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [transcript])
-
   const startCallTimer = () => {
     callIntervalRef.current = setInterval(() => {
       setCallDuration((prev) => prev + 1)
@@ -491,14 +473,6 @@ export default function AIMentorPage() {
       clearInterval(callIntervalRef.current)
     }
     setCallDuration(0)
-  }
-
-  const updateMentorStats = () => {
-    setMentorStats((prev) => ({
-      ...prev,
-      sessionsCompleted: prev.sessionsCompleted + 1,
-      totalMinutes: prev.totalMinutes + Math.floor(callDuration / 60),
-    }))
   }
 
   const formatDuration = (seconds: number) => {
@@ -521,357 +495,399 @@ export default function AIMentorPage() {
     vapi.stop()
   }
 
-  const toggleMute = () => {
-    if (isCallActive) {
-      setIsMuted(!isMuted)
-      vapi.setMuted(!isMuted)
-    }
-  }
+  // const toggleMute = () => {
+  //   if (isCallActive) {
+  //     const newMutedState = !isMuted
+  //     setIsMuted(newMutedState)
+  //     vapi.setMuted(newMutedState)
+  //   }
+  // }
 
-  const toggleSpeaker = () => {
-    setIsSpeakerOn(!isSpeakerOn)
-  }
+  // const toggleSpeaker = () => {
+  //   setIsSpeakerOn(!isSpeakerOn)
+  // }
 
   return (
     <AuthGuard allowedRoles={["student"]}>
       <ModernDashboardLayout>
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-slate-950 dark:via-blue-950 dark:to-indigo-950 -m-6 p-6">
-          <div className="space-y-8">
-            {/* Header with floating animation */}
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 via-purple-50 to-pink-50 dark:from-slate-950 dark:via-blue-950 dark:via-purple-950 dark:to-pink-950 -m-6 p-6 overflow-hidden relative">
+          {/* Animated Background Elements */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
             <motion.div
-              initial={{ opacity: 0, y: -30 }}
+              className="absolute top-20 left-20 w-72 h-72 bg-blue-400/10 rounded-full blur-3xl"
+              animate={{
+                x: [0, 100, 0],
+                y: [0, -50, 0],
+                scale: [1, 1.2, 1],
+              }}
+              transition={{ duration: 20, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
+            />
+            <motion.div
+              className="absolute top-40 right-20 w-96 h-96 bg-purple-400/10 rounded-full blur-3xl"
+              animate={{
+                x: [0, -80, 0],
+                y: [0, 60, 0],
+                scale: [1.2, 1, 1.2],
+              }}
+              transition={{ duration: 25, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
+            />
+            <motion.div
+              className="absolute bottom-20 left-1/3 w-80 h-80 bg-pink-400/10 rounded-full blur-3xl"
+              animate={{
+                x: [0, 120, 0],
+                y: [0, -80, 0],
+                scale: [1, 1.3, 1],
+              }}
+              transition={{ duration: 30, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
+            />
+          </div>
+
+          <div className="relative z-10 max-w-4xl mx-auto space-y-12">
+            {/* Enhanced Header */}
+            <motion.div
+              initial={{ opacity: 0, y: -50 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, ease: "easeOut" }}
-              className="text-center space-y-4"
+              transition={{ duration: 1, ease: "easeOut" }}
+              className="text-center space-y-6"
             >
               <motion.div
-                animate={{
-                  background: [
-                    "linear-gradient(45deg, #3b82f6, #8b5cf6)",
-                    "linear-gradient(45deg, #8b5cf6, #ec4899)",
-                    "linear-gradient(45deg, #ec4899, #3b82f6)",
-                  ],
-                }}
-                transition={{ duration: 6, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
-                className="inline-block p-1 rounded-2xl"
+                className="inline-flex items-center gap-4 p-2 rounded-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-2xl border border-white/20"
+                whileHover={{ scale: 1.05 }}
+                transition={{ type: "spring", stiffness: 300 }}
               >
-                <h1 className="text-5xl font-black tracking-tight bg-white dark:bg-slate-900 px-8 py-4 rounded-xl">
-                  <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+                <motion.div
+                  animate={{
+                    rotate: 360,
+                    background: [
+                      "linear-gradient(45deg, #3b82f6, #8b5cf6)",
+                      "linear-gradient(45deg, #8b5cf6, #ec4899)",
+                      "linear-gradient(45deg, #ec4899, #06b6d4)",
+                      "linear-gradient(45deg, #06b6d4, #3b82f6)",
+                    ],
+                  }}
+                  transition={{
+                    rotate: { duration: 20, repeat: Number.POSITIVE_INFINITY, ease: "linear" },
+                    background: { duration: 8, repeat: Number.POSITIVE_INFINITY, ease: "linear" },
+                  }}
+                  className="p-4 rounded-full"
+                >
+                  <Brain className="h-12 w-12 text-white" />
+                </motion.div>
+                <div className="pr-6">
+                  <h1 className="text-4xl font-black bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
                     AI MENTOR
-                  </span>
-                </h1>
+                  </h1>
+                  <p className="text-slate-600 dark:text-slate-300 font-medium">Your intelligent study companion</p>
+                </div>
               </motion.div>
-              <p className="text-xl text-slate-600 dark:text-slate-300 font-medium">
-                Your personal AI study companion • Available 24/7
-              </p>
             </motion.div>
 
-            <div className="grid gap-8 lg:grid-cols-3">
-              <div className="lg:col-span-2 space-y-8">
-                {/* Main Call Interface */}
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.6, delay: 0.2 }}
-                >
-                  <Card className="overflow-hidden border-0 shadow-2xl bg-gradient-to-br from-white to-blue-50 dark:from-slate-900 dark:to-blue-950">
-                    <CardHeader className="relative overflow-hidden">
-                      <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-pink-500/10" />
-                      <motion.div
-                        className="absolute inset-0 opacity-30"
-                        animate={{
-                          background: [
-                            "radial-gradient(circle at 20% 50%, #3b82f6 0%, transparent 50%)",
-                            "radial-gradient(circle at 80% 50%, #8b5cf6 0%, transparent 50%)",
-                            "radial-gradient(circle at 40% 50%, #ec4899 0%, transparent 50%)",
-                          ],
-                        }}
-                        transition={{ duration: 8, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
-                      />
-                      <div className="relative z-10 flex items-center justify-between">
-                        <div>
-                          <CardTitle className="flex items-center gap-3 text-2xl">
+            {/* Main Interface */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.8, delay: 0.3 }}
+            >
+              <Card className="border-0 shadow-2xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl overflow-hidden">
+                <CardContent className="p-12">
+                  {/* Status Display */}
+                  <div className="text-center mb-16">
+                    <AnimatePresence mode="wait">
+                      {connectionStatus === "connected" && (
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0.5 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.5 }}
+                          className="space-y-8"
+                        >
+                          {/* AI Avatar */}
+                          <div className="relative inline-block">
                             <motion.div
-                              animate={{ rotate: 360 }}
-                              transition={{ duration: 20, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
+                              className="w-48 h-48 rounded-full p-1 relative overflow-hidden"
+                              animate={{
+                                background: [
+                                  "linear-gradient(45deg, #3b82f6, #8b5cf6)",
+                                  "linear-gradient(45deg, #8b5cf6, #ec4899)",
+                                  "linear-gradient(45deg, #ec4899, #06b6d4)",
+                                  "linear-gradient(45deg, #06b6d4, #10b981)",
+                                  "linear-gradient(45deg, #10b981, #3b82f6)",
+                                ],
+                              }}
+                              transition={{ duration: 6, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
                             >
-                              <Brain className="h-8 w-8 text-blue-600" />
-                            </motion.div>
-                            Voice Chat with AI Mentor
-                          </CardTitle>
-                          <CardDescription className="text-lg mt-2">
-                            Experience the future of personalized learning
-                          </CardDescription>
-                        </div>
-                        {isCallActive && (
-                          <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="flex items-center gap-2">
-                            <Badge
-                              variant="secondary"
-                              className="text-lg px-4 py-2 bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                            >
-                              <Clock className="h-4 w-4 mr-2" />
-                              {formatDuration(callDuration)}
-                            </Badge>
-                          </motion.div>
-                        )}
-                      </div>
-                    </CardHeader>
-                    <CardContent className="p-8">
-                      {/* Enhanced Call Status */}
-                      <div className="text-center mb-12">
-                        <AnimatePresence mode="wait">
-                          {connectionStatus === "connected" && (
-                            <motion.div
-                              initial={{ opacity: 0, scale: 0.5 }}
-                              animate={{ opacity: 1, scale: 1 }}
-                              exit={{ opacity: 0, scale: 0.5 }}
-                              className="space-y-6"
-                            >
-                              <div className="relative inline-block">
+                              <div className="w-full h-full rounded-full bg-white dark:bg-slate-900 flex items-center justify-center relative overflow-hidden">
                                 <motion.div
-                                  className="w-40 h-40 rounded-full p-2"
                                   animate={{
-                                    background: [
-                                      "linear-gradient(45deg, #3b82f6, #8b5cf6)",
-                                      "linear-gradient(45deg, #8b5cf6, #ec4899)",
-                                      "linear-gradient(45deg, #ec4899, #06b6d4)",
-                                      "linear-gradient(45deg, #06b6d4, #3b82f6)",
-                                    ],
+                                    scale: isListening ? [1, 1.1, 1] : 1,
                                   }}
-                                  transition={{ duration: 4, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
+                                  transition={{
+                                    duration: 1.5,
+                                    repeat: isListening ? Number.POSITIVE_INFINITY : 0,
+                                    ease: "easeInOut",
+                                  }}
                                 >
-                                  <div className="w-full h-full rounded-full bg-white dark:bg-slate-900 flex items-center justify-center shadow-inner">
-                                    <motion.div
-                                      animate={{
-                                        scale: isListening ? [1, 1.1, 1] : 1,
-                                        rotate: [0, 360],
-                                      }}
-                                      transition={{
-                                        scale: { duration: 1, repeat: Number.POSITIVE_INFINITY },
-                                        rotate: { duration: 10, repeat: Number.POSITIVE_INFINITY, ease: "linear" },
-                                      }}
-                                    >
-                                      <Brain className="h-20 w-20 text-blue-600" />
-                                    </motion.div>
-                                  </div>
+                                  <Brain className="h-24 w-24 text-blue-600" />
                                 </motion.div>
+
+                                {/* Listening Animation */}
                                 {isListening && (
                                   <>
-                                    <motion.div
-                                      className="absolute inset-0 rounded-full border-4 border-blue-400/50"
-                                      animate={{ scale: [1, 1.3, 1], opacity: [0.7, 0, 0.7] }}
-                                      transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY }}
-                                    />
-                                    <motion.div
-                                      className="absolute inset-0 rounded-full border-4 border-purple-400/50"
-                                      animate={{ scale: [1, 1.5, 1], opacity: [0.5, 0, 0.5] }}
-                                      transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY, delay: 0.5 }}
-                                    />
+                                    {[...Array(3)].map((_, i) => (
+                                      <motion.div
+                                        key={i}
+                                        className="absolute inset-0 rounded-full border-2 border-blue-400/30"
+                                        animate={{
+                                          scale: [1, 1.5, 2],
+                                          opacity: [0.6, 0.3, 0],
+                                        }}
+                                        transition={{
+                                          duration: 2,
+                                          repeat: Number.POSITIVE_INFINITY,
+                                          delay: i * 0.4,
+                                          ease: "easeOut",
+                                        }}
+                                      />
+                                    ))}
                                   </>
                                 )}
                               </div>
-                              <motion.p
-                                className="text-2xl font-bold text-green-600 dark:text-green-400 flex items-center justify-center gap-3"
-                                animate={{ opacity: [0.7, 1, 0.7] }}
-                                transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY }}
-                              >
-                                <Sparkles className="h-6 w-6" />
-                                AI Mentor is {isListening ? "listening..." : "ready to help"}
-                                <Sparkles className="h-6 w-6" />
-                              </motion.p>
                             </motion.div>
-                          )}
-                          {connectionStatus === "connecting" && (
-                            <motion.div
-                              initial={{ opacity: 0 }}
-                              animate={{ opacity: 1 }}
-                              exit={{ opacity: 0 }}
-                              className="space-y-6"
-                            >
-                              <div className="w-40 h-40 mx-auto rounded-full bg-gradient-to-r from-blue-200 to-purple-200 dark:from-blue-800 dark:to-purple-800 flex items-center justify-center">
-                                <motion.div
-                                  animate={{ rotate: 360 }}
-                                  transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
-                                >
-                                  <Brain className="h-20 w-20 text-blue-600" />
-                                </motion.div>
-                              </div>
-                              <p className="text-xl font-semibold text-blue-600 dark:text-blue-400">
-                                Connecting to your AI Mentor...
-                              </p>
-                            </motion.div>
-                          )}
-                          {connectionStatus === "disconnected" && !isCallActive && (
-                            <motion.div
-                              initial={{ opacity: 0 }}
-                              animate={{ opacity: 1 }}
-                              exit={{ opacity: 0 }}
-                              className="space-y-6"
-                            >
-                              <motion.div
-                                className="w-40 h-40 mx-auto rounded-full bg-gradient-to-r from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-800 flex items-center justify-center"
-                                whileHover={{ scale: 1.05 }}
-                                transition={{ type: "spring", stiffness: 300 }}
-                              >
-                                <Brain className="h-20 w-20 text-slate-500" />
-                              </motion.div>
-                              <p className="text-xl font-semibold text-slate-600 dark:text-slate-400">
-                                Ready to start your mentoring journey
-                              </p>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
 
-                      {/* Enhanced Control Buttons */}
-                      <div className="flex justify-center gap-6">
-                        {!isCallActive ? (
-                          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                            <Button
-                              size="lg"
-                              onClick={startCall}
-                              disabled={connectionStatus === "connecting"}
-                              className="text-xl px-8 py-4 h-auto bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 hover:from-blue-700 hover:via-purple-700 hover:to-pink-700 shadow-xl border-0"
+                            {/* Floating Elements */}
+                            <motion.div
+                              className="absolute -top-4 -right-4"
+                              animate={{
+                                y: [0, -10, 0],
+                                rotate: [0, 10, 0],
+                              }}
+                              transition={{ duration: 3, repeat: Number.POSITIVE_INFINITY }}
                             >
-                              <Phone className="h-6 w-6 mr-3" />
-                              Start Call
-                            </Button>
-                          </motion.div>
-                        ) : (
-                          <div className="flex gap-4">
-                            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-                              <Button
-                                size="lg"
-                                variant={isMuted ? "secondary" : "outline"}
-                                onClick={toggleMute}
-                                className="h-14 w-14 rounded-full shadow-lg"
-                              >
-                                {isMuted ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
-                              </Button>
+                              <Sparkles className="h-8 w-8 text-yellow-500" />
                             </motion.div>
-                            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-                              <Button
-                                size="lg"
-                                variant={isSpeakerOn ? "outline" : "secondary"}
-                                onClick={toggleSpeaker}
-                                className="h-14 w-14 rounded-full shadow-lg"
-                              >
-                                {isSpeakerOn ? <Volume2 className="h-6 w-6" /> : <VolumeX className="h-6 w-6" />}
-                              </Button>
-                            </motion.div>
-                            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-                              <Button
-                                size="lg"
-                                variant="destructive"
-                                onClick={endCall}
-                                className="h-14 px-6 rounded-full shadow-lg bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600"
-                              >
-                                <PhoneOff className="h-6 w-6 mr-2" />
-                                End Call
-                              </Button>
+                            <motion.div
+                              className="absolute -bottom-4 -left-4"
+                              animate={{
+                                y: [0, 10, 0],
+                                rotate: [0, -10, 0],
+                              }}
+                              transition={{ duration: 4, repeat: Number.POSITIVE_INFINITY }}
+                            >
+                              <Zap className="h-8 w-8 text-purple-500" />
                             </motion.div>
                           </div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
 
-                {/* Enhanced Transcript */}
-                <motion.div
-                  initial={{ opacity: 0, y: 30 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: 0.4 }}
-                >
-                  <Card className="border-0 shadow-xl bg-gradient-to-br from-white to-slate-50 dark:from-slate-900 dark:to-slate-800">
-                    <CardHeader className="bg-gradient-to-r from-slate-50 to-blue-50 dark:from-slate-800 dark:to-blue-900">
-                      <CardTitle className="flex items-center gap-3 text-xl">
-                        <MessageSquare className="h-6 w-6 text-blue-600" />
-                        Live Conversation
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-6">
-                      <div className="h-80 overflow-y-auto space-y-4 p-6 bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-blue-950 rounded-xl border">
-                        {transcript.length === 0 ? (
-                          <div className="flex items-center justify-center h-full">
-                            <p className="text-center text-slate-500 dark:text-slate-400 text-lg">
-                              🎙️ Start a call to see the magic happen
+                          {/* Status Text */}
+                          <div className="space-y-4">
+                            <motion.div
+                              animate={{ opacity: [0.7, 1, 0.7] }}
+                              transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY }}
+                              className="flex items-center justify-center gap-3"
+                            >
+                              <Stars className="h-6 w-6 text-green-500" />
+                              <span className="text-2xl font-bold text-green-600 dark:text-green-400">
+                                {isListening ? "I'm listening..." : "Ready to help you learn"}
+                              </span>
+                              <Stars className="h-6 w-6 text-green-500" />
+                            </motion.div>
+
+                            {/* Current Message Display */}
+                            {currentMessage && (
+                              <motion.div
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="max-w-2xl mx-auto py-1 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950 rounded-2xl border border-blue-200 dark:border-blue-800"
+                              >
+                                <p className="text-sm leading-relaxed text-center">{currentMessage}</p>
+                              </motion.div>
+                            )}
+
+                            {/* Call Duration */}
+                            <motion.div
+                              initial={{ scale: 0 }}
+                              animate={{ scale: 1 }}
+                              className="inline-flex items-center gap-2 px-6 py-3 bg-green-100 dark:bg-green-900 rounded-full"
+                            >
+                              <Clock className="h-5 w-5 text-green-600" />
+                              <span className="text-lg font-semibold text-green-800 dark:text-green-200">
+                                {formatDuration(callDuration)}
+                              </span>
+                            </motion.div>
+                          </div>
+                        </motion.div>
+                      )}
+
+                      {connectionStatus === "connecting" && (
+                        <motion.div
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          className="space-y-8"
+                        >
+                          <div className="w-48 h-48 mx-auto rounded-full bg-gradient-to-r from-blue-200 to-purple-200 dark:from-blue-800 dark:to-purple-800 flex items-center justify-center relative overflow-hidden">
+                            <motion.div
+                              animate={{ rotate: 360 }}
+                              transition={{ duration: 3, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
+                            >
+                              <Brain className="h-24 w-24 text-blue-600" />
+                            </motion.div>
+
+                            {/* Loading Rings */}
+                            {[...Array(3)].map((_, i) => (
+                              <motion.div
+                                key={i}
+                                className="absolute inset-0 rounded-full border-4 border-blue-400/20"
+                                animate={{
+                                  scale: [1, 1.2, 1],
+                                  opacity: [0.3, 0.7, 0.3],
+                                }}
+                                transition={{
+                                  duration: 2,
+                                  repeat: Number.POSITIVE_INFINITY,
+                                  delay: i * 0.3,
+                                }}
+                              />
+                            ))}
+                          </div>
+                          <motion.p
+                            animate={{ opacity: [0.5, 1, 0.5] }}
+                            transition={{ duration: 1.5, repeat: Number.POSITIVE_INFINITY }}
+                            className="text-2xl font-bold text-blue-600 dark:text-blue-400"
+                          >
+                            Connecting to your AI Mentor...
+                          </motion.p>
+                        </motion.div>
+                      )}
+
+                      {connectionStatus === "disconnected" && !isCallActive && (
+                        <motion.div
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          className="space-y-8"
+                        >
+                          <motion.div
+                            className="w-48 h-48 mx-auto rounded-full bg-gradient-to-r from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-800 flex items-center justify-center relative overflow-hidden"
+                            whileHover={{ scale: 1.05 }}
+                            transition={{ type: "spring", stiffness: 300 }}
+                          >
+                            <Brain className="h-24 w-24 text-slate-500" />
+
+                            <motion.div
+                              className="absolute inset-0 rounded-full border-2 border-slate-400/20"
+                              animate={{
+                                scale: [1, 1.1, 1],
+                                opacity: [0.2, 0.4, 0.2],
+                              }}
+                              transition={{ duration: 4, repeat: Number.POSITIVE_INFINITY }}
+                            />
+                          </motion.div>
+                          <div className="space-y-4">
+                            <p className="text-2xl font-bold text-slate-600 dark:text-slate-400">
+                              Ready to unlock your potential
+                            </p>
+                            <p className="text-lg text-slate-500 dark:text-slate-500">
+                              Start a conversation and let's learn together
                             </p>
                           </div>
-                        ) : (
-                          transcript.map((entry, index) => (
-                            <motion.div
-                              key={index}
-                              initial={{ opacity: 0, x: entry.role === "You" ? 50 : -50 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              transition={{ duration: 0.5 }}
-                              className={`flex ${entry.role === "You" ? "justify-end" : "justify-start"}`}
-                            >
-                              <div
-                                className={`max-w-[85%] p-4 rounded-2xl shadow-lg ${
-                                  entry.role === "You"
-                                    ? "bg-gradient-to-r from-blue-500 to-purple-500 text-white"
-                                    : "bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
-                                }`}
-                              >
-                                <p className="font-semibold mb-2 text-sm opacity-80">{entry.role}</p>
-                                <p className="leading-relaxed">{entry.text}</p>
-                              </div>
-                            </motion.div>
-                          ))
-                        )}
-                        <div ref={transcriptEndRef} />
-                      </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
 
-              {/* Enhanced Sidebar */}
-              <div className="space-y-6">
-                <motion.div
-                  initial={{ opacity: 0, x: 30 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.6, delay: 0.6 }}
-                >
-                  <Card className="border-0 shadow-xl bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950 dark:to-pink-950">
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-3 text-xl">
-                        <Sparkles className="h-6 w-6 text-purple-600" />
-                        Pro Tips
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        {[
-                          "Be specific about what you need help with",
-                          "Don't hesitate to ask follow-up questions",
-                          "Take notes during your sessions",
-                          "Practice what you learn right away",
-                        ].map((tip, index) => (
-                          <motion.div
-                            key={index}
-                            initial={{ opacity: 0, x: 20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: 0.8 + index * 0.1 }}
-                            className="flex items-start gap-3 p-3 rounded-lg bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm"
+                  <div className="flex justify-center">
+                    {!isCallActive ? (
+                      <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="relative">
+                        <motion.div
+                          className="absolute inset-0 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 blur-xl opacity-50"
+                          animate={{ scale: [1, 1.2, 1] }}
+                          transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY }}
+                        />
+                        <Button
+                          size="lg"
+                          onClick={startCall}
+                          disabled={connectionStatus === "connecting"}
+                          className="relative text-xl px-12 py-6 h-auto bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 hover:from-blue-700 hover:via-purple-700 hover:to-pink-700 shadow-2xl border-0 rounded-full"
+                        >
+                          <Phone className="h-7 w-7 mr-4" />
+                          Start Learning Session
+                        </Button>
+                      </motion.div>
+                    ) : (
+                      <div className="flex gap-6">
+                        {/* <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                          <Button
+                            size="lg"
+                            variant={isMuted ? "secondary" : "outline"}
+                            onClick={toggleMute}
+                            className="h-16 w-16 rounded-full shadow-xl border-2"
                           >
-                            <motion.div
-                              animate={{ scale: [1, 1.2, 1] }}
-                              transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY, delay: index * 0.5 }}
-                              className="text-purple-500 mt-1"
-                            >
-                              ✨
-                            </motion.div>
-                            <span className="text-sm leading-relaxed">{tip}</span>
-                          </motion.div>
-                        ))}
+                            {isMuted ? <MicOff className="h-7 w-7" /> : <Mic className="h-7 w-7" />}
+                          </Button>
+                        </motion.div>
+                        <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                          <Button
+                            size="lg"
+                            variant={isSpeakerOn ? "outline" : "secondary"}
+                            onClick={toggleSpeaker}
+                            className="h-16 w-16 rounded-full shadow-xl border-2"
+                          >
+                            {isSpeakerOn ? <Volume2 className="h-7 w-7" /> : <VolumeX className="h-7 w-7" />}
+                          </Button>
+                        </motion.div> */}
+                        <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                          <Button
+                            size="lg"
+                            variant="destructive"
+                            onClick={endCall}
+                            className="h-16 px-8 rounded-full shadow-xl bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 border-0"
+                          >
+                            <PhoneOff className="h-7 w-7 mr-3" />
+                            End Session
+                          </Button>
+                        </motion.div>
                       </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              </div>
-            </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            {/* Floating Action Hints */}
+            {!isCallActive && (
+              <motion.div
+                initial={{ opacity: 0, y: 50 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 1, delay: 1 }}
+                className="text-center space-y-4"
+              >
+                <div className="flex justify-center gap-8 text-sm text-slate-500 dark:text-slate-400">
+                  <motion.div
+                    animate={{ y: [0, -5, 0] }}
+                    transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY, delay: 0 }}
+                    className="flex items-center gap-2"
+                  >
+                    <Waves className="h-4 w-4" />
+                    <span>Voice Powered</span>
+                  </motion.div>
+                  <motion.div
+                    animate={{ y: [0, -5, 0] }}
+                    transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY, delay: 0.5 }}
+                    className="flex items-center gap-2"
+                  >
+                    <Brain className="h-4 w-4" />
+                    <span>AI Enhanced</span>
+                  </motion.div>
+                  <motion.div
+                    animate={{ y: [0, -5, 0] }}
+                    transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY, delay: 1 }}
+                    className="flex items-center gap-2"
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    <span>24/7 Available</span>
+                  </motion.div>
+                </div>
+              </motion.div>
+            )}
           </div>
         </div>
       </ModernDashboardLayout>

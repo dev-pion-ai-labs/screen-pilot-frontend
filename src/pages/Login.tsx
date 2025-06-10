@@ -148,12 +148,12 @@ export default function Login() {
                         <Label htmlFor="password" className="text-gray-700 font-medium">
                           Password
                         </Label>
-                        <Link
+                        {/* <Link
                           to="/auth/forgot-password"
                           className="text-sm text-purple-600 hover:text-purple-700 hover:underline font-medium"
-                        >
-                          Forgot password?
-                        </Link>
+                        > */}
+                          {/* Forgot password? */}
+                        {/* </Link> */}
                       </div>
                       <Input
                         id="password"
@@ -183,7 +183,7 @@ export default function Login() {
                       )}
                     </Button>
 
-                    <div className="text-center">
+                    {/* <div className="text-center">
                       <p className="text-gray-600">
                         New to Screen Pilot?{" "}
                         <Link
@@ -193,16 +193,16 @@ export default function Login() {
                           Create your account
                         </Link>
                       </p>
-                    </div>
+                    </div> */}
 
-                    <div className="text-center pt-4 border-t border-gray-200">
+                    {/* <div className="text-center pt-4 border-t border-gray-200">
                       <p className="text-sm text-gray-500">
                         Need help? Contact{" "}
                         <Link to="/support" className="text-purple-600 hover:text-purple-700 hover:underline">
                           ACFM Support
                         </Link>
                       </p>
-                    </div>
+                    </div> */}
                   </CardFooter>
                 </form>
               </Card>

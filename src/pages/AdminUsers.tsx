@@ -34,6 +34,7 @@ const AdminUsers = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [isCreatingUser, setIsCreatingUser] = useState(false)
+  const [isUpdatingUser, setIsUpdatingUser] = useState(false)
   const [newUser, setNewUser] = useState({
     email: "",
     full_name: "",
@@ -49,10 +50,16 @@ const AdminUsers = () => {
   }, [])
 
   const fetchUsers = async () => {
+    console.log('Fetching users...')
     try {
       const { data, error } = await supabase.from("profiles").select("*").order("created_at", { ascending: false })
 
-      if (error) throw error
+      if (error) {
+        console.error('Error in fetchUsers:', error)
+        throw error
+      }
+
+      console.log('Users fetched successfully:', data?.length || 0, 'users found')
 
       // Type cast the data properly
       const typedUsers: User[] = (data || []).map((profile) => ({
@@ -79,19 +86,26 @@ const AdminUsers = () => {
   }
 
   const handleAddUser = async () => {
-    if (isCreatingUser) return // Prevent multiple submissions
+    console.log('Starting user creation process...', { newUser })
+    if (isCreatingUser) {
+      console.log('User creation already in progress, skipping...')
+      return
+    }
 
     setIsCreatingUser(true)
-    
+
     try {
       // Get the current user session to restore it later
+      console.log('Getting current session...')
       const { data: currentSession } = await supabase.auth.getSession()
+      console.log('Current session retrieved:', currentSession ? 'Session exists' : 'No session')
 
       // Create user in auth with admin privileges
+      console.log('Attempting to create user with admin privileges...')
       const { data: authData, error: authError } = await supabase.auth.admin.createUser({
         email: newUser.email,
         password: newUser.password,
-        email_confirm: true, // Auto-confirm email
+        email_confirm: true,
         user_metadata: {
           full_name: newUser.full_name,
           role: newUser.role,
@@ -99,6 +113,7 @@ const AdminUsers = () => {
       })
 
       if (authError) {
+        console.log('Admin create user failed, falling back to regular signup:', authError)
         // If admin.createUser is not available, try regular signup with immediate signout
         const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
           email: newUser.email,
@@ -111,32 +126,38 @@ const AdminUsers = () => {
           },
         })
 
-        if (signUpError) throw signUpError
+        if (signUpError) {
+          console.error('Signup error:', signUpError)
+          throw signUpError
+        }
 
+        console.log('Regular signup successful, signing out new user...')
         // Immediately sign out the new user to prevent session hijacking
         await supabase.auth.signOut()
 
         // Restore the admin session
         if (currentSession?.session) {
+          console.log('Restoring admin session...')
           await supabase.auth.setSession(currentSession.session)
         }
 
         // Update profile with additional data
         if (signUpData.user) {
+          console.log('Updating user profile...', { userId: signUpData.user.id })
           const { error: updateError } = await supabase
             .from("profiles")
-            .update({ 
+            .update({
               role: newUser.role,
-              semester: newUser.role === "student" ? newUser.semester : null 
+              semester: newUser.role === "student" ? newUser.semester : null
             })
             .eq("id", signUpData.user.id)
 
           if (updateError) {
             console.error("Error updating profile:", updateError)
-            // Don't throw here, user is created, just profile update failed
           }
         }
       } else {
+        console.log('Admin create user successful, updating profile...')
         // If admin.createUser worked, update the profile
         if (authData.user && newUser.role === "student") {
           const { error: updateError } = await supabase
@@ -150,6 +171,7 @@ const AdminUsers = () => {
         }
       }
 
+      console.log('User creation completed successfully')
       toast({
         title: "Success",
         description: "User created successfully",
@@ -170,17 +192,66 @@ const AdminUsers = () => {
   }
 
   const handleEditUser = async (user: User) => {
-    try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          full_name: user.full_name,
-          role: user.role,
-          semester: user.semester,
-        })
-        .eq("id", user.id)
+    console.log('Starting user edit process...', { user })
 
-      if (error) throw error
+    if (isUpdatingUser) {
+      console.log('User update already in progress, skipping...')
+      return
+    }
+
+    setIsUpdatingUser(true)
+
+    try {
+      // Validate semester for students
+      if (user.role === "student" && (!user.semester || user.semester < 1 || user.semester > 8)) {
+        console.warn('Invalid semester value:', user.semester)
+        toast({
+          title: "Error",
+          description: "Please select a valid semester (1-8) for students",
+          variant: "destructive",
+        })
+        return
+      }
+
+      // Prepare update data
+      const updateData = {
+        full_name: user.full_name,
+        role: user.role,
+        semester: user.role === "student" ? user.semester : null,
+        updated_at: new Date().toISOString(),
+      }
+
+      console.log('Updating user profile...', {
+        userId: user.id,
+        updates: updateData
+      })
+
+      // Update user profile with explicit data
+      const { data: updatedData, error } = await supabase
+        .from("profiles")
+        .update(updateData)
+        .eq("id", user.id)
+        .select()
+
+      if (error) {
+        console.error('Error updating user profile:', error)
+        throw error
+      }
+
+      console.log('User profile updated successfully:', updatedData)
+
+      // Verify the update by fetching the specific user
+      const { data: verifyData, error: verifyError } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .single()
+
+      if (verifyError) {
+        console.error('Error verifying update:', verifyError)
+      } else {
+        console.log('Verification data:', verifyData)
+      }
 
       toast({
         title: "Success",
@@ -188,28 +259,36 @@ const AdminUsers = () => {
       })
 
       setEditingUser(null)
-      fetchUsers()
+      // Refresh the user list to get the latest data
+      await fetchUsers()
     } catch (error) {
       console.error("Error updating user:", error)
       toast({
         title: "Error",
-        description: "Failed to update user",
+        description: error instanceof Error ? error.message : "Failed to update user",
         variant: "destructive",
       })
+    } finally {
+      setIsUpdatingUser(false)
     }
   }
 
   const handleDeleteUser = async (userId: string) => {
+    console.log('Starting user deletion process...', { userId })
+
     // Show confirmation dialog
     const confirmDelete = window.confirm(
       "Are you sure you want to delete this user? This action cannot be undone and will also delete all related data (assignments, submissions, etc.)."
     )
-    
-    if (!confirmDelete) return
+
+    if (!confirmDelete) {
+      console.log('User deletion cancelled by user')
+      return
+    }
 
     try {
       // First, try to delete related data
-      // Delete user's submissions
+      console.log('Deleting user submissions...')
       const { error: submissionsError } = await supabase
         .from("submissions")
         .delete()
@@ -217,10 +296,11 @@ const AdminUsers = () => {
 
       if (submissionsError) {
         console.error("Error deleting submissions:", submissionsError)
-        // Continue anyway, as submissions might not exist
+      } else {
+        console.log('Submissions deleted successfully')
       }
 
-      // Delete user's assignments (if they're a teacher)
+      console.log('Deleting user assignments...')
       const { error: assignmentsError } = await supabase
         .from("assignments")
         .delete()
@@ -228,17 +308,22 @@ const AdminUsers = () => {
 
       if (assignmentsError) {
         console.error("Error deleting assignments:", assignmentsError)
-        // Continue anyway, as assignments might not exist
+      } else {
+        console.log('Assignments deleted successfully')
       }
 
-      // Finally, delete the user profile
+      console.log('Deleting user profile...')
       const { error: profileError } = await supabase
         .from("profiles")
         .delete()
         .eq("id", userId)
 
-      if (profileError) throw profileError
+      if (profileError) {
+        console.error('Error deleting user profile:', profileError)
+        throw profileError
+      }
 
+      console.log('User and related data deleted successfully')
       toast({
         title: "Success",
         description: "User and related data deleted successfully",
@@ -307,6 +392,7 @@ const AdminUsers = () => {
     )
   }
 
+
   return (
     <AuthGuard allowedRoles={["admin"]}>
       <ModernDashboardLayout>
@@ -341,25 +427,22 @@ const AdminUsers = () => {
                     <div className="flex items-center justify-center mt-4">
                       <div className="flex items-center space-x-4">
                         <div
-                          className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-all duration-300 ${
-                            currentStep >= 1
-                              ? "bg-gradient-to-r from-blue-500 to-purple-500 text-white"
-                              : "bg-gray-200 text-gray-500"
-                          }`}
+                          className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-all duration-300 ${currentStep >= 1
+                            ? "bg-gradient-to-r from-blue-500 to-purple-500 text-white"
+                            : "bg-gray-200 text-gray-500"
+                            }`}
                         >
                           1
                         </div>
                         <div
-                          className={`w-12 h-1 rounded-full transition-all duration-300 ${
-                            currentStep >= 2 ? "bg-gradient-to-r from-blue-500 to-purple-500" : "bg-gray-200"
-                          }`}
+                          className={`w-12 h-1 rounded-full transition-all duration-300 ${currentStep >= 2 ? "bg-gradient-to-r from-blue-500 to-purple-500" : "bg-gray-200"
+                            }`}
                         ></div>
                         <div
-                          className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-all duration-300 ${
-                            currentStep >= 2
-                              ? "bg-gradient-to-r from-blue-500 to-purple-500 text-white"
-                              : "bg-gray-200 text-gray-500"
-                          }`}
+                          className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-all duration-300 ${currentStep >= 2
+                            ? "bg-gradient-to-r from-blue-500 to-purple-500 text-white"
+                            : "bg-gray-200 text-gray-500"
+                            }`}
                         >
                           2
                         </div>
@@ -442,18 +525,16 @@ const AdminUsers = () => {
                         <div className="space-y-3">
                           {/* Student Role */}
                           <div
-                            className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 ${
-                              newUser.role === "student"
-                                ? "border-green-400 bg-gradient-to-r from-green-50 to-emerald-50"
-                                : "border-gray-200 bg-white hover:border-green-300 hover:bg-green-50/50"
-                            }`}
+                            className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 ${newUser.role === "student"
+                              ? "border-green-400 bg-gradient-to-r from-green-50 to-emerald-50"
+                              : "border-gray-200 bg-white hover:border-green-300 hover:bg-green-50/50"
+                              }`}
                             onClick={() => setNewUser({ ...newUser, role: "student" })}
                           >
                             <div className="flex items-center space-x-3">
                               <div
-                                className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-300 ${
-                                  newUser.role === "student" ? "border-green-500 bg-green-500" : "border-gray-300"
-                                }`}
+                                className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-300 ${newUser.role === "student" ? "border-green-500 bg-green-500" : "border-gray-300"
+                                  }`}
                               >
                                 {newUser.role === "student" && <div className="w-2 h-2 bg-white rounded-full"></div>}
                               </div>
@@ -469,18 +550,16 @@ const AdminUsers = () => {
 
                           {/* Teacher Role */}
                           <div
-                            className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 ${
-                              newUser.role === "teacher"
-                                ? "border-blue-400 bg-gradient-to-r from-blue-50 to-cyan-50"
-                                : "border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50/50"
-                            }`}
+                            className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 ${newUser.role === "teacher"
+                              ? "border-blue-400 bg-gradient-to-r from-blue-50 to-cyan-50"
+                              : "border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50/50"
+                              }`}
                             onClick={() => setNewUser({ ...newUser, role: "teacher" })}
                           >
                             <div className="flex items-center space-x-3">
                               <div
-                                className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-300 ${
-                                  newUser.role === "teacher" ? "border-blue-500 bg-blue-500" : "border-gray-300"
-                                }`}
+                                className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-300 ${newUser.role === "teacher" ? "border-blue-500 bg-blue-500" : "border-gray-300"
+                                  }`}
                               >
                                 {newUser.role === "teacher" && <div className="w-2 h-2 bg-white rounded-full"></div>}
                               </div>
@@ -496,18 +575,16 @@ const AdminUsers = () => {
 
                           {/* Admin Role */}
                           <div
-                            className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 ${
-                              newUser.role === "admin"
-                                ? "border-red-400 bg-gradient-to-r from-red-50 to-pink-50"
-                                : "border-gray-200 bg-white hover:border-red-300 hover:bg-red-50/50"
-                            }`}
+                            className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 ${newUser.role === "admin"
+                              ? "border-red-400 bg-gradient-to-r from-red-50 to-pink-50"
+                              : "border-gray-200 bg-white hover:border-red-300 hover:bg-red-50/50"
+                              }`}
                             onClick={() => setNewUser({ ...newUser, role: "admin" })}
                           >
                             <div className="flex items-center space-x-3">
                               <div
-                                className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-300 ${
-                                  newUser.role === "admin" ? "border-red-500 bg-red-500" : "border-gray-300"
-                                }`}
+                                className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-300 ${newUser.role === "admin" ? "border-red-500 bg-red-500" : "border-gray-300"
+                                  }`}
                               >
                                 {newUser.role === "admin" && <div className="w-2 h-2 bg-white rounded-full"></div>}
                               </div>
@@ -530,11 +607,10 @@ const AdminUsers = () => {
                               {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => (
                                 <div
                                   key={sem}
-                                  className={`p-3 text-center rounded-lg border-2 cursor-pointer transition-all duration-300 ${
-                                    newUser.semester === sem
-                                      ? "border-green-500 bg-green-500 text-white"
-                                      : "border-green-200 bg-white text-gray-700 hover:border-green-400 hover:bg-green-100"
-                                  }`}
+                                  className={`p-3 text-center rounded-lg border-2 cursor-pointer transition-all duration-300 ${newUser.semester === sem
+                                    ? "border-green-500 bg-green-500 text-white"
+                                    : "border-green-200 bg-white text-gray-700 hover:border-green-400 hover:bg-green-100"
+                                    }`}
                                   onClick={() => setNewUser({ ...newUser, semester: sem })}
                                 >
                                   <div className="text-sm font-medium">{sem}</div>
@@ -722,27 +798,36 @@ const AdminUsers = () => {
                           </TableCell>
                           <TableCell className="text-gray-600 py-4">
                             {editingUser?.id === user.id && editingUser.role === "student" ? (
-                              <Select
-                                value={editingUser.semester?.toString() || "1"}
-                                onValueChange={(value) =>
-                                  setEditingUser({ ...editingUser, semester: Number.parseInt(value) })
-                                }
-                              >
-                                <SelectTrigger className="w-32 border-gray-200 focus:border-blue-400 focus:ring-blue-400">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => (
-                                    <SelectItem key={sem} value={sem.toString()}>
-                                      Sem {sem}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              <div className="flex items-center gap-2">
+                                <Select
+                                  value={editingUser.semester?.toString() || "1"}
+                                  onValueChange={(value) =>
+                                    setEditingUser({ ...editingUser, semester: Number.parseInt(value) })
+                                  }
+                                >
+                                  <SelectTrigger className="w-32 border-gray-200 focus:border-blue-400 focus:ring-blue-400">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => (
+                                      <SelectItem key={sem} value={sem.toString()}>
+                                        Semester {sem}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                                  {editingUser.semester ? `Semester ${editingUser.semester}` : "Select Semester"}
+                                </Badge>
+                              </div>
                             ) : user.semester ? (
-                              `Semester ${user.semester}`
+                              <Badge className="bg-gradient-to-r from-green-500 to-emerald-500 text-white border-0">
+                                Semester {user.semester}
+                              </Badge>
                             ) : (
-                              "N/A"
+                              <Badge variant="outline" className="text-gray-500">
+                                N/A
+                              </Badge>
                             )}
                           </TableCell>
                           <TableCell className="text-gray-600 py-4">

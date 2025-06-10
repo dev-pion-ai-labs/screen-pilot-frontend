@@ -75,18 +75,18 @@ export function AppSidebar() {
             icon: Users,
             description: "Manage system users",
           },
-          {
-            name: "System Stats",
-            href: "/admin/stats",
-            icon: BarChart3,
-            description: "View platform analytics",
-          },
-          {
-            name: "Role Management",
-            href: "/admin/roles",
-            icon: Shield,
-            description: "Manage user roles and permissions",
-          },
+          // {
+          //   name: "System Stats",
+          //   href: "/admin/stats",
+          //   icon: BarChart3,
+          //   description: "View platform analytics",
+          // },
+          // {
+          //   name: "Role Management",
+          //   href: "/admin/roles",
+          //   icon: Shield,
+          //   description: "Manage user roles and permissions",
+          // },
           {
             name: "Settings",
             href: "/admin/settings",

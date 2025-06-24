@@ -111,6 +111,21 @@ export const TeacherSelectionModal = ({
             </DialogTitle>
             <div className="flex items-center gap-3">
               <Button
+                variant="outline"
+                onClick={() => {
+                  const allTeacherIds = filteredTeachers.map(t => t.id);
+                  const allSelected = allTeacherIds.every(id => selectedTeachers.includes(id));
+                  if (allSelected) {
+                    onSelectionChange([]);
+                  } else {
+                    onSelectionChange(allTeacherIds);
+                  }
+                }}
+                className="px-4 py-2 text-sm rounded-lg"
+              >
+                {filteredTeachers.length > 0 && filteredTeachers.every(t => selectedTeachers.includes(t.id)) ? "Deselect All" : "Select All"}
+              </Button>
+              <Button
                 onClick={onConfirm}
                 className="bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 px-4 py-2 text-sm rounded-lg"
               >
@@ -215,6 +230,21 @@ export const StudentSelectionModal = ({
               Select Students
             </DialogTitle>
             <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  const allStudentIds = filteredStudents.map(s => s.id);
+                  const allSelected = allStudentIds.every(id => selectedStudents.includes(id));
+                  if (allSelected) {
+                    onSelectionChange([]);
+                  } else {
+                    onSelectionChange(allStudentIds);
+                  }
+                }}
+                className="px-4 py-2 text-sm rounded-lg"
+              >
+                {filteredStudents.length > 0 && filteredStudents.every(s => selectedStudents.includes(s.id)) ? "Deselect All" : "Select All"}
+              </Button>
               <Button
                 onClick={onConfirm}
                 className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 px-4 py-2 text-sm rounded-lg"

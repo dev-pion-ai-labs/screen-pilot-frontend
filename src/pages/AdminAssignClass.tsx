@@ -136,10 +136,10 @@ const AdminAssignClass = () => {
       return;
     }
 
-    if (selectedTeachers.length === 0) {
+    if (selectedTeachers.length !== 1) {
       toast({
         title: "Error",
-        description: "Please select at least one teacher",
+        description: "Please select exactly one teacher",
         variant: "destructive",
       });
       return;

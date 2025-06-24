@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Select,
   SelectContent,
@@ -90,12 +91,8 @@ export const TeacherSelectionModal = ({
       teacher.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleSelectionChange = (teacherId: string, checked: boolean) => {
-    if (checked) {
-      onSelectionChange([...selectedTeachers, teacherId]);
-    } else {
-      onSelectionChange(selectedTeachers.filter((id) => id !== teacherId));
-    }
+  const handleSelectionChange = (teacherId: string) => {
+    onSelectionChange([teacherId]);
   };
 
   return (
@@ -107,29 +104,23 @@ export const TeacherSelectionModal = ({
               <div className="w-6 h-6 bg-gradient-to-br from-indigo-500 to-blue-500 rounded-lg flex items-center justify-center">
                 <UserPlus className="w-3 h-3 text-white" />
               </div>
-              Select Teachers
+              Select Teacher
             </DialogTitle>
             <div className="flex items-center gap-3">
               <Button
                 variant="outline"
                 onClick={() => {
-                  const allTeacherIds = filteredTeachers.map(t => t.id);
-                  const allSelected = allTeacherIds.every(id => selectedTeachers.includes(id));
-                  if (allSelected) {
-                    onSelectionChange([]);
-                  } else {
-                    onSelectionChange(allTeacherIds);
-                  }
+                  onSelectionChange([]);
                 }}
                 className="px-4 py-2 text-sm rounded-lg"
               >
-                {filteredTeachers.length > 0 && filteredTeachers.every(t => selectedTeachers.includes(t.id)) ? "Deselect All" : "Select All"}
+                Clear Selection
               </Button>
               <Button
                 onClick={onConfirm}
                 className="bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 px-4 py-2 text-sm rounded-lg"
               >
-                Select Teachers ({selectedTeachers.length})
+                Select Teacher ({selectedTeachers.length})
               </Button>
               <Button
                 variant="outline"
@@ -156,18 +147,19 @@ export const TeacherSelectionModal = ({
             />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-96 overflow-y-auto">
+          <RadioGroup
+            value={selectedTeachers[0] || ""}
+            onValueChange={handleSelectionChange}
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-96 overflow-y-auto"
+          >
             {filteredTeachers.map((teacher) => (
               <div
                 key={teacher.id}
                 className="flex items-center space-x-3 p-3 rounded-lg border border-gray-200 hover:border-indigo-200 hover:bg-indigo-50 transition-all duration-200"
               >
-                <Checkbox
+                <RadioGroupItem
+                  value={teacher.id}
                   id={teacher.id}
-                  checked={selectedTeachers.includes(teacher.id)}
-                  onCheckedChange={(checked) =>
-                    handleSelectionChange(teacher.id, checked as boolean)
-                  }
                   className="w-4 h-4"
                 />
                 <div className="flex-1 min-w-0">
@@ -180,7 +172,7 @@ export const TeacherSelectionModal = ({
                 </div>
               </div>
             ))}
-          </div>
+          </RadioGroup>
         </div>
       </DialogContent>
     </Dialog>
@@ -421,7 +413,7 @@ export const AdminClassDialog = ({
 
             <div className="space-y-4">
               <Label className="text-lg font-semibold text-gray-700">
-                Teachers
+                Teacher
               </Label>
               <div className="flex gap-3">
                 <Button
@@ -431,7 +423,7 @@ export const AdminClassDialog = ({
                   className="flex-1 h-14 text-lg rounded-xl border-2 border-dashed border-indigo-300 hover:border-indigo-500 hover:bg-indigo-50 transition-all duration-200"
                 >
                   <UserPlus className="w-5 h-5 mr-3" />
-                  Select Teachers
+                  Select Teacher
                 </Button>
                 {selectedTeachers.length > 0 && (
                   <Button
@@ -448,7 +440,7 @@ export const AdminClassDialog = ({
               {selectedTeachers.length > 0 && (
                 <div className="space-y-3">
                   <p className="text-sm font-medium text-gray-600">
-                    Selected Teachers:
+                    Selected Teacher:
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {selectedTeachers.map((teacher) => (

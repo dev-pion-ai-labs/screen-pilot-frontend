@@ -1,18 +1,24 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useState, useEffect, useRef } from "react"
-import { useAuth } from "@/hooks/useAuth"
-import { supabase } from "@/integrations/supabase/client"
-import { AuthGuard } from "@/components/AuthGuard"
-import { ModernDashboardLayout } from "@/components/ModernDashboardLayout"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Badge } from "@/components/ui/badge"
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+import { useState, useEffect, useRef } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { AuthGuard } from "@/components/AuthGuard";
+import { ModernDashboardLayout } from "@/components/ModernDashboardLayout";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import {
   BookOpen,
   Calendar,
@@ -25,7 +31,6 @@ import {
   X,
   Send,
   AlertCircle,
-  Star,
   Target,
   TrendingUp,
   Award,
@@ -33,102 +38,116 @@ import {
   Search,
   Download,
   GraduationCap,
-  ChevronDown,
-  ChevronUp,
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
-} from "lucide-react"
-import { format, isAfter } from "date-fns"
-import { v4 as uuidv4 } from "uuid"
-import { useToast } from "@/hooks/use-toast"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Progress } from "@/components/ui/progress"
+} from "lucide-react";
+import { format, isAfter } from "date-fns";
+import { v4 as uuidv4 } from "uuid";
+import { useToast } from "@/hooks/use-toast";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 // --- RelevanceAI Config ---
 const RELEVANCE_CONFIG = {
   agent: {
     endpoint: "https://api-d7b62b.stack.tryrelevance.com/latest/agents/trigger",
-    authorization: "5cc7752400a6-4648-b47b-04fc92b47cae:sk-OGIxMWJiMzAtMTk5Ni00Nzk3LTk5MTYtZTFmZTI4NzIzNTNj",
+    authorization:
+      "5cc7752400a6-4648-b47b-04fc92b47cae:sk-OGIxMWJiMzAtMTk5Ni00Nzk3LTk5MTYtZTFmZTI4NzIzNTNj",
     agent_id: "6c425902-6090-4781-b8de-df38ff3f26fb",
   },
   extractPdf: {
     endpoint:
       "https://api-d7b62b.stack.tryrelevance.com/latest/studios/5a6eaca2-6e92-4557-a299-c0e2bbbac201/trigger_webhook?project=5cc7752400a6-4648-b47b-04fc92b47cae",
-    authorization: "5cc7752400a6-4648-b47b-04fc92b47cae:sk-OTJkZGIzNzYtMGU5Yi00MDY4LTk2NjEtM2JkODE4NjM4M2Jk",
+    authorization:
+      "5cc7752400a6-4648-b47b-04fc92b47cae:sk-OTJkZGIzNzYtMGU5Yi00MDY4LTk2NjEtM2JkODE4NjM4M2Jk",
   },
   extractDocx: {
     endpoint:
       "https://api-d7b62b.stack.tryrelevance.com/latest/studios/aa26fd47-2966-428c-b542-cb40e608357a/trigger_webhook?project=5cc7752400a6-4648-b47b-04fc92b47cae",
-    authorization: "5cc7752400a6-4648-b47b-04fc92b47cae:sk-OWQzMGE4MTUtMjVmOS00Nzk5LWJkNzEtZDdjOWRkOWJmZGRm",
+    authorization:
+      "5cc7752400a6-4648-b47b-04fc92b47cae:sk-OWQzMGE4MTUtMjVmOS00Nzk5LWJkNzEtZDdjOWRkOWJmZGRm",
   },
   region: "d7b62b",
-}
+};
 
 interface Assignment {
-  id: string
-  title: string
-  description: string
-  due_date: string
-  total_points: number
-  topic: string
-  difficulty: string
-  created_at: string
-  submissions?: Submission[]
+  id: string;
+  title: string;
+  description: string;
+  due_date: string;
+  total_points: number;
+  topic: string;
+  difficulty: string;
+  created_at: string;
+  submissions?: Submission[];
 }
 
 interface Submission {
-  id: string
-  status: string
-  submission_date: string
-  ai_evaluation: any
-  teacher_grade: number | null
-  teacher_feedback: string | null
-  file_name: string | null
-  file_path: string | null
-  grade: number | null
-  ai_grade?: number | null
-  ai_overall_grade?: string | null
-  ai_strengths?: string | null
-  ai_areas_for_improvement?: string | null
-  ai_recommendations?: string | null
-  ai_rubric_breakdown?: string | null
-  ai_academic_integrity?: string | null
-  ai_status?: string | null
-  ai_red_flags?: string | null
+  id: string;
+  status: string;
+  submission_date: string;
+  ai_evaluation: any;
+  teacher_grade: number | null;
+  teacher_feedback: string | null;
+  file_name: string | null;
+  file_path: string | null;
+  grade: number | null;
+  ai_grade?: any;
+  ai_overall_grade?: any;
+  ai_strengths?: string | null;
+  ai_areas_for_improvement?: string | null;
+  ai_recommendations?: string | null;
+  ai_rubric_breakdown?: string | null;
+  ai_academic_integrity?: string | null;
+  ai_status?: string | null;
+  ai_red_flags?: string | null;
 }
 
 interface Profile {
-  id: string
-  full_name: string
-  email: string
-  role: string
-  semester?: number
-  created_at: string
-  updated_at: string
+  id: string;
+  full_name: string;
+  email: string;
+  role: string;
+  semester?: number;
+  created_at: string;
+  updated_at: string;
 }
 
 // --- Helper: Extract text from uploaded file (supports .txt, .pdf, .docx) ---
-async function extractTextFromFile(file: File, publicUrl: string): Promise<string> {
-  const ext = file.name.split(".").pop()?.toLowerCase()
-  console.log(`[File Processing] Starting extraction for file: ${file.name} (${ext})`)
+async function extractTextFromFile(
+  file: File,
+  publicUrl: string
+): Promise<string> {
+  const ext = file.name.split(".").pop()?.toLowerCase();
+  console.log(
+    `[File Processing] Starting extraction for file: ${file.name} (${ext})`
+  );
 
   if (ext === "txt") {
-    console.log("[TXT Processing] Reading text file directly")
-    const text = await file.text()
-    console.log("[TXT Processing] Successfully read text file, length:", text.length)
-    return text
+    console.log("[TXT Processing] Reading text file directly");
+    const text = await file.text();
+    console.log(
+      "[TXT Processing] Successfully read text file, length:",
+      text.length
+    );
+    return text;
   }
 
   if (ext === "pdf") {
-    console.log("[PDF Processing] Starting PDF extraction")
-    console.log("[PDF Processing] File URL:", publicUrl)
+    console.log("[PDF Processing] Starting PDF extraction");
+    console.log("[PDF Processing] File URL:", publicUrl);
 
     // Wait for storage availability
-    console.log("[PDF Processing] Waiting for file availability...")
-    await new Promise((res) => setTimeout(res, 2000))
+    console.log("[PDF Processing] Waiting for file availability...");
+    await new Promise((res) => setTimeout(res, 2000));
 
-    console.log("[PDF Processing] Sending request to PDF extraction API")
+    console.log("[PDF Processing] Sending request to PDF extraction API");
     const response = await fetch(RELEVANCE_CONFIG.extractPdf.endpoint, {
       method: "POST",
       headers: {
@@ -136,18 +155,23 @@ async function extractTextFromFile(file: File, publicUrl: string): Promise<strin
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ file_url: publicUrl }),
-    })
+    });
 
     if (!response.ok) {
       console.error("[PDF Processing] API Error:", {
         status: response.status,
-        statusText: response.statusText
-      })
-      throw new Error(`PDF extraction API error: ${response.status} ${response.statusText}`)
+        statusText: response.statusText,
+      });
+      throw new Error(
+        `PDF extraction API error: ${response.status} ${response.statusText}`
+      );
     }
 
-    const data = await response.json()
-    console.log("[PDF Processing] Raw API Response:", JSON.stringify(data, null, 2))
+    const data = await response.json();
+    console.log(
+      "[PDF Processing] Raw API Response:",
+      JSON.stringify(data, null, 2)
+    );
 
     // Check all possible response formats
     const possibleTexts = [
@@ -156,39 +180,47 @@ async function extractTextFromFile(file: File, publicUrl: string): Promise<strin
       data?.data,
       data?.scanned_data,
       data?.text,
-    ]
+    ];
 
     console.log("[PDF Processing] Checking possible text fields:", {
       hasResultText: !!data?.result?.text,
       hasOutput: !!data?.output,
       hasData: !!data?.data,
       hasScannedData: !!data?.scanned_data,
-      hasText: !!data?.text
-    })
+      hasText: !!data?.text,
+    });
 
-    const extracted = possibleTexts.find((v) => typeof v === "string" && v.trim().length > 0)
+    const extracted = possibleTexts.find(
+      (v) => typeof v === "string" && v.trim().length > 0
+    );
 
     if (extracted) {
-      console.log("[PDF Processing] Successfully extracted text, length:", extracted.length)
-      return extracted
+      console.log(
+        "[PDF Processing] Successfully extracted text, length:",
+        extracted.length
+      );
+      return extracted;
     }
 
-    console.error("[PDF Processing] Failed to extract text. Response structure:", {
-      hasResult: !!data?.result,
-      hasOutput: !!data?.output,
-      hasData: !!data?.data,
-      hasScannedData: !!data?.scanned_data,
-      hasText: !!data?.text
-    })
+    console.error(
+      "[PDF Processing] Failed to extract text. Response structure:",
+      {
+        hasResult: !!data?.result,
+        hasOutput: !!data?.output,
+        hasData: !!data?.data,
+        hasScannedData: !!data?.scanned_data,
+        hasText: !!data?.text,
+      }
+    );
 
     throw new Error(
-      "❌ PDF appears to be image-based or contains no extractable text. Try uploading a searchable/text-based PDF instead.",
-    )
+      "❌ PDF appears to be image-based or contains no extractable text. Try uploading a searchable/text-based PDF instead."
+    );
   }
 
   if (ext === "docx") {
-    console.log("[DOCX Processing] Starting DOCX extraction")
-    console.log("[DOCX Processing] File URL:", publicUrl)
+    console.log("[DOCX Processing] Starting DOCX extraction");
+    console.log("[DOCX Processing] File URL:", publicUrl);
 
     const response = await fetch(RELEVANCE_CONFIG.extractDocx.endpoint, {
       method: "POST",
@@ -197,43 +229,48 @@ async function extractTextFromFile(file: File, publicUrl: string): Promise<strin
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ doc_url: publicUrl }),
-    })
+    });
 
-    const data = await response.json()
-    console.log("[DOCX Processing] Raw API Response:", JSON.stringify(data, null, 2))
+    const data = await response.json();
+    console.log(
+      "[DOCX Processing] Raw API Response:",
+      JSON.stringify(data, null, 2)
+    );
 
     if (data?.result?.text) {
-      console.log("[DOCX Processing] Extracted from result.text")
-      return data.result.text
+      console.log("[DOCX Processing] Extracted from result.text");
+      return data.result.text;
     }
     if (data?.output) {
-      console.log("[DOCX Processing] Extracted from output")
-      return data.output
+      console.log("[DOCX Processing] Extracted from output");
+      return data.output;
     }
     if (data?.text) {
-      console.log("[DOCX Processing] Extracted from text")
-      return data.text
+      console.log("[DOCX Processing] Extracted from text");
+      return data.text;
     }
 
-
-    console.error("[DOCX Processing] Failed to extract text. Response structure:", {
-      hasResult: !!data?.result,
-      hasOutput: !!data?.output
-    })
-    throw new Error("❌ Failed to extract text from DOCX.")
+    console.error(
+      "[DOCX Processing] Failed to extract text. Response structure:",
+      {
+        hasResult: !!data?.result,
+        hasOutput: !!data?.output,
+      }
+    );
+    throw new Error("❌ Failed to extract text from DOCX.");
   }
 
-  console.error("[File Processing] Unsupported file type:", ext)
-  throw new Error("❌ Unsupported file type")
+  console.error("[File Processing] Unsupported file type:", ext);
+  throw new Error("❌ Unsupported file type");
 }
 
 // Helper function to convert UTC to IST
 const convertToIST = (utcDate: string): string => {
   const date = new Date(utcDate);
-  
+
   // Add 5 hours and 30 minutes for IST
-  const istDate = new Date(date.getTime() + (5.5 * 60 * 60 * 1000));
-  
+  const istDate = new Date(date.getTime() + 5.5 * 60 * 60 * 1000);
+
   // Format the date
   return format(istDate, "dd MMM yyyy, hh:mm a") + " IST";
 };
@@ -241,38 +278,45 @@ const convertToIST = (utcDate: string): string => {
 // Alternative function if you want to use the browser's timezone
 const convertToLocalTime = (utcDate: string): string => {
   const date = new Date(utcDate);
-  
+
   // This will convert to IST if the user's browser is set to IST
-  return date.toLocaleString('en-IN', {
-    timeZone: 'Asia/Kolkata',
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: true
-  }) + " IST";
+  return (
+    date.toLocaleString("en-IN", {
+      timeZone: "Asia/Kolkata",
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    }) + " IST"
+  );
 };
 
 // --- Helper: Parse AI Evaluation Result ---
 function parseAIFeedback(aiResult: any) {
-  console.log("[AI Feedback] Starting to parse AI feedback")
-  console.log("[AI Feedback] Raw AI Result:", JSON.stringify(aiResult, null, 2))
+  console.log("[AI Feedback] Starting to parse AI feedback");
+  console.log(
+    "[AI Feedback] Raw AI Result:",
+    JSON.stringify(aiResult, null, 2)
+  );
 
-  let parsed = aiResult
+  let parsed = aiResult;
 
   if (aiResult?.raw) {
-    console.log("[AI Feedback] Found raw field, attempting to parse")
-    let raw = aiResult.raw
+    console.log("[AI Feedback] Found raw field, attempting to parse");
+    let raw = aiResult.raw;
     if (typeof raw === "string" && raw.startsWith("```json")) {
-      console.log("[AI Feedback] Found JSON code block, cleaning up")
-      raw = raw.replace(/```json|```/g, "").trim()
+      console.log("[AI Feedback] Found JSON code block, cleaning up");
+      raw = raw.replace(/```json|```/g, "").trim();
     }
     try {
-      parsed = JSON.parse(raw)
-      console.log("[AI Feedback] Successfully parsed raw JSON")
+      parsed = JSON.parse(raw);
+      console.log("[AI Feedback] Successfully parsed raw JSON");
     } catch (e) {
-      console.warn("[AI Feedback] Not valid JSON, extracting from raw Markdown")
+      console.warn(
+        "[AI Feedback] Not valid JSON, extracting from raw Markdown"
+      );
       parsed = {
         rawText: raw,
         Score: raw.match(/Score:\s*(\d+)/)?.[1] || null,
@@ -286,28 +330,38 @@ function parseAIFeedback(aiResult: any) {
           "Academic Integrity": extractLineValue(raw, "Academic Integrity"),
           Status: extractLineValue(raw, "Status"),
           "Red Flags": extractLineValue(raw, "Red Flags"),
-        }
-      }
+        },
+      };
     }
   }
 
   const get = (obj: any, path: string, fallback: any = null) =>
-    path.split(".").reduce((res, key) => (res && res[key] !== undefined ? res[key] : fallback), obj)
+    path
+      .split(".")
+      .reduce(
+        (res, key) => (res && res[key] !== undefined ? res[key] : fallback),
+        obj
+      );
 
   const result = {
     ai_grade: String(get(parsed, "Score") || ""),
     ai_overall_grade: get(parsed, "Overall Grade") || "",
     ai_strengths: get(parsed, "Constructive Feedback.Strengths") || "",
-    ai_areas_for_improvement: get(parsed, "Constructive Feedback.Areas for Improvement") || "",
-    ai_recommendations: get(parsed, "Constructive Feedback.Recommendations") || "",
-    ai_rubric_breakdown: JSON.stringify(get(parsed, "Rubric-Based Breakdown") || {}),
-    ai_academic_integrity: get(parsed, "Faculty Progress Summary.Academic Integrity") || "",
+    ai_areas_for_improvement:
+      get(parsed, "Constructive Feedback.Areas for Improvement") || "",
+    ai_recommendations:
+      get(parsed, "Constructive Feedback.Recommendations") || "",
+    ai_rubric_breakdown: JSON.stringify(
+      get(parsed, "Rubric-Based Breakdown") || {}
+    ),
+    ai_academic_integrity:
+      get(parsed, "Faculty Progress Summary.Academic Integrity") || "",
     ai_status: get(parsed, "Faculty Progress Summary.Status") || "",
     ai_red_flags: get(parsed, "Faculty Progress Summary.Red Flags") || "",
     ai_feedback: JSON.stringify(parsed, null, 2),
     ai_evaluation: parsed,
     grade: get(parsed, "Score") || null,
-  }
+  };
 
   console.log("[AI Feedback] Parsed result:", {
     hasGrade: !!result.ai_grade,
@@ -318,103 +372,116 @@ function parseAIFeedback(aiResult: any) {
     hasRubricBreakdown: !!result.ai_rubric_breakdown,
     hasAcademicIntegrity: !!result.ai_academic_integrity,
     hasStatus: !!result.ai_status,
-    hasRedFlags: !!result.ai_red_flags
-  })
+    hasRedFlags: !!result.ai_red_flags,
+  });
 
-  return result
+  return result;
 }
 
 // 🔧 Helper to extract sections like "Strengths", "Recommendations"
 function extractSection(text: string, sectionTitle: string): string {
-  const regex = new RegExp(`\\*\\*${sectionTitle}\\*\\*:\\s*([\\s\\S]*?)(\\n\\*\\*|\\n##|\\n$)`)
-  const match = text.match(regex)
-  return match ? match[1].trim() : ""
+  const regex = new RegExp(
+    `\\*\\*${sectionTitle}\\*\\*:\\s*([\\s\\S]*?)(\\n\\*\\*|\\n##|\\n$)`
+  );
+  const match = text.match(regex);
+  return match ? match[1].trim() : "";
 }
 
 // 🔧 Helper to extract single-line entries like "Academic Integrity: Clean"
 function extractLineValue(text: string, label: string): string {
-  const regex = new RegExp(`${label}:\\s*(.*)`)
-  const match = text.match(regex)
-  return match ? match[1].trim() : ""
+  const regex = new RegExp(`${label}:\\s*(.*)`);
+  const match = text.match(regex);
+  return match ? match[1].trim() : "";
 }
-
 
 // Helper to format assignment description - preserves all content
 // Helper to format assignment description - fixed to handle all cases properly
 const formatAssignmentDescription = (description: string) => {
-  if (!description) return null
+  if (!description) return null;
 
   // Process the text line by line
-  const lines = description.split('\n')
-  const elements = []
-  let currentParagraph = []
-  let inList = false
-  let listItems = []
-  let listType = null
+  const lines = description.split("\n");
+  const elements = [];
+  let currentParagraph = [];
+  let inList = false;
+  let listItems = [];
+  let listType = null;
 
   lines.forEach((line, index) => {
-    const trimmedLine = line.trim()
-    
+    const trimmedLine = line.trim();
+
     // Check if this is a header line (starts with ### or **)
-    if (trimmedLine.startsWith('###')) {
+    if (trimmedLine.startsWith("###")) {
       // Save any pending paragraph
       if (currentParagraph.length > 0) {
         elements.push(
-          <p key={`para-${elements.length}`} className="text-gray-700 leading-relaxed mb-4">
-            {currentParagraph.join(' ')}
+          <p
+            key={`para-${elements.length}`}
+            className="text-gray-700 leading-relaxed mb-4"
+          >
+            {currentParagraph.join(" ")}
           </p>
-        )
-        currentParagraph = []
+        );
+        currentParagraph = [];
       }
-      
+
       elements.push(
-        <h3 key={`h3-${index}`} className="text-xl font-bold text-gray-900 mt-6 mb-3">
-          {trimmedLine.replace(/^###\s*/, '')}
+        <h3
+          key={`h3-${index}`}
+          className="text-xl font-bold text-gray-900 mt-6 mb-3"
+        >
+          {trimmedLine.replace(/^###\s*/, "")}
         </h3>
-      )
+      );
     }
     // Check if line contains **bold text**
-    else if (trimmedLine.includes('**')) {
+    else if (trimmedLine.includes("**")) {
       // Check if it's a header (ends with :)
       if (trimmedLine.match(/\*\*[^*]+:\*\*/)) {
         // Save any pending content
         if (currentParagraph.length > 0) {
           elements.push(
-            <p key={`para-${elements.length}`} className="text-gray-700 leading-relaxed mb-4">
-              {currentParagraph.join(' ')}
+            <p
+              key={`para-${elements.length}`}
+              className="text-gray-700 leading-relaxed mb-4"
+            >
+              {currentParagraph.join(" ")}
             </p>
-          )
-          currentParagraph = []
+          );
+          currentParagraph = [];
         }
-        
+
         // Add the header
         elements.push(
           <h4 key={`h4-${index}`} className="font-bold text-gray-900 mt-4 mb-2">
-            {trimmedLine.replace(/\*\*/g, '')}
+            {trimmedLine.replace(/\*\*/g, "")}
           </h4>
-        )
+        );
       } else {
         // It's inline bold text - add to current paragraph
-        currentParagraph.push(trimmedLine)
+        currentParagraph.push(trimmedLine);
       }
     }
     // Check if it's a bullet point (handle both - and *)
-    else if (trimmedLine.startsWith('- ') || trimmedLine.startsWith('* ')) {
+    else if (trimmedLine.startsWith("- ") || trimmedLine.startsWith("* ")) {
       if (!inList) {
         // Save any pending paragraph
         if (currentParagraph.length > 0) {
           elements.push(
-            <p key={`para-${elements.length}`} className="text-gray-700 leading-relaxed mb-4">
-              {formatInlineText(currentParagraph.join(' '))}
+            <p
+              key={`para-${elements.length}`}
+              className="text-gray-700 leading-relaxed mb-4"
+            >
+              {formatInlineText(currentParagraph.join(" "))}
             </p>
-          )
-          currentParagraph = []
+          );
+          currentParagraph = [];
         }
-        inList = true
-        listType = 'bullet'
-        listItems = []
+        inList = true;
+        listType = "bullet";
+        listItems = [];
       }
-      listItems.push(trimmedLine.substring(2))
+      listItems.push(trimmedLine.substring(2));
     }
     // Check if it's a numbered list
     else if (trimmedLine.match(/^\d+\.\s/)) {
@@ -422,146 +489,182 @@ const formatAssignmentDescription = (description: string) => {
         // Save any pending paragraph
         if (currentParagraph.length > 0) {
           elements.push(
-            <p key={`para-${elements.length}`} className="text-gray-700 leading-relaxed mb-4">
-              {formatInlineText(currentParagraph.join(' '))}
+            <p
+              key={`para-${elements.length}`}
+              className="text-gray-700 leading-relaxed mb-4"
+            >
+              {formatInlineText(currentParagraph.join(" "))}
             </p>
-          )
-          currentParagraph = []
+          );
+          currentParagraph = [];
         }
-        inList = true
-        listType = 'numbered'
-        listItems = []
+        inList = true;
+        listType = "numbered";
+        listItems = [];
       }
-      const content = trimmedLine.replace(/^\d+\.\s*/, '')
-      listItems.push(content)
+      const content = trimmedLine.replace(/^\d+\.\s*/, "");
+      listItems.push(content);
     }
     // Empty line - might signal end of list or paragraph
-    else if (trimmedLine === '') {
+    else if (trimmedLine === "") {
       if (inList && listItems.length > 0) {
         // End the list
-        if (listType === 'bullet') {
+        if (listType === "bullet") {
           elements.push(
-            <ul key={`ul-${elements.length}`} className="list-disc pl-6 space-y-2 mb-4">
+            <ul
+              key={`ul-${elements.length}`}
+              className="list-disc pl-6 space-y-2 mb-4"
+            >
               {listItems.map((item, i) => (
-                <li key={i} className="text-gray-700">{formatInlineText(item)}</li>
+                <li key={i} className="text-gray-700">
+                  {formatInlineText(item)}
+                </li>
               ))}
             </ul>
-          )
+          );
         } else {
           elements.push(
-            <ol key={`ol-${elements.length}`} className="list-decimal pl-6 space-y-2 mb-4">
+            <ol
+              key={`ol-${elements.length}`}
+              className="list-decimal pl-6 space-y-2 mb-4"
+            >
               {listItems.map((item, i) => (
-                <li key={i} className="text-gray-700">{formatInlineText(item)}</li>
+                <li key={i} className="text-gray-700">
+                  {formatInlineText(item)}
+                </li>
               ))}
             </ol>
-          )
+          );
         }
-        listItems = []
-        inList = false
+        listItems = [];
+        inList = false;
       } else if (currentParagraph.length > 0) {
         elements.push(
-          <p key={`para-${elements.length}`} className="text-gray-700 leading-relaxed mb-4">
-            {formatInlineText(currentParagraph.join(' '))}
+          <p
+            key={`para-${elements.length}`}
+            className="text-gray-700 leading-relaxed mb-4"
+          >
+            {formatInlineText(currentParagraph.join(" "))}
           </p>
-        )
-        currentParagraph = []
+        );
+        currentParagraph = [];
       }
     }
     // Regular text
     else {
       if (inList) {
         // This might be continuation of the last list item
-        if (listItems.length > 0 && !trimmedLine.match(/^\d+\.\s/) && !trimmedLine.startsWith('* ')) {
-          listItems[listItems.length - 1] += ' ' + trimmedLine
+        if (
+          listItems.length > 0 &&
+          !trimmedLine.match(/^\d+\.\s/) &&
+          !trimmedLine.startsWith("* ")
+        ) {
+          listItems[listItems.length - 1] += " " + trimmedLine;
         }
       } else {
-        currentParagraph.push(trimmedLine)
+        currentParagraph.push(trimmedLine);
       }
     }
-  })
+  });
 
   // Handle any remaining content
   if (inList && listItems.length > 0) {
-    if (listType === 'bullet') {
+    if (listType === "bullet") {
       elements.push(
-        <ul key={`ul-${elements.length}`} className="list-disc pl-6 space-y-2 mb-4">
+        <ul
+          key={`ul-${elements.length}`}
+          className="list-disc pl-6 space-y-2 mb-4"
+        >
           {listItems.map((item, i) => (
-            <li key={i} className="text-gray-700">{formatInlineText(item)}</li>
+            <li key={i} className="text-gray-700">
+              {formatInlineText(item)}
+            </li>
           ))}
         </ul>
-      )
+      );
     } else {
       elements.push(
-        <ol key={`ol-${elements.length}`} className="list-decimal pl-6 space-y-2 mb-4">
+        <ol
+          key={`ol-${elements.length}`}
+          className="list-decimal pl-6 space-y-2 mb-4"
+        >
           {listItems.map((item, i) => (
-            <li key={i} className="text-gray-700">{formatInlineText(item)}</li>
+            <li key={i} className="text-gray-700">
+              {formatInlineText(item)}
+            </li>
           ))}
         </ol>
-      )
+      );
     }
   } else if (currentParagraph.length > 0) {
     elements.push(
-      <p key={`para-${elements.length}`} className="text-gray-700 leading-relaxed mb-4">
-        {formatInlineText(currentParagraph.join(' '))}
+      <p
+        key={`para-${elements.length}`}
+        className="text-gray-700 leading-relaxed mb-4"
+      >
+        {formatInlineText(currentParagraph.join(" "))}
       </p>
-    )
+    );
   }
 
-  return <div className="space-y-2">{elements}</div>
-}
+  return <div className="space-y-2">{elements}</div>;
+};
 
 // Helper to format inline text with bold support
 const formatInlineText = (text: string) => {
-  if (!text) return text
-  
+  if (!text) return text;
+
   // Split by ** markers
-  const parts = text.split(/(\*\*[^*]+\*\*)/)
-  
+  const parts = text.split(/(\*\*[^*]+\*\*)/);
+
   return (
     <>
       {parts.map((part, i) => {
-        if (part.startsWith('**') && part.endsWith('**')) {
+        if (part.startsWith("**") && part.endsWith("**")) {
           return (
             <strong key={i} className="font-semibold text-gray-900">
               {part.slice(2, -2)}
             </strong>
-          )
+          );
         }
-        return <span key={i}>{part}</span>
+        return <span key={i}>{part}</span>;
       })}
     </>
-  )
-}
+  );
+};
 
 // --- Main Component ---
 export default function StudentAssignments() {
-  const { user, profile } = useAuth()
-  const { toast } = useToast()
-  const [assignments, setAssignments] = useState<Assignment[]>([])
-  const [loading, setLoading] = useState(true)
-  const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null)
-  const [submitDialogOpen, setSubmitDialogOpen] = useState(false)
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [submissionStep, setSubmissionStep] = useState<"upload" | "submitting">("upload")
-  const [additionalNotes, setAdditionalNotes] = useState("")
-  const [searchTerm, setSearchTerm] = useState("")
-  const [filterStatus, setFilterStatus] = useState<string>("all")
-  const [sortBy, setSortBy] = useState<string>("due_date_nearest")
-  const [showFullEvaluation, setShowFullEvaluation] = useState(true)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const { user, profile } = useAuth();
+  const { toast } = useToast();
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedAssignment, setSelectedAssignment] =
+    useState<Assignment | null>(null);
+  const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [submissionStep, setSubmissionStep] = useState<"upload" | "submitting">(
+    "upload"
+  );
+  const [additionalNotes, setAdditionalNotes] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<string>("due_date_nearest");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // --- Fetch assignments + submissions ---
   useEffect(() => {
-    if (user && (profile as Profile)?.semester) fetchAssignments()
+    if (user && (profile as Profile)?.semester) fetchAssignments();
     // eslint-disable-next-line
-  }, [user, profile])
+  }, [user, profile]);
 
   const fetchAssignments = async () => {
-    setLoading(true)
+    setLoading(true);
     try {
       const { data: enrollments, error } = await supabase
         .from("assignment_enrollments")
-        .select(`
+        .select(
+          `
           assignment_id,
           assignments (
             id,
@@ -584,65 +687,83 @@ export default function StudentAssignments() {
               grade
             )
           )
-        `)
-        .eq("student_id", user?.id)
+        `
+        )
+        .eq("student_id", user?.id);
 
-      if (error) throw error
+      if (error) throw error;
 
       const assignmentsData =
         enrollments?.map((enrollment) => ({
           ...enrollment.assignments,
-          submissions: enrollment.assignments?.submissions?.filter((sub: any) => sub && typeof sub === "object") || [],
-        })) || []
-      setAssignments(assignmentsData)
+          submissions:
+            enrollment.assignments?.submissions?.filter(
+              (sub: any) => sub && typeof sub === "object"
+            ) || [],
+        })) || [];
+      setAssignments(assignmentsData);
     } catch (e) {
-      toast({ title: "Error loading assignments", description: (e as Error).message, variant: "destructive" })
+      toast({
+        title: "Error loading assignments",
+        description: (e as Error).message,
+        variant: "destructive",
+      });
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   // --- File upload handler ---
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
-    const file = event.target.files?.[0]
-    if (!file) return
+  const handleFileUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ): Promise<void> => {
+    const file = event.target.files?.[0];
+    if (!file) return;
     const allowedTypes = [
       "application/pdf",
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       "text/plain",
-    ]
+    ];
     if (!allowedTypes.includes(file.type)) {
       toast({
         title: "Invalid file type",
         description: "Please upload a PDF, DOCX, or TXT file.",
         variant: "destructive",
-      })
-      return
+      });
+      return;
     }
     if (file.size > 10 * 1024 * 1024) {
-      toast({ title: "File too large", description: "File size should be less than 10MB", variant: "destructive" })
-      return
+      toast({
+        title: "File too large",
+        description: "File size should be less than 10MB",
+        variant: "destructive",
+      });
+      return;
     }
-    setSelectedFile(file)
-  }
+    setSelectedFile(file);
+  };
 
   // --- Upload to Supabase Storage ---
   const uploadFileToSupabase = async (
     file: File,
     studentId: string,
-    assignmentId: string,
+    assignmentId: string
   ): Promise<{ filePath: string; publicUrl: string }> => {
-    const timestamp = Date.now()
-    const safeFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_")
-    const filePath = `${studentId}/${assignmentId}_${timestamp}_${safeFileName}`
-    const { data, error } = await supabase.storage.from("assignment-submissions").upload(filePath, file, {
-      cacheControl: "3600",
-      upsert: false,
-    })
-    if (error) throw error
-    const { data: urlData } = supabase.storage.from("assignment-submissions").getPublicUrl(filePath)
-    return { filePath, publicUrl: urlData.publicUrl }
-  }
+    const timestamp = Date.now();
+    const safeFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
+    const filePath = `${studentId}/${assignmentId}_${timestamp}_${safeFileName}`;
+    const { data, error } = await supabase.storage
+      .from("assignment-submissions")
+      .upload(filePath, file, {
+        cacheControl: "3600",
+        upsert: false,
+      });
+    if (error) throw error;
+    const { data: urlData } = supabase.storage
+      .from("assignment-submissions")
+      .getPublicUrl(filePath);
+    return { filePath, publicUrl: urlData.publicUrl };
+  };
 
   // --- AI Evaluation (pass content & file URL) ---
   const callRelevanceAgent = async (
@@ -650,7 +771,7 @@ export default function StudentAssignments() {
     studentName: string,
     additionalNotes: string,
     fileContent: string,
-    fileUrl: string,
+    fileUrl: string
   ): Promise<any> => {
     const message = `Assignment Title: ${assignmentTitle}
 Student: ${studentName}
@@ -658,82 +779,103 @@ Notes from student: ${additionalNotes || "None"}
 Assignment File URL: ${fileUrl}
 Assignment Text Content:
 ${fileContent}
-Please evaluate the assignment according to the assignment rubric, provide an overall grade and a rubric-based breakdown, and detailed feedback in JSON.`
+Please evaluate the assignment according to the assignment rubric, provide an overall grade and a rubric-based breakdown, and detailed feedback in JSON.`;
     const payload = {
       message: { role: "user", content: message },
       agent_id: RELEVANCE_CONFIG.agent.agent_id,
-    }
+    };
     const response = await fetch(RELEVANCE_CONFIG.agent.endpoint, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: RELEVANCE_CONFIG.agent.authorization },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: RELEVANCE_CONFIG.agent.authorization,
+      },
       body: JSON.stringify(payload),
-    })
-    if (!response.ok) throw new Error(`AI Agent error: ${response.status}`)
-    const data = await response.json()
+    });
+    if (!response.ok) throw new Error(`AI Agent error: ${response.status}`);
+    const data = await response.json();
     // Poll for result
     if (data?.job_info?.studio_id && data?.job_info?.job_id) {
-      return await pollAgentResponse(data.job_info.studio_id, data.job_info.job_id)
+      return await pollAgentResponse(
+        data.job_info.studio_id,
+        data.job_info.job_id
+      );
     } else {
-      throw new Error("AI Agent did not return job info")
+      throw new Error("AI Agent did not return job info");
     }
-  }
+  };
 
-  const pollAgentResponse = async (studioId: string, jobId: string): Promise<any> => {
-    const maxAttempts = 20
-    let attempts = 0
+  const pollAgentResponse = async (
+    studioId: string,
+    jobId: string
+  ): Promise<any> => {
+    const maxAttempts = 20;
+    let attempts = 0;
     while (attempts < maxAttempts) {
       const res = await fetch(
         `https://api-${RELEVANCE_CONFIG.region}.stack.tryrelevance.com/latest/studios/${studioId}/async_poll/${jobId}`,
-        { headers: { Authorization: RELEVANCE_CONFIG.agent.authorization } },
-      )
-      if (!res.ok) throw new Error(`Polling failed: ${res.status}`)
-      const status = await res.json()
+        { headers: { Authorization: RELEVANCE_CONFIG.agent.authorization } }
+      );
+      if (!res.ok) throw new Error(`Polling failed: ${res.status}`);
+      const status = await res.json();
       for (const update of status.updates || []) {
         if (update.type === "chain-success" && update.output) {
-          let content = ""
-          if (update.output.output && update.output.output.answer) content = update.output.output.answer
-          else if (typeof update.output === "string") content = update.output
-          else if (update.output.answer && typeof update.output.answer === "string") content = update.output.answer
-          else content = JSON.stringify(update.output, null, 2)
+          let content = "";
+          if (update.output.output && update.output.output.answer)
+            content = update.output.output.answer;
+          else if (typeof update.output === "string") content = update.output;
+          else if (
+            update.output.answer &&
+            typeof update.output.answer === "string"
+          )
+            content = update.output.answer;
+          else content = JSON.stringify(update.output, null, 2);
           // Try to parse JSON in response
           try {
-            return typeof content === "string" && content.startsWith("{") ? JSON.parse(content) : { raw: content }
+            return typeof content === "string" && content.startsWith("{")
+              ? JSON.parse(content)
+              : { raw: content };
           } catch {
-            return { raw: content }
+            return { raw: content };
           }
         }
-        if (update.type === "chain-error") throw new Error(update.error || "AI evaluation failed")
+        if (update.type === "chain-error")
+          throw new Error(update.error || "AI evaluation failed");
       }
-      attempts++
-      await new Promise((res) => setTimeout(res, 3000))
+      attempts++;
+      await new Promise((res) => setTimeout(res, 3000));
     }
-    throw new Error("AI evaluation timed out")
-  }
+    throw new Error("AI evaluation timed out");
+  };
 
   // --- Submission Handler ---
   const handleSubmitAssignment = async (): Promise<void> => {
-    if (!selectedAssignment || !selectedFile || !user || !profile) return
-    setSubmissionStep("submitting")
+    if (!selectedAssignment || !selectedFile || !user || !profile) return;
+    setSubmissionStep("submitting");
     try {
       // 1. Upload file
-      const { filePath, publicUrl } = await uploadFileToSupabase(selectedFile, user.id, selectedAssignment.id)
+      const { filePath, publicUrl } = await uploadFileToSupabase(
+        selectedFile,
+        user.id,
+        selectedAssignment.id
+      );
       // 2. Extract content (for AI eval)
-      const fileContent = await extractTextFromFile(selectedFile, publicUrl)
+      const fileContent = await extractTextFromFile(selectedFile, publicUrl);
       // 3. Get AI evaluation
       const aiResult = await callRelevanceAgent(
         selectedAssignment.title,
         profile.full_name,
         additionalNotes,
         fileContent,
-        publicUrl,
-      )
+        publicUrl
+      );
       // 4. Parse AI result
-      const aiData = parseAIFeedback(aiResult)
+      const aiData = parseAIFeedback(aiResult);
       // 5. Insert to submissions (all fields)
       console.log("AI DATA ", aiData);
 
-      const submissionId = uuidv4()
-      const now = new Date().toISOString()
+      const submissionId = uuidv4();
+      const now = new Date().toISOString();
       const { error: insertErr } = await supabase.from("submissions").insert([
         {
           id: submissionId,
@@ -759,43 +901,46 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
           created_at: now,
           updated_at: now,
         },
-      ])
-      if (insertErr) throw insertErr
-      toast({ title: "Assignment submitted! 🎉", description: "AI evaluation and feedback attached." })
-      setSubmitDialogOpen(false)
-      setSelectedFile(null)
-      setSubmissionStep("upload")
-      setAdditionalNotes("")
-      setSelectedAssignment(null)
-      fetchAssignments()
+      ]);
+      if (insertErr) throw insertErr;
+      toast({
+        title: "Assignment submitted! 🎉",
+        description: "AI evaluation and feedback attached.",
+      });
+      setSubmitDialogOpen(false);
+      setSelectedFile(null);
+      setSubmissionStep("upload");
+      setAdditionalNotes("");
+      setSelectedAssignment(null);
+      fetchAssignments();
     } catch (error: any) {
       toast({
         title: "Submission failed",
         description: error?.message || "Please try again.",
         variant: "destructive",
-      })
-      setSubmissionStep("upload")
+      });
+      setSubmissionStep("upload");
     }
-  }
+  };
 
   const resetSubmission = (): void => {
-    setSelectedFile(null)
-    setSubmissionStep("upload")
-    setAdditionalNotes("")
-    if (fileInputRef.current) fileInputRef.current.value = ""
-  }
+    setSelectedFile(null);
+    setSubmissionStep("upload");
+    setAdditionalNotes("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
 
   // --- UI helpers ---
   const getSubmissionStatus = (assignment: Assignment | null) => {
-    if (!assignment) return "not_submitted"
-    const submission = assignment.submissions?.[0]
-    if (!submission) return "not_submitted"
-    return submission.status
-  }
+    if (!assignment) return "not_submitted";
+    const submission = assignment.submissions?.[0];
+    if (!submission) return "not_submitted";
+    return submission.status;
+  };
 
   const getSubmissionBadge = (assignment: Assignment) => {
-    const status = getSubmissionStatus(assignment)
-    const isOverdue = isAfter(new Date(), new Date(assignment.due_date))
+    const status = getSubmissionStatus(assignment);
+    const isOverdue = isAfter(new Date(), new Date(assignment.due_date));
     switch (status) {
       case "submitted":
         return (
@@ -803,14 +948,14 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
             <CheckCircle className="h-3 w-3 mr-1" />
             Submitted
           </Badge>
-        )
+        );
       case "graded":
         return (
           <Badge className="bg-gradient-to-r from-blue-500 to-cyan-500 text-white border-0">
             <Award className="h-3 w-3 mr-1" />
             Graded
           </Badge>
-        )
+        );
       default:
         return isOverdue ? (
           <Badge className="bg-gradient-to-r from-red-500 to-pink-500 text-white border-0">
@@ -822,56 +967,83 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
             <Clock className="h-3 w-3 mr-1" />
             Pending
           </Badge>
-        )
+        );
     }
-  }
+  };
 
   const getDifficultyBadge = (difficulty: string) => {
     switch (difficulty.toLowerCase()) {
       case "easy":
-        return <Badge className="bg-gradient-to-r from-green-400 to-emerald-400 text-white border-0">Easy</Badge>
+        return (
+          <Badge className="bg-gradient-to-r from-green-400 to-emerald-400 text-white border-0">
+            Easy
+          </Badge>
+        );
       case "medium":
-        return <Badge className="bg-gradient-to-r from-yellow-400 to-orange-400 text-white border-0">Medium</Badge>
+        return (
+          <Badge className="bg-gradient-to-r from-yellow-400 to-orange-400 text-white border-0">
+            Medium
+          </Badge>
+        );
       case "hard":
-        return <Badge className="bg-gradient-to-r from-red-400 to-pink-400 text-white border-0">Hard</Badge>
+        return (
+          <Badge className="bg-gradient-to-r from-red-400 to-pink-400 text-white border-0">
+            Hard
+          </Badge>
+        );
       default:
-        return <Badge variant="outline">{difficulty}</Badge>
+        return <Badge variant="outline">{difficulty}</Badge>;
     }
-  }
+  };
 
   // Filter and Sort assignments
   const filteredAndSortedAssignments = assignments
     .filter((assignment) => {
       const matchesSearch =
         assignment.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        assignment.topic.toLowerCase().includes(searchTerm.toLowerCase())
-      const status = getSubmissionStatus(assignment)
-      const matchesFilter = filterStatus === "all" || status === filterStatus
-      return matchesSearch && matchesFilter
+        assignment.topic.toLowerCase().includes(searchTerm.toLowerCase());
+      const status = getSubmissionStatus(assignment);
+      const matchesFilter = filterStatus === "all" || status === filterStatus;
+      return matchesSearch && matchesFilter;
     })
     .sort((a, b) => {
       switch (sortBy) {
         case "latest":
           // Sort by created date, newest first
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          return (
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          );
         case "due_date_nearest":
           // Sort by due date, nearest first
-          return new Date(a.due_date).getTime() - new Date(b.due_date).getTime()
+          return (
+            new Date(a.due_date).getTime() - new Date(b.due_date).getTime()
+          );
         case "due_date_farthest":
           // Sort by due date, farthest first
-          return new Date(b.due_date).getTime() - new Date(a.due_date).getTime()
+          return (
+            new Date(b.due_date).getTime() - new Date(a.due_date).getTime()
+          );
         default:
-          return 0
+          return 0;
       }
-    })
+    });
 
   // Statistics
   const submittedCount = assignments.filter(
-    (a) => getSubmissionStatus(a) === "submitted" || getSubmissionStatus(a) === "graded",
-  ).length
-  const pendingCount = assignments.filter((a) => getSubmissionStatus(a) === "not_submitted").length
-  const gradedCount = assignments.filter((a) => getSubmissionStatus(a) === "graded").length
-  const completionRate = assignments.length > 0 ? Math.round((submittedCount / assignments.length) * 100) : 0
+    (a) =>
+      getSubmissionStatus(a) === "submitted" ||
+      getSubmissionStatus(a) === "graded"
+  ).length;
+  const pendingCount = assignments.filter(
+    (a) => getSubmissionStatus(a) === "not_submitted"
+  ).length;
+  const gradedCount = assignments.filter(
+    (a) => getSubmissionStatus(a) === "graded"
+  ).length;
+  const completionRate =
+    assignments.length > 0
+      ? Math.round((submittedCount / assignments.length) * 100)
+      : 0;
 
   // --- Main render ---
   if (loading) {
@@ -886,7 +1058,7 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
           </div>
         </ModernDashboardLayout>
       </AuthGuard>
-    )
+    );
   }
 
   return (
@@ -903,7 +1075,8 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
                 My Assignments
               </h1>
               <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-                Semester {(profile as Profile)?.semester} assignments and submissions
+                Semester {(profile as Profile)?.semester} assignments and
+                submissions
               </p>
             </div>
 
@@ -920,7 +1093,9 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="relative">
-                  <div className="text-3xl font-bold text-gray-900">{assignments.length}</div>
+                  <div className="text-3xl font-bold text-gray-900">
+                    {assignments.length}
+                  </div>
                 </CardContent>
               </Card>
 
@@ -935,7 +1110,9 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="relative">
-                  <div className="text-3xl font-bold text-gray-900">{submittedCount}</div>
+                  <div className="text-3xl font-bold text-gray-900">
+                    {submittedCount}
+                  </div>
                 </CardContent>
               </Card>
 
@@ -950,7 +1127,9 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="relative">
-                  <div className="text-3xl font-bold text-gray-900">{pendingCount}</div>
+                  <div className="text-3xl font-bold text-gray-900">
+                    {pendingCount}
+                  </div>
                 </CardContent>
               </Card>
 
@@ -965,7 +1144,9 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="relative">
-                  <div className="text-3xl font-bold text-gray-900">{completionRate}%</div>
+                  <div className="text-3xl font-bold text-gray-900">
+                    {completionRate}%
+                  </div>
                 </CardContent>
               </Card>
             </div>
@@ -973,7 +1154,9 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
             {/* Main Content */}
             <div className="bg-white/70 backdrop-blur-sm rounded-3xl shadow-2xl border-0 overflow-hidden">
               <div className="bg-gradient-to-r from-gray-50 to-blue-50 px-6 py-6 border-b border-gray-100">
-                <h2 className="text-2xl font-bold text-gray-900 mb-6">Available Assignments</h2>
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">
+                  Available Assignments
+                </h2>
 
                 {/* Filters */}
                 <div className="flex gap-4">
@@ -1036,7 +1219,9 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
                       <BookOpen className="h-12 w-12 text-gray-400" />
                     </div>
                     <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                      {assignments.length === 0 ? "No assignments yet" : "No assignments match your search"}
+                      {assignments.length === 0
+                        ? "No assignments yet"
+                        : "No assignments match your search"}
                     </h3>
                     <p className="text-gray-600 max-w-md mx-auto">
                       {assignments.length === 0
@@ -1047,9 +1232,12 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
                 ) : (
                   <div className="grid gap-6">
                     {filteredAndSortedAssignments.map((assignment) => {
-                      const status = getSubmissionStatus(assignment)
-                      const isOverdue = isAfter(new Date(), new Date(assignment.due_date))
-                      const submission = assignment.submissions?.[0]
+                      const status = getSubmissionStatus(assignment);
+                      const isOverdue = isAfter(
+                        new Date(),
+                        new Date(assignment.due_date)
+                      );
+                      const submission = assignment.submissions?.[0];
 
                       return (
                         <Card
@@ -1060,38 +1248,58 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
                             <div className="flex items-start justify-between mb-4">
                               <div className="flex-1">
                                 <div className="flex items-center gap-3 mb-3">
-                                  <h3 className="text-xl font-bold text-gray-900">{assignment.title}</h3>
+                                  <h3 className="text-xl font-bold text-gray-900">
+                                    {assignment.title}
+                                  </h3>
                                   {getSubmissionBadge(assignment)}
                                   {getDifficultyBadge(assignment.difficulty)}
                                 </div>
-                                <p className="text-gray-600 mb-4 line-clamp-2">{assignment.description}</p>
+                                <p className="text-gray-600 mb-4 line-clamp-2">
+                                  {assignment.description}
+                                </p>
                                 <div className="flex items-center gap-6 text-sm">
                                   <div className="flex items-center gap-2">
                                     <div className="p-1 bg-gradient-to-r from-blue-500 to-cyan-500 rounded">
                                       <Calendar className="h-3 w-3 text-white" />
                                     </div>
-                                    <span className={isOverdue ? "text-red-600 font-medium" : "text-gray-600"}>
-                                      Due: {format(new Date(assignment.due_date), "MMM dd, yyyy")}
+                                    <span
+                                      className={
+                                        isOverdue
+                                          ? "text-red-600 font-medium"
+                                          : "text-gray-600"
+                                      }
+                                    >
+                                      Due:{" "}
+                                      {format(
+                                        new Date(assignment.due_date),
+                                        "MMM dd, yyyy"
+                                      )}
                                     </span>
                                   </div>
                                   <div className="flex items-center gap-2">
                                     <div className="p-1 bg-gradient-to-r from-purple-500 to-pink-500 rounded">
                                       <Target className="h-3 w-3 text-white" />
                                     </div>
-                                    <span className="text-gray-600">{assignment.total_points} points</span>
+                                    <span className="text-gray-600">
+                                      {assignment.total_points} points
+                                    </span>
                                   </div>
                                   <div className="flex items-center gap-2">
                                     <div className="p-1 bg-gradient-to-r from-emerald-500 to-green-500 rounded">
                                       <BookOpen className="h-3 w-3 text-white" />
                                     </div>
-                                    <span className="text-gray-600">{assignment.topic}</span>
+                                    <span className="text-gray-600">
+                                      {assignment.topic}
+                                    </span>
                                   </div>
                                 </div>
                               </div>
                               <div className="flex gap-3 ml-6">
                                 <Button
                                   variant="outline"
-                                  onClick={() => setSelectedAssignment(assignment)}
+                                  onClick={() =>
+                                    setSelectedAssignment(assignment)
+                                  }
                                   className="hover:bg-blue-50 border-blue-200"
                                 >
                                   <Eye className="h-4 w-4 mr-2" />
@@ -1100,8 +1308,8 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
                                 {status === "not_submitted" && (
                                   <Button
                                     onClick={() => {
-                                      setSelectedAssignment(assignment)
-                                      setSubmitDialogOpen(true)
+                                      setSelectedAssignment(assignment);
+                                      setSubmitDialogOpen(true);
                                     }}
                                     className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 border-0"
                                   >
@@ -1114,10 +1322,11 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
                                     variant="outline"
                                     onClick={() => {
                                       // Download submission file
-                                      const link = document.createElement("a")
-                                      link.href = submission.file_path!
-                                      link.download = submission.file_name || "submission"
-                                      link.click()
+                                      const link = document.createElement("a");
+                                      link.href = submission.file_path!;
+                                      link.download =
+                                        submission.file_name || "submission";
+                                      link.click();
                                     }}
                                     className="hover:bg-green-50 border-green-200"
                                   >
@@ -1134,30 +1343,22 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
                                 <div className="flex items-center justify-between mb-2">
                                   <div className="flex items-center gap-2">
                                     <CheckCircle className="h-4 w-4 text-green-600" />
-                                    <span className="font-medium text-green-800">Submitted</span>
+                                    <span className="font-medium text-green-800">
+                                      Submitted
+                                    </span>
                                   </div>
                                   <span className="text-sm text-green-600">
-                                    {format(new Date(submission.submission_date), "MMM dd, yyyy 'at' h:mm a")}
+                                    {format(
+                                      new Date(submission.submission_date),
+                                      "MMM dd, yyyy 'at' h:mm a"
+                                    )}
                                   </span>
                                 </div>
-                                {submission.ai_grade && (
-                                  <div className="flex items-center gap-4">
-                                    <div className="flex items-center gap-2">
-                                      <Star className="h-4 w-4 text-yellow-500" />
-                                      <span className="text-sm font-medium">AI Grade: {submission.ai_grade}</span>
-                                    </div>
-                                    {submission.ai_overall_grade && (
-                                      <Badge className="bg-gradient-to-r from-yellow-400 to-orange-400 text-white border-0">
-                                        {submission.ai_overall_grade}
-                                      </Badge>
-                                    )}
-                                  </div>
-                                )}
                               </div>
                             )}
                           </CardContent>
                         </Card>
-                      )
+                      );
                     })}
                   </div>
                 )}
@@ -1168,10 +1369,10 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
             <Dialog
               open={!!selectedAssignment || submitDialogOpen}
               onOpenChange={() => {
-                setSelectedAssignment(null)
-                setSubmitDialogOpen(false)
-                setSelectedFile(null)
-                setSubmissionStep("upload")
+                setSelectedAssignment(null);
+                setSubmitDialogOpen(false);
+                setSelectedFile(null);
+                setSubmissionStep("upload");
               }}
             >
               <DialogContent className="max-w-4xl w-full h-[90vh] flex flex-col bg-white/95 backdrop-blur-sm border-0 shadow-2xl">
@@ -1182,277 +1383,166 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
                 </DialogHeader>
 
                 <div className="flex-1 overflow-y-auto py-4">
-                {/* Assignment Description with better formatting */}
-{/* Assignment Description with better formatting */}
-<div className="mb-6">
-  <div className="bg-gray-50/50 rounded-xl p-6 border border-gray-100">
-    {formatAssignmentDescription(selectedAssignment?.description || "")}
-  </div>
-  
-  {/* Due date and points */}
-  <div className="flex justify-between items-center mt-4 p-4 bg-white rounded-lg border border-gray-200">
-    <div className="flex items-center gap-2">
-      <Calendar className="h-4 w-4 text-blue-600" />
-      <span className="text-gray-600">
-        <span className="font-medium">Due:</span>{" "}
-        {selectedAssignment && format(new Date(selectedAssignment.due_date), "MMMM d, yyyy")}
-      </span>
-    </div>
-    <div className="flex items-center gap-2">
-      <Target className="h-4 w-4 text-purple-600" />
-      <span className="text-gray-600">
-        <span className="font-medium">Points:</span> {selectedAssignment?.total_points}
-      </span>
-    </div>
-  </div>
-</div>
+                  {/* Assignment Description with better formatting */}
+                  {/* Assignment Description with better formatting */}
+                  <div className="mb-6">
+                    <div className="bg-gray-50/50 rounded-xl p-6 border border-gray-100">
+                      {formatAssignmentDescription(
+                        selectedAssignment?.description || ""
+                      )}
+                    </div>
+
+                    {/* Due date and points */}
+                    <div className="flex justify-between items-center mt-4 p-4 bg-white rounded-lg border border-gray-200">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-4 w-4 text-blue-600" />
+                        <span className="text-gray-600">
+                          <span className="font-medium">Due:</span>{" "}
+                          {selectedAssignment &&
+                            format(
+                              new Date(selectedAssignment.due_date),
+                              "MMMM d, yyyy"
+                            )}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Target className="h-4 w-4 text-purple-600" />
+                        <span className="text-gray-600">
+                          <span className="font-medium">Points:</span>{" "}
+                          {selectedAssignment?.total_points}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
 
                   {/* Assignment Details */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                     <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl p-4">
                       <div className="flex items-center gap-2 mb-2">
                         <Calendar className="h-4 w-4 text-blue-600" />
-                        <span className="text-sm font-medium text-blue-800">Due Date</span>
+                        <span className="text-sm font-medium text-blue-800">
+                          Due Date
+                        </span>
                       </div>
                       <span className="text-lg font-bold text-blue-900">
-                        {selectedAssignment && format(new Date(selectedAssignment.due_date), "PPP")}
+                        {selectedAssignment &&
+                          format(new Date(selectedAssignment.due_date), "PPP")}
                       </span>
                     </div>
                     <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4">
                       <div className="flex items-center gap-2 mb-2">
                         <Target className="h-4 w-4 text-purple-600" />
-                        <span className="text-sm font-medium text-purple-800">Total Points</span>
+                        <span className="text-sm font-medium text-purple-800">
+                          Total Points
+                        </span>
                       </div>
-                      <span className="text-lg font-bold text-purple-900">{selectedAssignment?.total_points}</span>
+                      <span className="text-lg font-bold text-purple-900">
+                        {selectedAssignment?.total_points}
+                      </span>
                     </div>
                     <div className="bg-gradient-to-r from-emerald-50 to-green-50 rounded-xl p-4">
                       <div className="flex items-center gap-2 mb-2">
                         <BookOpen className="h-4 w-4 text-emerald-600" />
-                        <span className="text-sm font-medium text-emerald-800">Topic</span>
+                        <span className="text-sm font-medium text-emerald-800">
+                          Topic
+                        </span>
                       </div>
-                      <span className="text-lg font-bold text-emerald-900">{selectedAssignment?.topic}</span>
+                      <span className="text-lg font-bold text-emerald-900">
+                        {selectedAssignment?.topic}
+                      </span>
                     </div>
                   </div>
 
                   {/* Submission Display */}
-{selectedAssignment?.submissions && selectedAssignment.submissions.length > 0 && (
-  <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl p-6 border border-green-200 mb-6">
-    <h3 className="text-xl font-bold text-green-800 mb-4 flex items-center gap-2">
-      <CheckCircle className="h-5 w-5" />
-      Your Submission
-    </h3>
-    {selectedAssignment.submissions.map((submission) => (
-      <div key={submission.id} className="space-y-4">
-        <div className="flex items-center justify-between">
-          <span className="font-medium text-green-700">Submitted Successfully</span>
-          <span className="text-sm text-green-600">
-            {format(new Date(submission.submission_date), "PPp")}
-          </span>
-        </div>
-
-        {/* Teacher Grade and Feedback Section */}
-        {(submission.teacher_grade !== null || submission.teacher_feedback) && (
-          <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-4 border border-indigo-200 mb-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Award className="h-5 w-5 text-indigo-600" />
-              <h4 className="font-bold text-indigo-800">Teacher Evaluation</h4>
-            </div>
-            
-            {submission.teacher_grade !== null && (
-              <div className="flex items-center gap-4 mb-3">
-                <div className="bg-white/80 rounded-lg px-4 py-2">
-                  <span className="text-sm font-medium text-gray-600">Teacher Grade: </span>
-                  <span className="text-2xl font-bold text-indigo-700">{submission.teacher_grade}/100</span>
-                </div>
-                <Badge className={`${
-                  submission.teacher_grade >= 90 ? 'bg-gradient-to-r from-green-500 to-emerald-500' :
-                  submission.teacher_grade >= 80 ? 'bg-gradient-to-r from-blue-500 to-cyan-500' :
-                  submission.teacher_grade >= 70 ? 'bg-gradient-to-r from-yellow-500 to-orange-500' :
-                  submission.teacher_grade >= 60 ? 'bg-gradient-to-r from-orange-500 to-red-500' :
-                  'bg-gradient-to-r from-red-500 to-pink-500'
-                } text-white border-0`}>
-                  {submission.teacher_grade >= 90 ? 'Excellent' :
-                   submission.teacher_grade >= 80 ? 'Good' :
-                   submission.teacher_grade >= 70 ? 'Satisfactory' :
-                   submission.teacher_grade >= 60 ? 'Pass' : 'Fail'}
-                </Badge>
-              </div>
-            )}
-            
-            {submission.teacher_feedback && (
-              <div className="bg-white/60 rounded-lg p-3">
-                <div className="text-sm font-medium text-gray-700 mb-1">Teacher Feedback:</div>
-                <div className="text-sm text-gray-800 italic">"{submission.teacher_feedback}"</div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {submission.ai_evaluation && (
-          <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-green-200">
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="font-bold text-gray-900 flex items-center gap-2">
-                <Star className="h-4 w-4 text-yellow-500" />
-                AI Evaluation Results
-              </h4>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowFullEvaluation(!showFullEvaluation)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                {showFullEvaluation ? (
-                  <ChevronUp className="h-4 w-4 mr-1" />
-                ) : (
-                  <ChevronDown className="h-4 w-4 mr-1" />
-                )}
-                {showFullEvaluation ? "Hide Details" : "Show Details"}
-              </Button>
-            </div>
-
-            {/* Score and Grade */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-              <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg p-3">
-                <div className="text-sm text-blue-600 font-medium">Score</div>
-                <div className="text-2xl font-bold text-blue-900">
-                  {submission.ai_evaluation?.Score || submission.ai_grade || "N/A"}
-                </div>
-              </div>
-              <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-3">
-                <div className="text-sm text-purple-600 font-medium">Overall Grade</div>
-                <div className="text-lg font-bold text-purple-900">
-                  {submission.ai_evaluation?.["Overall Grade"] ||
-                    submission.ai_overall_grade ||
-                    "N/A"}
-                </div>
-              </div>
-            </div>
-
-            {showFullEvaluation && (
-              <div className="space-y-6">
-                {submission.ai_evaluation?.["Administrative Details"] && (
-                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                    <h5 className="font-semibold text-gray-800 mb-3">Administrative Details</h5>
-                    <div className="grid grid-cols-2 gap-3">
-                      {Object.entries(submission.ai_evaluation["Administrative Details"]).map(
-                        ([key, value]) => (
-                          <div key={key} className="text-sm">
-                            <span className="font-medium text-gray-700">{key}: </span>
-                            <span className="text-gray-600">{String(value)}</span>
-                          </div>
-                        ),
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Constructive Feedback */}
-                {submission.ai_evaluation?.["Constructive Feedback"] && (
-                  <div className="space-y-3">
-                    <h5 className="font-semibold text-gray-800">Constructive Feedback</h5>
-
-                    <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-3">
-                      <div className="font-medium text-green-800 mb-1">Strengths</div>
-                      <div className="text-sm text-green-700">
-                        {submission.ai_evaluation["Constructive Feedback"].Strengths ||
-                          "Not provided"}
-                      </div>
-                    </div>
-
-                    <div className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-lg p-3">
-                      <div className="font-medium text-orange-800 mb-1">Areas for Improvement</div>
-                      <div className="text-sm text-orange-700">
-                        {submission.ai_evaluation["Constructive Feedback"]["Areas for Improvement"] ||
-                          "Not provided"}
-                      </div>
-                    </div>
-
-                    <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-3">
-                      <div className="font-medium text-purple-800 mb-1">Recommendations</div>
-                      <div className="text-sm text-purple-700">
-                        {submission.ai_evaluation["Constructive Feedback"].Recommendations ||
-                          "Not provided"}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Rubric-Based Breakdown */}
-                {submission.ai_evaluation?.["Rubric-Based Breakdown"] && (
-                  <div className="space-y-3">
-                    <h5 className="font-semibold text-gray-800">Rubric-Based Breakdown</h5>
-
-                    {Object.entries(submission.ai_evaluation["Rubric-Based Breakdown"]).map(
-                      ([criterion, details]: [string, any]) => (
-                        <div
-                          key={criterion}
-                          className="bg-white rounded-lg p-3 border border-gray-200"
-                        >
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="font-medium text-gray-800">{criterion}</div>
-                            <div className="text-sm">
-                              <span className="font-bold text-blue-600">{details.Score}</span>
-                              <span className="text-gray-500"> / 30</span>
+                  {selectedAssignment?.submissions &&
+                    selectedAssignment.submissions.length > 0 && (
+                      <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl p-6 border border-green-200 mb-6">
+                        <h3 className="text-xl font-bold text-green-800 mb-4 flex items-center gap-2">
+                          <CheckCircle className="h-5 w-5" />
+                          Your Submission
+                        </h3>
+                        {selectedAssignment.submissions.map((submission) => (
+                          <div key={submission.id} className="space-y-4">
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium text-green-700">
+                                Submitted Successfully
+                              </span>
+                              <span className="text-sm text-green-600">
+                                {format(
+                                  new Date(submission.submission_date),
+                                  "PPp"
+                                )}
+                              </span>
                             </div>
+
+                            {/* Teacher Grade and Feedback Section */}
+                            {(submission.teacher_grade !== null ||
+                              submission.teacher_feedback) && (
+                              <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-4 border border-indigo-200 mb-4">
+                                <div className="flex items-center gap-2 mb-3">
+                                  <Award className="h-5 w-5 text-indigo-600" />
+                                  <h4 className="font-bold text-indigo-800">
+                                    Teacher Evaluation
+                                  </h4>
+                                </div>
+
+                                {submission.teacher_grade !== null && (
+                                  <div className="flex items-center gap-4 mb-3">
+                                    <div className="bg-white/80 rounded-lg px-4 py-2">
+                                      <span className="text-sm font-medium text-gray-600">
+                                        Teacher Grade:{" "}
+                                      </span>
+                                      <span className="text-2xl font-bold text-indigo-700">
+                                        {submission.teacher_grade}/100
+                                      </span>
+                                    </div>
+                                    <Badge
+                                      className={`${
+                                        submission.teacher_grade >= 90
+                                          ? "bg-gradient-to-r from-green-500 to-emerald-500"
+                                          : submission.teacher_grade >= 80
+                                          ? "bg-gradient-to-r from-blue-500 to-cyan-500"
+                                          : submission.teacher_grade >= 70
+                                          ? "bg-gradient-to-r from-yellow-500 to-orange-500"
+                                          : submission.teacher_grade >= 60
+                                          ? "bg-gradient-to-r from-orange-500 to-red-500"
+                                          : "bg-gradient-to-r from-red-500 to-pink-500"
+                                      } text-white border-0`}
+                                    >
+                                      {submission.teacher_grade >= 90
+                                        ? "Excellent"
+                                        : submission.teacher_grade >= 80
+                                        ? "Good"
+                                        : submission.teacher_grade >= 70
+                                        ? "Satisfactory"
+                                        : submission.teacher_grade >= 60
+                                        ? "Pass"
+                                        : "Fail"}
+                                    </Badge>
+                                  </div>
+                                )}
+
+                                {submission.teacher_feedback && (
+                                  <div className="bg-white/60 rounded-lg p-3">
+                                    <div className="text-sm font-medium text-gray-700 mb-1">
+                                      Teacher Feedback:
+                                    </div>
+                                    <div className="text-sm text-gray-800 italic">
+                                      "{submission.teacher_feedback}"
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
-                          <Progress value={(details.Score / 30) * 100} className="h-2 mb-2" />
-                          <div className="text-sm text-gray-600">{details.Assessment}</div>
-                        </div>
-                      ),
+                        ))}
+                      </div>
                     )}
-                  </div>
-                )}
-
-                {/* Faculty Progress Summary */}
-                {submission.ai_evaluation?.["Faculty Progress Summary"] && (
-                  <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                    <h5 className="font-semibold text-blue-800 mb-3">Faculty Progress Summary</h5>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      <div className="text-sm">
-                        <span className="font-medium text-blue-700">Status: </span>
-                        <span className="text-blue-600">
-                          {submission.ai_evaluation["Faculty Progress Summary"].Status}
-                        </span>
-                      </div>
-                      <div className="text-sm">
-                        <span className="font-medium text-blue-700">Red Flags: </span>
-                        <span className="text-blue-600">
-                          {submission.ai_evaluation["Faculty Progress Summary"]["Red Flags"]}
-                        </span>
-                      </div>
-                      <div className="text-sm">
-                        <span className="font-medium text-blue-700">Academic Integrity: </span>
-                        <span className="text-green-600">
-                          {submission.ai_evaluation["Faculty Progress Summary"]["Academic Integrity"]}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Raw JSON Data
-                <div className="mt-4 pt-4 border-t border-gray-200">
-                  <details className="text-sm">
-                    <summary className="cursor-pointer text-gray-500 hover:text-gray-700 font-medium">
-                      View Raw Evaluation Data
-                    </summary>
-                    <pre className="mt-2 p-4 bg-gray-50 rounded-lg overflow-auto text-xs text-gray-700 max-h-60">
-                      {JSON.stringify(submission.ai_evaluation, null, 2)}
-                    </pre>
-                  </details>
-                </div> */}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    ))}
-  </div>
-)}
 
                   {/* Submission Form */}
                   {selectedAssignment &&
-                    getSubmissionStatus(selectedAssignment) === "not_submitted" &&
+                    getSubmissionStatus(selectedAssignment) ===
+                      "not_submitted" &&
                     submitDialogOpen && (
                       <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl p-6 border border-blue-200">
                         <h3 className="text-xl font-bold text-blue-800 mb-4 flex items-center gap-2">
@@ -1476,8 +1566,14 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
                             {selectedFile && (
                               <div className="flex items-center gap-2 mt-2 p-2 bg-white/80 rounded-lg">
                                 <FileText className="h-4 w-4 text-blue-600" />
-                                <span className="text-sm font-medium">{selectedFile.name}</span>
-                                <Button size="sm" variant="ghost" onClick={resetSubmission}>
+                                <span className="text-sm font-medium">
+                                  {selectedFile.name}
+                                </span>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={resetSubmission}
+                                >
                                   <X className="h-3 w-3" />
                                 </Button>
                               </div>
@@ -1491,7 +1587,9 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
                             <Textarea
                               placeholder="Add any additional notes or comments about your submission..."
                               value={additionalNotes}
-                              onChange={(e) => setAdditionalNotes(e.target.value)}
+                              onChange={(e) =>
+                                setAdditionalNotes(e.target.value)
+                              }
                               rows={3}
                               className="border-blue-200 focus:border-blue-400 focus:ring-blue-400"
                             />
@@ -1505,9 +1603,9 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
                   <Button
                     variant="outline"
                     onClick={() => {
-                      setSubmitDialogOpen(false)
-                      setSelectedAssignment(null)
-                      resetSubmission()
+                      setSubmitDialogOpen(false);
+                      setSelectedAssignment(null);
+                      resetSubmission();
                     }}
                     disabled={submissionStep === "submitting"}
                     className="px-6 py-3 h-auto"
@@ -1515,20 +1613,24 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
                     Close
                   </Button>
 
-                  {submissionStep === "upload" && selectedFile && submitDialogOpen && (
-                    <Button
-                      onClick={handleSubmitAssignment}
-                      className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 border-0 px-6 py-3 h-auto"
-                    >
-                      <Send className="h-4 w-4 mr-2" />
-                      Submit Assignment
-                    </Button>
-                  )}
+                  {submissionStep === "upload" &&
+                    selectedFile &&
+                    submitDialogOpen && (
+                      <Button
+                        onClick={handleSubmitAssignment}
+                        className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 border-0 px-6 py-3 h-auto"
+                      >
+                        <Send className="h-4 w-4 mr-2" />
+                        Submit Assignment
+                      </Button>
+                    )}
 
                   {submissionStep === "submitting" && (
                     <div className="flex items-center gap-2 px-6 py-3">
                       <Loader2 className="animate-spin h-5 w-5 text-blue-600" />
-                      <span className="font-medium">Submitting and evaluating...</span>
+                      <span className="font-medium">
+                        Submitting and evaluating...
+                      </span>
                     </div>
                   )}
                 </DialogFooter>
@@ -1538,5 +1640,5 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
         </div>
       </ModernDashboardLayout>
     </AuthGuard>
-  )
+  );
 }

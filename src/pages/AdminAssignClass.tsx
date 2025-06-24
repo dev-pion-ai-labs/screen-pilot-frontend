@@ -27,6 +27,7 @@ interface Student {
 interface Class {
   id: string;
   name: string;
+  semester: number;
   teachers: Teacher[];
   students: Student[];
   createdAt: string;
@@ -45,6 +46,7 @@ const AdminAssignClass = () => {
 
   // Form states
   const [newClassName, setNewClassName] = useState("");
+  const [selectedSemester, setSelectedSemester] = useState<number>(1);
   const [selectedTeachers, setSelectedTeachers] = useState<Teacher[]>([]);
   const [selectedStudents, setSelectedStudents] = useState<Student[]>([]);
 
@@ -157,6 +159,7 @@ const AdminAssignClass = () => {
     const newClass: Class = {
       id: Date.now().toString(),
       name: newClassName,
+      semester: selectedSemester,
       teachers: selectedTeachers,
       students: selectedStudents,
       createdAt: new Date().toISOString(),
@@ -186,6 +189,7 @@ const AdminAssignClass = () => {
     const updatedClass: Class = {
       ...editingClass,
       name: newClassName,
+      semester: selectedSemester,
       teachers: selectedTeachers,
       students: selectedStudents,
     };
@@ -206,6 +210,7 @@ const AdminAssignClass = () => {
 
   const resetForm = () => {
     setNewClassName("");
+    setSelectedSemester(1);
     setSelectedTeachers([]);
     setSelectedStudents([]);
   };
@@ -213,6 +218,7 @@ const AdminAssignClass = () => {
   const openEditDialog = (classItem: Class) => {
     setEditingClass(classItem);
     setNewClassName(classItem.name);
+    setSelectedSemester(classItem.semester);
     setSelectedTeachers(classItem.teachers);
     setSelectedStudents(classItem.students);
     setIsEditDialogOpen(true);
@@ -268,6 +274,8 @@ const AdminAssignClass = () => {
               mode="add"
               className={newClassName}
               setClassName={setNewClassName}
+              selectedSemester={selectedSemester}
+              setSelectedSemester={setSelectedSemester}
               selectedTeachers={selectedTeachers}
               setSelectedTeachers={setSelectedTeachers}
               selectedStudents={selectedStudents}
@@ -290,6 +298,8 @@ const AdminAssignClass = () => {
               mode="edit"
               className={newClassName}
               setClassName={setNewClassName}
+              selectedSemester={selectedSemester}
+              setSelectedSemester={setSelectedSemester}
               selectedTeachers={selectedTeachers}
               setSelectedTeachers={setSelectedTeachers}
               selectedStudents={selectedStudents}

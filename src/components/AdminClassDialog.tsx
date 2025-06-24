@@ -48,6 +48,8 @@ interface AdminClassDialogProps {
   mode: "add" | "edit";
   className: string;
   setClassName: (name: string) => void;
+  selectedSemester: number;
+  setSelectedSemester: (semester: number) => void;
   selectedTeachers: Teacher[];
   setSelectedTeachers: (teachers: Teacher[]) => void;
   selectedStudents: Student[];
@@ -331,6 +333,8 @@ export const AdminClassDialog = ({
   mode,
   className,
   setClassName,
+  selectedSemester,
+  setSelectedSemester,
   selectedTeachers,
   setSelectedTeachers,
   selectedStudents,
@@ -411,49 +415,73 @@ export const AdminClassDialog = ({
               />
             </div>
 
-            <div className="space-y-4">
-              <Label className="text-lg font-semibold text-gray-700">
-                Teacher
-              </Label>
-              <div className="flex gap-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={openTeacherModal}
-                  className="flex-1 h-14 text-lg rounded-xl border-2 border-dashed border-indigo-300 hover:border-indigo-500 hover:bg-indigo-50 transition-all duration-200"
-                >
-                  <UserPlus className="w-5 h-5 mr-3" />
-                  Select Teacher
-                </Button>
-                {selectedTeachers.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <Label className="text-lg font-semibold text-gray-700">
+                  Teacher
+                </Label>
+                <div className="flex gap-3">
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => setSelectedTeachers([])}
-                    className="h-14 px-6 text-lg rounded-xl border-2 border-red-300 hover:border-red-500 hover:bg-red-50 text-red-600 hover:text-red-700 transition-all duration-200"
+                    onClick={openTeacherModal}
+                    className="flex-1 h-14 text-lg rounded-xl border-2 border-dashed border-indigo-300 hover:border-indigo-500 hover:bg-indigo-50 transition-all duration-200"
                   >
-                    Clear
+                    <UserPlus className="w-5 h-5 mr-3" />
+                    Select Teacher
                   </Button>
+                  {selectedTeachers.length > 0 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setSelectedTeachers([])}
+                      className="h-14 px-6 text-lg rounded-xl border-2 border-red-300 hover:border-red-500 hover:bg-red-50 text-red-600 hover:text-red-700 transition-all duration-200"
+                    >
+                      Clear
+                    </Button>
+                  )}
+                </div>
+
+                {selectedTeachers.length > 0 && (
+                  <div className="space-y-3">
+                    <p className="text-sm font-medium text-gray-600">
+                      Selected Teacher:
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedTeachers.map((teacher) => (
+                        <Badge
+                          key={teacher.id}
+                          className="bg-indigo-100 text-indigo-800 hover:bg-indigo-200 px-4 py-2 text-sm font-medium rounded-full"
+                        >
+                          {teacher.full_name}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
 
-              {selectedTeachers.length > 0 && (
-                <div className="space-y-3">
-                  <p className="text-sm font-medium text-gray-600">
-                    Selected Teacher:
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedTeachers.map((teacher) => (
-                      <Badge
-                        key={teacher.id}
-                        className="bg-indigo-100 text-indigo-800 hover:bg-indigo-200 px-4 py-2 text-sm font-medium rounded-full"
-                      >
-                        {teacher.full_name}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
+              <div className="space-y-4">
+                <Label className="text-lg font-semibold text-gray-700">
+                  Semester
+                </Label>
+                <Select
+                  value={selectedSemester.toString()}
+                  onValueChange={(value) => setSelectedSemester(parseInt(value))}
+                >
+                  <SelectTrigger className="h-14 text-lg rounded-xl border-2 border-gray-200 focus:border-purple-500">
+                    <SelectValue placeholder="Select Semester" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">Semester 1</SelectItem>
+                    <SelectItem value="2">Semester 2</SelectItem>
+                    <SelectItem value="3">Semester 3</SelectItem>
+                    <SelectItem value="4">Semester 4</SelectItem>
+                    <SelectItem value="5">Semester 5</SelectItem>
+                    <SelectItem value="6">Semester 6</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div className="space-y-4">

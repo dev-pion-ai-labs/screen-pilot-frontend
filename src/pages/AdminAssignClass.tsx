@@ -1070,7 +1070,7 @@ const AdminAssignClass = () => {
 
             {/* Teacher Selection Modal */}
             <Dialog open={isTeacherModalOpen} onOpenChange={() => {}}>
-              <DialogContent className="max-w-6xl max-h-[85vh] overflow-y-auto bg-white rounded-3xl border-0 shadow-2xl">
+              <DialogContent className="max-w-6xl max-h-[85vh] overflow-y-auto bg-white rounded-3xl border-0 shadow-2xl" hideCloseButton>
                 <DialogHeader className="pb-4 border-b border-gray-100">
                   <div className="flex items-center justify-between">
                     <DialogTitle className="text-xl font-bold text-gray-900 flex items-center gap-2">
@@ -1161,7 +1161,7 @@ const AdminAssignClass = () => {
 
             {/* Student Selection Modal */}
             <Dialog open={isStudentModalOpen} onOpenChange={() => {}}>
-              <DialogContent className="max-w-6xl max-h-[85vh] overflow-y-auto bg-white rounded-3xl border-0 shadow-2xl">
+              <DialogContent className="max-w-6xl max-h-[85vh] overflow-y-auto bg-white rounded-3xl border-0 shadow-2xl" hideCloseButton>
                 <DialogHeader className="pb-4 border-b border-gray-100">
                   <div className="flex items-center justify-between">
                     <DialogTitle className="text-xl font-bold text-gray-900 flex items-center gap-2">

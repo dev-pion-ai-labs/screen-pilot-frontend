@@ -414,7 +414,7 @@ export const AdminClassDialog = ({
                 id="className"
                 value={className}
                 onChange={(e) => setClassName(e.target.value)}
-                placeholder="Enter class name (e.g., Computer Science 101)"
+                placeholder="Enter class name.."
                 className="h-14 text-lg rounded-xl border-2 border-gray-200 focus:border-indigo-500 transition-colors"
               />
             </div>

@@ -19,6 +19,7 @@ import AssignmentDetail from "./pages/AssignmentDetail";
 import Unauthorized from "./pages/Unauthorized";
 import NotFound from "./pages/NotFound";
 import AdminSettings from "./pages/AdminSettings";
+import AdminAssignClass from "./pages/AdminAssignClass";
 import TeacherAssignment from "./pages/TeacherAssignment";
 import TeacherStudentSubmission from "./pages/TeacherStudentSubmission";
 import TeacherStudents from "./pages/TeacherStudents";
@@ -42,6 +43,7 @@ const App = () => (
             <Route path="/teacher/dashboard" element={<TeacherDashboard />} />
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
             <Route path="/admin/users" element={<AdminUsers />} />
+            <Route path="/admin/assign-class" element={<AdminAssignClass />} />
             <Route path="/admin/settings" element={<AdminSettings />} />
             <Route path="/teacher/assignments" element={<TeacherAssignment />} />
             <Route path="/teacher/student-submission" element={<TeacherStudentSubmission />} />

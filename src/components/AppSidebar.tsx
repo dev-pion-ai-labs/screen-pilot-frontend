@@ -21,6 +21,7 @@ import {
   Lightbulb,
   GraduationCap,
   Home,
+  School,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -74,6 +75,12 @@ export function AppSidebar() {
             href: "/admin/users",
             icon: Users,
             description: "Manage system users",
+          },
+          {
+            name: "Assign Class",
+            href: "/admin/assign-class",
+            icon: School,
+            description: "Manage class assignments",
           },
           // {
           //   name: "System Stats",

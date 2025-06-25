@@ -105,6 +105,12 @@ export function AppSidebar() {
         return [
           ...baseItems,
           {
+            name: "Classes",
+            href: "/teacher/classes",
+            icon: School,
+            description: "View your assigned classes",
+          },
+          {
             name: "Assignments",
             href: "/teacher/assignments",
             icon: BookOpen,

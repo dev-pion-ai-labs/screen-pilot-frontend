@@ -29,6 +29,7 @@ interface Class {
   name: string;
   teachers: Teacher[];
   students: Student[];
+  semester: number;
   createdAt: string;
 }
 
@@ -60,7 +61,10 @@ export const AdminClassTable = ({
                   Class Name
                 </TableHead>
                 <TableHead className="font-bold text-gray-700 text-lg py-6 px-8">
-                  Teachers
+                  Teacher
+                </TableHead>
+                <TableHead className="font-bold text-gray-700 text-lg py-6 px-8">
+                  Semester
                 </TableHead>
                 <TableHead className="font-bold text-gray-700 text-lg py-6 px-8">
                   Students
@@ -81,6 +85,7 @@ export const AdminClassTable = ({
                   <TableCell className="font-semibold text-gray-900 text-lg py-6 px-8">
                     {classItem.name}
                   </TableCell>
+                  
                   <TableCell className="py-6 px-8">
                     <div className="flex flex-wrap gap-2">
                       {classItem.teachers.map((teacher) => (
@@ -92,6 +97,9 @@ export const AdminClassTable = ({
                         </Badge>
                       ))}
                     </div>
+                  </TableCell>
+                  <TableCell className="font-semibold text-gray-900 text-lg py-6 px-8">
+                    {classItem.semester}
                   </TableCell>
                   <TableCell className="py-6 px-8">
                     <div className="flex items-center gap-3">

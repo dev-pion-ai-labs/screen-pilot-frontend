@@ -65,6 +65,73 @@ interface Profile {
   updated_at: string;
 }
 
+// Add these interfaces at the top with other interfaces
+interface Class {
+  id: string;
+  name: string;
+  semester: number;
+  created_at: string;
+  updated_at: string;
+}
+
+interface TeacherClass extends Class {
+  student_count?: number;
+}
+
+
+const ClassSelectionCard = ({ classItem, isSelected, onSelect, studentCount }) => (
+  <Card 
+    className={cn(
+      "cursor-pointer transition-all hover:shadow-lg relative",
+      isSelected 
+        ? "border-2 border-purple-500 bg-purple-50 shadow-lg" 
+        : "border hover:border-purple-300"
+    )}
+    onClick={() => onSelect(classItem)}
+  >
+    {isSelected && (
+      <div className="absolute -top-2 -right-2 bg-purple-500 rounded-full p-1">
+        <CheckCircle className="h-4 w-4 text-white" />
+      </div>
+    )}
+    
+    <CardHeader className="flex flex-row items-center justify-between pb-2">
+      <CardTitle className={cn(
+        "text-lg font-medium",
+        isSelected ? "text-purple-700" : ""
+      )}>
+        {classItem.name}
+      </CardTitle>
+      <Badge variant={isSelected ? "default" : "secondary"}>
+        Sem {classItem.semester}
+      </Badge>
+    </CardHeader>
+    
+    <CardContent>
+      <div className="flex items-center justify-between text-sm">
+        <div className="flex items-center gap-2">
+          <Users className={cn(
+            "h-4 w-4",
+            isSelected ? "text-purple-600" : "text-gray-500"
+          )} />
+          <span className={isSelected ? "text-purple-700" : ""}>
+            {studentCount || 0} Students
+          </span>
+        </div>
+        <span className="text-xs text-gray-500">
+          Created {new Date(classItem.created_at).toLocaleDateString()}
+        </span>
+      </div>
+      
+      {isSelected && (
+        <div className="mt-2 text-xs text-purple-600 font-medium">
+          ✓ Selected for assignment creation
+        </div>
+      )}
+    </CardContent>
+  </Card>
+);
+
 const isSafari = () => {
   const ua = navigator.userAgent.toLowerCase()
   return ua.indexOf("safari") !== -1 && ua.indexOf("chrome") === -1
@@ -152,13 +219,16 @@ export default function TeacherDashboard() {
   const [lastRequestTime, setLastRequestTime] = useState<number>(0)
   const [isProcessing, setIsProcessing] = useState<boolean>(false)
 
-  // State for assignment creation tracking
-  const [currentSemester, setCurrentSemester] = useState<number | null>(null)
+  
   const [currentTopic, setCurrentTopic] = useState<string | null>(null)
   const [currentDueDate, setCurrentDueDate] = useState<string | null>(null)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Add these state declarations with other state variables
+const [classes, setClasses] = useState<TeacherClass[]>([])
+const [selectedClass, setSelectedClass] = useState<TeacherClass | null>(null)
 
   // Constants for rate limiting
   const MIN_REQUEST_INTERVAL = 2000 // 2 seconds
@@ -172,6 +242,7 @@ export default function TeacherDashboard() {
   }, [])
 
   useEffect(() => {
+     fetchTeacherClasses()
     fetchAssignments()
   }, [])
 
@@ -214,11 +285,57 @@ Ask me anything or upload files to get started with your teaching tasks.`,
     }
   }
 
+
+  // Add this function near other fetch functions
+const fetchTeacherClasses = async () => {
+  try {
+    const { data: classesData, error } = await supabase
+      .from('class_teachers')
+      .select(`
+        class_id,
+        classes:class_id (
+          id,
+          name,
+          semester,
+          created_at,
+          updated_at
+        )
+      `)
+      .eq('teacher_id', (profile as Profile)?.id)
+
+    if (error) throw error
+
+    // Get student count for each class
+    const classesWithCount = await Promise.all(
+      classesData.map(async (item) => {
+        const { count } = await supabase
+          .from('class_students')
+          .select('*', { count: 'exact', head: true })
+          .eq('class_id', item.class_id)
+
+        return {
+          ...item.classes,
+          student_count: count
+        }
+      })
+    )
+
+    setClasses(classesWithCount)
+  } catch (error) {
+    console.error('Error fetching classes:', error)
+    toast({
+      title: "Error",
+      description: "Failed to load classes",
+      variant: "destructive"
+    })
+  }
+}
+
   // Function to parse assignment data from AI response
-  const parseAssignmentFromResponse = (content: string, semester: number | null, topic: string | null, dueDate: string | null) => {
+  const parseAssignmentFromResponse = (content: string,  topic: string | null, dueDate: string | null) => {
     console.log('🔍 Parsing assignment with parameters:', {
       content: content.substring(0, 100) + '...',
-      semester,
+      
       topic,
       dueDate
     })
@@ -308,17 +425,12 @@ Ask me anything or upload files to get started with your teaching tasks.`,
       console.log('📅 Using default due date:', formattedDueDate)
     }
 
-    // Ensure we have a valid semester
-    if (!semester) {
-      console.log('⚠️ No semester provided, using current semester:', currentSemester)
-      semester = currentSemester
-    }
-
+   
     const result = {
       title: title || 'AI Generated Assignment',
       description,
       dueDate: formattedDueDate,
-      semester: semester || 1,
+      
       topic: topic || '',
       aiGeneratedContent: content
     }
@@ -328,68 +440,101 @@ Ask me anything or upload files to get started with your teaching tasks.`,
   }
 
   // Function to save assignment to database
-  const saveAssignmentToDatabase = async (assignmentData: any) => {
-    try {
-      console.log('💾 Saving assignment with data:', assignmentData)
-
-      // Ensure we have a valid semester
-      if (!assignmentData.semester) {
-        console.log('⚠️ No semester in assignment data, using current semester:', currentSemester)
-        assignmentData.semester = currentSemester || 1
-      }
-
-      // Ensure we have a valid due date
-      if (!assignmentData.dueDate) {
-        const defaultDate = new Date()
-        defaultDate.setDate(defaultDate.getDate() + 30)
-        assignmentData.dueDate = defaultDate.toISOString()
-        console.log('📅 Using default due date for database:', assignmentData.dueDate)
-      }
-
-      const { data, error } = await supabase
-        .from('assignments')
-        .insert([
-          {
-            title: assignmentData.title,
-            description: assignmentData.description,
-            teacher_id: (profile as Profile)?.id,
-            semester: assignmentData.semester,
-            topic: assignmentData.topic,
-            due_date: assignmentData.dueDate,
-            total_points: 100,
-            difficulty: 'medium',
-            ai_generated_content: assignmentData.aiGeneratedContent,
-            status: 'published'
-          }
-        ])
-        .select()
-        .single()
-
-      if (error) {
-        console.error('❌ Error saving assignment:', error)
-        throw error
-      }
-
-      console.log('✅ Assignment saved successfully:', data)
-
+// Fixed saveAssignmentToDatabase function
+const saveAssignmentToDatabase = async (assignmentData: any) => {
+  try {
+    // Check if class is selected - throw error instead of silent return
+    if (!selectedClass) {
+      const error = new Error("No class selected. Please select a class to create an assignment.");
+      console.error('❌ No class selected for assignment creation');
       toast({
-        title: "Assignment Created Successfully!",
-        description: `Assignment has been created and assigned to all Semester ${assignmentData.semester} students.`
-      })
-
-      // Refresh assignments list
-      fetchAssignments()
-
-      return data
-    } catch (error) {
-      console.error('❌ Error saving assignment:', error)
-      toast({
-        title: "Error",
-        description: "Failed to save assignment. Please try again.",
+        title: "No Class Selected",
+        description: "Please select a class to create an assignment",
         variant: "destructive"
-      })
+      });
+      throw error; // Throw error instead of returning
     }
+
+    console.log('💾 Saving assignment with data:', assignmentData);
+    console.log('📚 Selected class:', selectedClass);
+
+    const { data, error } = await supabase
+      .from('assignments')
+      .insert([
+        {
+          title: assignmentData.title,
+          description: assignmentData.description,
+          teacher_id: (profile as Profile)?.id,
+          class_id: selectedClass.id,
+          semester: selectedClass.semester,
+          topic: assignmentData.topic,
+          due_date: assignmentData.dueDate,
+          total_points: 100,
+          difficulty: 'medium',
+          ai_generated_content: assignmentData.aiGeneratedContent,
+          status: 'published'
+        }
+      ])
+      .select()
+      .single()
+
+    if (error) {
+      console.error('❌ Database error:', error);
+      throw error;
+    }
+
+    console.log('✅ Assignment created successfully:', data);
+
+    // Create assignment enrollments for all students in the class
+    const { data: students, error: studentsError } = await supabase
+      .from('class_students')
+      .select('student_id')
+      .eq('class_id', selectedClass.id)
+
+    if (studentsError) {
+      console.error('⚠️ Error fetching students:', studentsError);
+      throw studentsError;
+    }
+
+    if (students && students.length > 0) {
+      const enrollments = students.map(student => ({
+        assignment_id: data.id,
+        student_id: student.student_id,
+        status: 'assigned',
+        assigned_at: new Date().toISOString()
+      }));
+
+      const { error: enrollmentError } = await supabase
+        .from('assignment_enrollments')
+        .insert(enrollments)
+
+      if (enrollmentError) {
+        console.error('⚠️ Error creating enrollments:', enrollmentError);
+        throw enrollmentError;
+      }
+
+      console.log('✅ Assignment enrollments created for', students.length, 'students');
+    }
+
+    toast({
+      title: "Assignment Created Successfully!",
+      description: `Assignment has been created and assigned to ${students?.length || 0} students in ${selectedClass.name}.`
+    });
+
+    // Refresh assignments list
+    fetchAssignments();
+    return data;
+    
+  } catch (error) {
+    console.error('❌ Error saving assignment:', error);
+    toast({
+      title: "Error",
+      description: error instanceof Error ? error.message : "Failed to save assignment. Please try again.",
+      variant: "destructive"
+    });
+    throw error; // Re-throw to let calling code handle it
   }
+}
 
   // Function to detect if response contains a complete assignment
   const isCompleteAssignment = (content: string) => {
@@ -405,26 +550,7 @@ Ask me anything or upload files to get started with your teaching tasks.`,
     return isComplete
   }
 
-  // Function to extract semester from user message
-  const extractSemesterFromMessage = (message: string) => {
-    console.log('🔍 Extracting semester from message:', message);
-
-    // Only match explicit semester selection, not any lone digit
-    const explicitMatch = message.match(/\b(?:sem|semester)\s*(\d{1,2})\b/i);
-    if (explicitMatch) {
-      const semester = parseInt(explicitMatch[1]);
-      console.log('📚 Found explicit semester match:', semester);
-      if (semester >= 1 && semester <= 8) {
-        return semester;
-      }
-    }
-
-    // Don't fall back to lone digit or number in the message!
-    // This prevents accidental semester detection from "Part 1", etc.
-
-    console.log('❌ No valid semester found in message');
-    return null;
-  }
+  
 
   // Function to extract topic from message
   const extractTopicFromMessage = (message: string) => {
@@ -749,20 +875,14 @@ Ask me anything or upload files to get started with your teaching tasks.`,
     // Extract information from user message
     console.log('🔍 Starting information extraction from message:', currentInput)
 
-    const extractedSemester = extractSemesterFromMessage(currentInput)
-    console.log('📚 Extracted semester:', extractedSemester)
-
+    
     const extractedTopic = extractTopicFromMessage(currentInput)
     console.log('📝 Extracted topic:', extractedTopic)
 
     const extractedDueDate = extractDueDateFromMessage(currentInput)
     console.log('📅 Extracted due date:', extractedDueDate)
 
-    // Update state with extracted information
-    if (extractedSemester) {
-      setCurrentSemester(extractedSemester)
-      console.log('✅ Set current semester:', extractedSemester)
-    }
+  
     if (extractedTopic) {
       setCurrentTopic(extractedTopic)
       console.log('✅ Set current topic:', extractedTopic)
@@ -818,13 +938,12 @@ Ask me anything or upload files to get started with your teaching tasks.`,
 
           setMessages((prev) => [...prev, agentMessage])
 
-          // Use the current semester if no new semester was extracted
-          const semesterToUse = extractedSemester || currentSemester
+         
           const topicToUse = extractedTopic || currentTopic
           const dueDateToUse = extractedDueDate || currentDueDate
 
           console.log('📊 Using values:', {
-            semester: semesterToUse,
+           
             topic: topicToUse,
             dueDate: dueDateToUse
           })
@@ -833,29 +952,49 @@ Ask me anything or upload files to get started with your teaching tasks.`,
           if (isCompleteAssignment(messageContent)) {
             const assignmentData = parseAssignmentFromResponse(
               messageContent,
-              semesterToUse,
+              
               topicToUse,
               dueDateToUse
             )
             console.log("📋 Complete assignment detected:", assignmentData)
 
             // Only save if we have all required data
-            if (assignmentData.title && assignmentData.semester && assignmentData.topic) {
-              console.log('💾 Saving assignment with data:', assignmentData)
-              await saveAssignmentToDatabase(assignmentData)
-
-              // Reset assignment creation state
-              setCurrentSemester(null)
-              setCurrentTopic(null)
-              setCurrentDueDate(null)
-              setConversationId(null)
-              setInputMessage("")
-            } else {
-              console.log('⚠️ Assignment data incomplete:', assignmentData)
-            }
-          } else {
-            console.log('ℹ️ Not a complete assignment, checking for partial data')
-          }
+           if (assignmentData.title && assignmentData.topic) {
+    console.log('💾 Attempting to save assignment with data:', assignmentData);
+    
+    try {
+      await saveAssignmentToDatabase(assignmentData);
+      console.log('✅ Assignment saved successfully');
+      
+      // Reset assignment creation state only on success
+      setCurrentTopic(null);
+      setCurrentDueDate(null);
+      setConversationId(null);
+      setInputMessage("");
+      
+    } catch (saveError) {
+      console.error('❌ Failed to save assignment:', saveError);
+      
+      // Add an error message to the chat
+      const errorMessage: Message = {
+        id: generateMessageId("agent"),
+        type: "agent",
+        content: `I created the assignment content, but there was an issue saving it: ${saveError instanceof Error ? saveError.message : 'Unknown error'}. Please select a class and try again.`,
+        timestamp: new Date(),
+        isError: true,
+      };
+      
+      setMessages((prev) => [...prev, errorMessage]);
+      
+      // Don't reset state so user can try again
+      return; // Exit early to prevent further processing
+    }
+  } else {
+    console.log('⚠️ Assignment data incomplete:', assignmentData);
+  }
+} else {
+  console.log('ℹ️ Not a complete assignment, checking for partial data');
+}
 
           // Improved conversation ID handling
           if (result.conversationId) {
@@ -913,7 +1052,7 @@ Ask me anything or upload files to get started with your teaching tasks.`,
         return prev
       })
     }
-  }, [inputMessage, isLoading, isProcessing, conversationId, processedMessageIds, lastRequestTime, toast, currentSemester, currentTopic, currentDueDate, profile])
+  }, [inputMessage, isLoading, isProcessing, conversationId, processedMessageIds, lastRequestTime, toast,  currentTopic, currentDueDate, profile])
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
     const file = event.target.files?.[0]
@@ -998,7 +1137,7 @@ Ask me anything or upload files to get started with your teaching tasks.`,
   const resetConversation = () => {
     setConversationId(null)
     setProcessedMessageIds(new Set())
-    setCurrentSemester(null)
+    
     setCurrentTopic(null)
     setCurrentDueDate(null)
     toast({
@@ -1109,73 +1248,23 @@ Ask me anything or upload files to get started with your teaching tasks.`,
               </CardContent>
             </Card>
 
-            <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-purple-50 hover:shadow-xl transition-all duration-300">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-purple-700">Current Context</CardTitle>
-                <div className="p-2 bg-purple-100 rounded-full">
-                  <Target className="h-4 w-4 text-purple-600" />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-1">
-                  {currentSemester && (
-                    <div className="text-xs text-purple-600">Sem: {currentSemester}</div>
-                  )}
-                  {currentTopic && (
-                    <div className="text-xs text-purple-600">Topic: {currentTopic.substring(0, 20)}...</div>
-                  )}
-                  {currentDueDate && (
-                    <div className="text-xs text-purple-600">Due: {currentDueDate}</div>
-                  )}
-                  {!currentSemester && !currentTopic && !currentDueDate && (
-                    <div className="text-xs text-gray-400">No active context</div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+          
 
 
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300">
-              <CardContent className="p-6 text-center">
-                <div className="p-3 bg-blue-100 rounded-full w-fit mx-auto mb-4">
-                  <BookOpen className="h-6 w-6 text-blue-600" />
-                </div>
-                <h3 className="font-semibold text-lg mb-2">Manage Assignments</h3>
-                <p className="text-gray-600 text-sm mb-4">View, edit, and track all your assignments</p>
-                <Link to="/teacher/assignments">
-                  <Button className="w-full">View Assignments</Button>
-                </Link>
-              </CardContent>
-            </Card>
 
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300">
-              <CardContent className="p-6 text-center">
-                <div className="p-3 bg-green-100 rounded-full w-fit mx-auto mb-4">
-                  <Users className="h-6 w-6 text-green-600" />
-                </div>
-                <h3 className="font-semibold text-lg mb-2">View Students</h3>
-                <p className="text-gray-600 text-sm mb-4">Manage students and their progress</p>
-                <Link to="/teacher/students">
-                  <Button className="w-full">View Students</Button>
-                </Link>
-              </CardContent>
-            </Card>
+          {classes.map((classItem) => (
+  <ClassSelectionCard
+    key={classItem.id}
+    classItem={classItem}
+    isSelected={selectedClass?.id === classItem.id}
+    onSelect={setSelectedClass}
+    studentCount={classItem.student_count}
+  />
+))}
 
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300">
-              <CardContent className="p-6 text-center">
-                <div className="p-3 bg-purple-100 rounded-full w-fit mx-auto mb-4">
-                  <FileText className="h-6 w-6 text-purple-600" />
-                </div>
-                <h3 className="font-semibold text-lg mb-2">Review Submissions</h3>
-                <p className="text-gray-600 text-sm mb-4">Grade and provide feedback</p>
-                <Link to="/teacher/assignments">
-                  <Button className="w-full">Review Work</Button>
-                </Link>
-              </CardContent>
-            </Card>
-          </div>
+         
+          
 
           {/* AI Chat Interface */}
           <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-gray-50">
@@ -1361,3 +1450,6 @@ Ask me anything or upload files to get started with your teaching tasks.`,
     </AuthGuard>
   )
 }
+
+
+

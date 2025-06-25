@@ -23,6 +23,7 @@ import AdminAssignClass from "./pages/AdminAssignClass";
 import TeacherAssignment from "./pages/TeacherAssignment";
 import TeacherStudentSubmission from "./pages/TeacherStudentSubmission";
 import TeacherStudents from "./pages/TeacherStudents";
+import TeacherClasses from "./pages/TeacherClasses";
 import StudentAssignments from "./pages/StudentAssignments";
 
 const queryClient = new QueryClient();
@@ -45,6 +46,7 @@ const App = () => (
             <Route path="/admin/users" element={<AdminUsers />} />
             <Route path="/admin/assign-class" element={<AdminAssignClass />} />
             <Route path="/admin/settings" element={<AdminSettings />} />
+            <Route path="/teacher/classes" element={<TeacherClasses />} />
             <Route path="/teacher/assignments" element={<TeacherAssignment />} />
             <Route path="/teacher/student-submission" element={<TeacherStudentSubmission />} />
             <Route path="/teacher/students" element={<TeacherStudents />} />

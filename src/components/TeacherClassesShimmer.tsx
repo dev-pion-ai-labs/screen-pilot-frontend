@@ -7,7 +7,7 @@ export const TeacherClassesShimmer = () => {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
       <div className="space-y-8 p-8">
         {/* Header Shimmer */}
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-gray-300 via-gray-400 to-gray-500 p-8 animate-pulse">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-gray-200 to-gray-300 p-8 animate-pulse">
           <div className="absolute inset-0 bg-black/10"></div>
           <div className="relative z-10">
             <div className="flex items-center gap-3 mb-4">
@@ -35,16 +35,16 @@ export const TeacherClassesShimmer = () => {
           {[...Array(6)].map((_, i) => (
             <Card
               key={i}
-              className="border-0 shadow-lg bg-gradient-to-br from-white to-blue-50 animate-pulse"
+              className="border-0 shadow-lg bg-gradient-to-br from-gray-50 to-gray-100 animate-pulse"
             >
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-blue-100 rounded-lg">
-                      <Skeleton className="h-5 w-5 bg-blue-200" />
+                    <div className="p-2 bg-gray-200 rounded-lg">
+                      <Skeleton className="h-5 w-5 bg-gray-300" />
                     </div>
                     <div className="space-y-2">
-                      <Skeleton className="h-5 w-32 bg-blue-200" />
+                      <Skeleton className="h-5 w-32 bg-gray-200" />
                       <Skeleton className="h-4 w-20 rounded-full bg-gray-200" />
                     </div>
                   </div>
@@ -104,14 +104,14 @@ export const TeacherClassesShimmer = () => {
                     {[...Array(4)].map((_, i) => (
                       <div key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                         <div className="flex items-center gap-3">
-                          <Skeleton className="w-8 h-8 rounded-full bg-blue-100" />
+                          <Skeleton className="w-8 h-8 rounded-full bg-gray-200" />
                           <div className="space-y-2">
                             <Skeleton className="h-4 w-24 bg-gray-200" />
                             <Skeleton className="h-3 w-32 bg-gray-200" />
                             <Skeleton className="h-3 w-20 bg-gray-200" />
                           </div>
                         </div>
-                        <Skeleton className="h-8 w-8 rounded bg-red-100" />
+                        <Skeleton className="h-8 w-8 rounded bg-gray-200" />
                       </div>
                     ))}
                   </div>
@@ -138,14 +138,14 @@ export const TeacherClassesShimmer = () => {
                     {[...Array(3)].map((_, i) => (
                       <div key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                         <div className="flex items-center gap-3">
-                          <Skeleton className="w-8 h-8 rounded-full bg-green-100" />
+                          <Skeleton className="w-8 h-8 rounded-full bg-gray-200" />
                           <div className="space-y-2">
                             <Skeleton className="h-4 w-28 bg-gray-200" />
                             <Skeleton className="h-3 w-36 bg-gray-200" />
                             <Skeleton className="h-3 w-24 bg-gray-200" />
                           </div>
                         </div>
-                        <Skeleton className="h-8 w-8 rounded bg-green-100" />
+                        <Skeleton className="h-8 w-8 rounded bg-gray-200" />
                       </div>
                     ))}
                   </div>
@@ -168,26 +168,26 @@ export const TeacherClassesShimmer = () => {
         </div>
 
         {/* Floating shimmer elements for visual appeal */}
-        <div className="fixed top-16 right-16 w-2 h-2 bg-blue-200 rounded-full animate-pulse opacity-40"></div>
-        <div className="fixed top-32 right-32 w-3 h-3 bg-teal-200 rounded-full animate-pulse opacity-30 animation-delay-500"></div>
-        <div className="fixed top-24 right-48 w-1 h-1 bg-indigo-200 rounded-full animate-pulse opacity-50 animation-delay-1000"></div>
+        <div className="fixed top-16 right-16 w-2 h-2 bg-gray-200 rounded-full animate-pulse opacity-40"></div>
+        <div className="fixed top-32 right-32 w-3 h-3 bg-gray-200 rounded-full animate-pulse opacity-30 animation-delay-500"></div>
+        <div className="fixed top-24 right-48 w-1 h-1 bg-gray-200 rounded-full animate-pulse opacity-50 animation-delay-1000"></div>
         
         {/* Additional shimmer cards that appear/disappear to simulate dynamic loading */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 opacity-30">
           {[...Array(3)].map((_, i) => (
             <Card
               key={`extra-${i}`}
-              className="border-0 shadow-lg bg-gradient-to-br from-white to-blue-50 animate-pulse"
+              className="border-0 shadow-lg bg-gradient-to-br from-gray-50 to-gray-100 animate-pulse"
               style={{ animationDelay: `${i * 200}ms` }}
             >
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-blue-100 rounded-lg">
-                      <Skeleton className="h-5 w-5 bg-blue-200" />
+                    <div className="p-2 bg-gray-200 rounded-lg">
+                      <Skeleton className="h-5 w-5 bg-gray-300" />
                     </div>
                     <div className="space-y-2">
-                      <Skeleton className="h-5 w-40 bg-blue-200" />
+                      <Skeleton className="h-5 w-40 bg-gray-200" />
                       <Skeleton className="h-4 w-24 rounded-full bg-gray-200" />
                     </div>
                   </div>

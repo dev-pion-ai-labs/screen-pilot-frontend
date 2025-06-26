@@ -45,9 +45,9 @@ export const AdminDashboardShimmer = () => {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <Skeleton className="h-4 w-20 mb-1 bg-gray-200" />
-                  <Skeleton className="h-8 w-12 mb-2 bg-gray-300" />
-                  <Skeleton className="h-4 w-16 bg-gray-200" />
+                  <Skeleton className="h-4 w-20 mb-1 bg-gray-300" />
+                  <Skeleton className="h-8 w-12 mb-2 bg-gray-400" />
+                  <Skeleton className="h-4 w-16 bg-gray-300" />
                 </div>
                 <Skeleton className="h-12 w-12 rounded-xl bg-gray-300" />
               </div>
@@ -60,20 +60,20 @@ export const AdminDashboardShimmer = () => {
       <div className="space-y-6">
         <div className="grid w-full grid-cols-4 lg:w-[600px] bg-gray-100 rounded-lg p-1">
           <div className="flex items-center gap-2 bg-white rounded-md px-3 py-2 shadow-sm">
+            <Skeleton className="h-4 w-4 bg-gray-400" />
+            <Skeleton className="h-4 w-16 bg-gray-400" />
+          </div>
+          <div className="flex items-center gap-2 px-3 py-2">
+            <Skeleton className="h-4 w-4 bg-gray-300" />
+            <Skeleton className="h-4 w-12 bg-gray-300" />
+          </div>
+          <div className="flex items-center gap-2 px-3 py-2">
             <Skeleton className="h-4 w-4 bg-gray-300" />
             <Skeleton className="h-4 w-16 bg-gray-300" />
           </div>
           <div className="flex items-center gap-2 px-3 py-2">
-            <Skeleton className="h-4 w-4 bg-gray-200" />
-            <Skeleton className="h-4 w-12 bg-gray-200" />
-          </div>
-          <div className="flex items-center gap-2 px-3 py-2">
-            <Skeleton className="h-4 w-4 bg-gray-200" />
-            <Skeleton className="h-4 w-16 bg-gray-200" />
-          </div>
-          <div className="flex items-center gap-2 px-3 py-2">
-            <Skeleton className="h-4 w-4 bg-gray-200" />
-            <Skeleton className="h-4 w-20 bg-gray-200" />
+            <Skeleton className="h-4 w-4 bg-gray-300" />
+            <Skeleton className="h-4 w-20 bg-gray-300" />
           </div>
         </div>
 
@@ -84,10 +84,10 @@ export const AdminDashboardShimmer = () => {
             {[...Array(4)].map((_, i) => (
               <Card key={i} className="border-0 shadow-lg bg-gradient-to-br from-gray-50 to-gray-100">
                 <CardContent className="p-6 text-center">
-                  <Skeleton className="w-12 h-12 rounded-full mx-auto mb-3 bg-gray-300" />
-                  <Skeleton className="h-5 w-24 mx-auto mb-1 bg-gray-200" />
-                  <Skeleton className="h-8 w-16 mx-auto mb-1 bg-gray-300" />
-                  <Skeleton className="h-4 w-20 mx-auto bg-gray-200" />
+                  <Skeleton className="w-12 h-12 rounded-full mx-auto mb-3 bg-gray-400" />
+                  <Skeleton className="h-5 w-24 mx-auto mb-1 bg-gray-300" />
+                  <Skeleton className="h-8 w-16 mx-auto mb-1 bg-gray-400" />
+                  <Skeleton className="h-4 w-20 mx-auto bg-gray-300" />
                 </CardContent>
               </Card>
             ))}
@@ -97,13 +97,13 @@ export const AdminDashboardShimmer = () => {
           <Card className="border-0 shadow-lg">
             <CardHeader>
               <div className="flex items-center gap-2">
-                <Skeleton className="h-5 w-5 bg-gray-300" />
-                <Skeleton className="h-6 w-40 bg-gray-200" />
+                <Skeleton className="h-5 w-5 bg-gray-400" />
+                <Skeleton className="h-6 w-40 bg-gray-300" />
               </div>
             </CardHeader>
             <CardContent>
               <div className="h-[300px]">
-                <Skeleton className="w-full h-full bg-gray-200 rounded" />
+                <Skeleton className="w-full h-full bg-gray-300 rounded" />
               </div>
             </CardContent>
           </Card>

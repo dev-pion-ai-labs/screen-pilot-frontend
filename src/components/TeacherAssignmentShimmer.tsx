@@ -18,10 +18,10 @@ export const TeacherAssignmentShimmer = () => {
         {/* Main Content Card Shimmer */}
         <div className="bg-white/70 backdrop-blur-sm rounded-3xl shadow-2xl border-0 overflow-hidden">
           {/* Tabs Header */}
-          <div className="bg-gradient-to-r from-gray-50 to-blue-50 px-6 py-4">
+          <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-6 py-4">
             <div className="bg-white/80 backdrop-blur-sm border-0 shadow-lg rounded-2xl p-1 w-fit">
               <div className="flex gap-1">
-                <Skeleton className="h-10 w-44 rounded-xl bg-blue-200" />
+                <Skeleton className="h-10 w-44 rounded-xl bg-gray-200" />
                 <Skeleton className="h-10 w-40 rounded-xl bg-gray-200" />
               </div>
             </div>
@@ -61,8 +61,8 @@ export const TeacherAssignmentShimmer = () => {
                         <Skeleton className="h-4 w-48 bg-gray-200" />
                       </div>
                       <div className="flex gap-3">
-                        <Skeleton className="h-6 w-16 rounded-full bg-purple-200" />
-                        <Skeleton className="h-6 w-20 rounded-full bg-green-200" />
+                        <Skeleton className="h-6 w-16 rounded-full bg-gray-200" />
+                        <Skeleton className="h-6 w-20 rounded-full bg-gray-200" />
                       </div>
                     </div>
                   </CardHeader>
@@ -70,10 +70,10 @@ export const TeacherAssignmentShimmer = () => {
                     <div className="grid md:grid-cols-4 gap-6">
                       {/* Stats Cards */}
                       {[
-                        { bg: 'from-blue-50 to-cyan-50', icon: 'bg-blue-200' },
-                        { bg: 'from-green-50 to-emerald-50', icon: 'bg-green-200' },
-                        { bg: 'from-purple-50 to-pink-50', icon: 'bg-purple-200' },
-                        { bg: 'from-orange-50 to-amber-50', icon: 'bg-orange-200' }
+                        { bg: 'from-gray-50 to-gray-100', icon: 'bg-gray-200' },
+                        { bg: 'from-gray-50 to-gray-100', icon: 'bg-gray-200' },
+                        { bg: 'from-gray-50 to-gray-100', icon: 'bg-gray-200' },
+                        { bg: 'from-gray-50 to-gray-100', icon: 'bg-gray-200' }
                       ].map((style, j) => (
                         <div key={j} className={`flex items-center gap-3 p-3 bg-gradient-to-r ${style.bg} rounded-xl`}>
                           <div className={`p-2 ${style.icon} rounded-lg animate-pulse`}>

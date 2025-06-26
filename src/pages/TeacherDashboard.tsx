@@ -1,15 +1,16 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { Link } from "react-router-dom"
-import { useAuth } from "@/hooks/useAuth"
-import { AuthGuard } from "@/components/AuthGuard"
-import { ModernDashboardLayout } from "@/components/ModernDashboardLayout"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { supabase } from "@/integrations/supabase/client"
-import { useToast } from "@/hooks/use-toast"
+import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
+import { AuthGuard } from "@/components/AuthGuard";
+import { ModernDashboardLayout } from "@/components/ModernDashboardLayout";
+import { TeacherDashboardShimmer } from "@/components/TeacherDashboardShimmer";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 import {
   BookOpen,
   Users,
@@ -36,7 +37,6 @@ import {
   UserCheck,
   BookMarked,
   Timer,
-  Zap,
   Brain,
   MessageSquare,
   Download,
@@ -46,9 +46,18 @@ import {
   TrendingDown,
   PlayCircle,
   Flame,
-  TrophyIcon
-} from "lucide-react"
-import { format, startOfWeek, endOfWeek, subWeeks, isWithinInterval, subDays } from "date-fns"
+  TrophyIcon,
+  Sparkles,
+  Trophy,
+} from "lucide-react";
+import {
+  format,
+  startOfWeek,
+  endOfWeek,
+  subWeeks,
+  isWithinInterval,
+  subDays,
+} from "date-fns";
 import {
   AreaChart,
   Area,
@@ -58,90 +67,93 @@ import {
   Tooltip,
   ResponsiveContainer,
   PieChart as RechartsPieChart,
+  Pie,
   Cell,
   BarChart,
   Bar,
   LineChart,
   Line,
   RadialBarChart,
-  RadialBar
-} from "recharts"
+  RadialBar,
+} from "recharts";
 
 interface TeacherClass {
-  id: string
-  name: string
-  semester: number
-  created_at: string
-  student_count: number
-  assignment_count: number
-  avg_completion_rate: number
+  id: string;
+  name: string;
+  semester: number;
+  created_at: string;
+  student_count: number;
+  assignment_count: number;
+  avg_completion_rate: number;
 }
 
 interface Assignment {
-  id: string
-  title: string
-  description: string
-  due_date: string
-  created_at: string
-  class_id: string
-  topic: string
-  difficulty: string
-  total_points: number
-  status: string
-  submission_count: number
-  total_students: number
-  avg_grade: number
+  id: string;
+  title: string;
+  description: string;
+  due_date: string;
+  created_at: string;
+  class_id: string;
+  topic: string;
+  difficulty: string;
+  total_points: number;
+  status: string;
+  submission_count: number;
+  total_students: number;
+  avg_grade: number;
   classes: {
-    id: string
-    name: string
-    semester: number
-  }
+    id: string;
+    name: string;
+    semester: number;
+  };
 }
 
 interface Submission {
-  id: string
-  assignment_id: string
-  student_id: string
-  created_at: string
-  ai_grade: number
-  teacher_grade: number
-  status: string
-  file_name: string
+  id: string;
+  assignment_id: string;
+  student_id: string;
+  created_at: string;
+  ai_grade: number;
+  teacher_grade: number;
+  status: string;
+  file_name: string;
   assignment: {
-    title: string
-    total_points: number
+    title: string;
+    total_points: number;
     classes: {
-      name: string
-    }
-  }
+      name: string;
+    };
+  };
   profiles: {
-    full_name: string
-  }
+    full_name: string;
+  };
 }
 
 interface StudentPerformance {
-  student_id: string
-  student_name: string
-  class_name: string
-  submissions_count: number
-  avg_grade: number
-  completion_rate: number
+  student_id: string;
+  student_name: string;
+  class_name: string;
+  submissions_count: number;
+  avg_grade: number;
+  completion_rate: number;
 }
 
 export default function TeacherDashboard() {
-  const { profile } = useAuth()
-  const { toast } = useToast()
-  const [classes, setClasses] = useState<TeacherClass[]>([])
-  const [assignments, setAssignments] = useState<Assignment[]>([])
-  const [submissions, setSubmissions] = useState<Submission[]>([])
-  const [studentPerformance, setStudentPerformance] = useState<StudentPerformance[]>([])
-  const [loading, setLoading] = useState(true)
+  const { profile } = useAuth();
+  const { toast } = useToast();
+  const [classes, setClasses] = useState<TeacherClass[]>([]);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [studentPerformance, setStudentPerformance] = useState<
+    StudentPerformance[]
+  >([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (profile?.id) {
-      fetchDashboardData()
+      fetchDashboardData();
     }
-  }, [profile])
+  }, [profile]);
 
   const fetchDashboardData = async () => {
     try {
@@ -149,74 +161,86 @@ export default function TeacherDashboard() {
         fetchTeacherClasses(),
         fetchTeacherAssignments(),
         fetchRecentSubmissions(),
-        fetchStudentPerformance()
-      ])
+        fetchStudentPerformance(),
+      ]);
     } catch (error) {
-      console.error("Error fetching dashboard data:", error)
+      console.error("Error fetching dashboard data:", error);
       toast({
         title: "Error",
         description: "Failed to load dashboard data",
         variant: "destructive",
-      })
+      });
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const fetchTeacherClasses = async () => {
     try {
       const { data: classData } = await supabase
         .from("class_teachers")
-        .select(`
+        .select(
+          `
           classes:class_id (
             id,
             name,
             semester,
             created_at
           )
-        `)
-        .eq("teacher_id", profile?.id)
+        `
+        )
+        .eq("teacher_id", profile?.id);
 
       if (!classData?.length) {
-        setClasses([])
-        return
+        setClasses([]);
+        return;
       }
 
       const classesWithDetails = await Promise.all(
         classData.map(async (item) => {
-          const classInfo = item.classes
+          const classInfo = item.classes;
 
           // Get student count
           const { count: studentCount } = await supabase
             .from("class_students")
             .select("*", { count: "exact", head: true })
-            .eq("class_id", classInfo.id)
+            .eq("class_id", classInfo.id);
 
           // Get assignment count
           const { count: assignmentCount } = await supabase
             .from("assignments")
             .select("*", { count: "exact", head: true })
             .eq("class_id", classInfo.id)
-            .eq("status", "published")
+            .eq("status", "published");
 
           // Calculate average completion rate
           const { data: assignmentIds } = await supabase
             .from("assignments")
             .select("id")
             .eq("class_id", classInfo.id)
-            .eq("status", "published")
+            .eq("status", "published");
 
-          let avgCompletionRate = 0
+          let avgCompletionRate = 0;
           if (assignmentIds?.length && studentCount) {
             const { count: totalSubmissions } = await supabase
               .from("submissions")
               .select("*", { count: "exact", head: true })
-              .in("assignment_id", assignmentIds.map(a => a.id))
+              .in(
+                "assignment_id",
+                assignmentIds.map((a) => a.id)
+              );
 
-            const expectedSubmissions = assignmentIds.length * (studentCount || 0)
-            avgCompletionRate = expectedSubmissions > 0 
-              ? Math.min(Math.round(((totalSubmissions || 0) / expectedSubmissions) * 100), 100)
-              : 0
+            const expectedSubmissions =
+              assignmentIds.length * (studentCount || 0);
+            avgCompletionRate =
+              expectedSubmissions > 0
+                ? Math.min(
+                    Math.round(
+                      ((totalSubmissions || 0) / expectedSubmissions) * 100
+                    ),
+                    100
+                  )
+                : 0;
           }
 
           return {
@@ -226,36 +250,38 @@ export default function TeacherDashboard() {
             created_at: classInfo.created_at,
             student_count: studentCount || 0,
             assignment_count: assignmentCount || 0,
-            avg_completion_rate: avgCompletionRate
-          }
+            avg_completion_rate: avgCompletionRate,
+          };
         })
-      )
+      );
 
-      setClasses(classesWithDetails)
+      setClasses(classesWithDetails);
     } catch (error) {
-      console.error("Error fetching teacher classes:", error)
+      console.error("Error fetching teacher classes:", error);
     }
-  }
+  };
 
   const fetchTeacherAssignments = async () => {
     try {
       const { data: assignmentsData } = await supabase
         .from("assignments")
-        .select(`
+        .select(
+          `
           *,
           classes:class_id (
             id,
             name,
             semester
           )
-        `)
+        `
+        )
         .eq("teacher_id", profile?.id)
         .eq("status", "published")
-        .order("created_at", { ascending: false })
+        .order("created_at", { ascending: false });
 
       if (!assignmentsData?.length) {
-        setAssignments([])
-        return
+        setAssignments([]);
+        return;
       }
 
       const assignmentsWithStats = await Promise.all(
@@ -264,13 +290,13 @@ export default function TeacherDashboard() {
           const { count: submissionCount } = await supabase
             .from("submissions")
             .select("*", { count: "exact", head: true })
-            .eq("assignment_id", assignment.id)
+            .eq("assignment_id", assignment.id);
 
           // Get total students in class
           const { count: totalStudents } = await supabase
             .from("class_students")
             .select("*", { count: "exact", head: true })
-            .eq("class_id", assignment.class_id)
+            .eq("class_id", assignment.class_id);
 
           // Get average grade
           const { data: gradeData } = await supabase
@@ -278,30 +304,31 @@ export default function TeacherDashboard() {
             .select("teacher_grade, ai_grade")
             .eq("assignment_id", assignment.id)
             .not("teacher_grade", "is", null)
-            .not("ai_grade", "is", null)
+            .not("ai_grade", "is", null);
 
-          let avgGrade = 0
+          let avgGrade = 0;
           if (gradeData?.length) {
-            const totalGrade = gradeData.reduce((sum, sub) => 
-              sum + (sub.teacher_grade || sub.ai_grade || 0), 0
-            )
-            avgGrade = Math.round(totalGrade / gradeData.length)
+            const totalGrade = gradeData.reduce(
+              (sum, sub) => sum + (sub.teacher_grade || sub.ai_grade || 0),
+              0
+            );
+            avgGrade = Math.round(totalGrade / gradeData.length);
           }
 
           return {
             ...assignment,
             submission_count: submissionCount || 0,
             total_students: totalStudents || 0,
-            avg_grade: avgGrade
-          }
+            avg_grade: avgGrade,
+          };
         })
-      )
+      );
 
-      setAssignments(assignmentsWithStats)
+      setAssignments(assignmentsWithStats);
     } catch (error) {
-      console.error("Error fetching teacher assignments:", error)
+      console.error("Error fetching teacher assignments:", error);
     }
-  }
+  };
 
   const fetchRecentSubmissions = async () => {
     try {
@@ -309,18 +336,19 @@ export default function TeacherDashboard() {
       const { data: teacherAssignments } = await supabase
         .from("assignments")
         .select("id")
-        .eq("teacher_id", profile?.id)
+        .eq("teacher_id", profile?.id);
 
       if (!teacherAssignments?.length) {
-        setSubmissions([])
-        return
+        setSubmissions([]);
+        return;
       }
 
-      const assignmentIds = teacherAssignments.map(a => a.id)
+      const assignmentIds = teacherAssignments.map((a) => a.id);
 
       const { data: submissionsData } = await supabase
         .from("submissions")
-        .select(`
+        .select(
+          `
           *,
           assignment:assignment_id (
             title,
@@ -332,16 +360,17 @@ export default function TeacherDashboard() {
           profiles:student_id (
             full_name
           )
-        `)
+        `
+        )
         .in("assignment_id", assignmentIds)
         .order("created_at", { ascending: false })
-        .limit(20)
+        .limit(20);
 
-      setSubmissions(submissionsData || [])
+      setSubmissions(submissionsData || []);
     } catch (error) {
-      console.error("Error fetching recent submissions:", error)
+      console.error("Error fetching recent submissions:", error);
     }
-  }
+  };
 
   const fetchStudentPerformance = async () => {
     try {
@@ -349,18 +378,19 @@ export default function TeacherDashboard() {
       const { data: teacherClasses } = await supabase
         .from("class_teachers")
         .select("class_id")
-        .eq("teacher_id", profile?.id)
+        .eq("teacher_id", profile?.id);
 
       if (!teacherClasses?.length) {
-        setStudentPerformance([])
-        return
+        setStudentPerformance([]);
+        return;
       }
 
-      const classIds = teacherClasses.map(tc => tc.class_id)
+      const classIds = teacherClasses.map((tc) => tc.class_id);
 
       const { data: studentsData } = await supabase
         .from("class_students")
-        .select(`
+        .select(
+          `
           student_id,
           class_id,
           classes:class_id (
@@ -369,12 +399,13 @@ export default function TeacherDashboard() {
           profiles:student_id (
             full_name
           )
-        `)
-        .in("class_id", classIds)
+        `
+        )
+        .in("class_id", classIds);
 
       if (!studentsData?.length) {
-        setStudentPerformance([])
-        return
+        setStudentPerformance([]);
+        return;
       }
 
       const studentStats = await Promise.all(
@@ -385,137 +416,196 @@ export default function TeacherDashboard() {
             .select("id")
             .eq("class_id", student.class_id)
             .eq("teacher_id", profile?.id)
-            .eq("status", "published")
+            .eq("status", "published");
 
-          const assignmentIds = classAssignments?.map(a => a.id) || []
+          const assignmentIds = classAssignments?.map((a) => a.id) || [];
 
           // Get student submissions
           const { data: studentSubmissions } = await supabase
             .from("submissions")
             .select("teacher_grade, ai_grade")
             .eq("student_id", student.student_id)
-            .in("assignment_id", assignmentIds)
+            .in("assignment_id", assignmentIds);
 
-          const submissionsCount = studentSubmissions?.length || 0
-          const totalAssignments = assignmentIds.length
-          const completionRate = totalAssignments > 0 
-            ? Math.min(Math.round((submissionsCount / totalAssignments) * 100), 100)
-            : 0
+          const submissionsCount = studentSubmissions?.length || 0;
+          const totalAssignments = assignmentIds.length;
+          const completionRate =
+            totalAssignments > 0
+              ? Math.min(
+                  Math.round((submissionsCount / totalAssignments) * 100),
+                  100
+                )
+              : 0;
 
           // Calculate average grade
-          let avgGrade = 0
+          let avgGrade = 0;
           if (studentSubmissions?.length) {
-            const gradedSubmissions = studentSubmissions.filter(s => s.teacher_grade || s.ai_grade)
+            const gradedSubmissions = studentSubmissions.filter(
+              (s) => s.teacher_grade || s.ai_grade
+            );
             if (gradedSubmissions.length > 0) {
-              const totalGrade = gradedSubmissions.reduce((sum, sub) => 
-                sum + (sub.teacher_grade || sub.ai_grade || 0), 0
-              )
-              avgGrade = Math.round(totalGrade / gradedSubmissions.length)
+              const totalGrade = gradedSubmissions.reduce(
+                (sum, sub) => sum + (sub.teacher_grade || sub.ai_grade || 0),
+                0
+              );
+              avgGrade = Math.round(totalGrade / gradedSubmissions.length);
             }
           }
 
           return {
             student_id: student.student_id,
-            student_name: student.profiles?.full_name || 'Unknown Student',
-            class_name: student.classes?.name || 'Unknown Class',
+            student_name: student.profiles?.full_name || "Unknown Student",
+            class_name: student.classes?.name || "Unknown Class",
             submissions_count: submissionsCount,
             avg_grade: avgGrade,
-            completion_rate: completionRate
-          }
+            completion_rate: completionRate,
+          };
         })
-      )
+      );
 
-      setStudentPerformance(studentStats)
+      setStudentPerformance(studentStats);
     } catch (error) {
-      console.error("Error fetching student performance:", error)
+      console.error("Error fetching student performance:", error);
     }
-  }
+  };
 
   // Analytics calculations
-  const totalStudents = classes.reduce((sum, cls) => sum + cls.student_count, 0)
-  const totalAssignments = assignments.length
-  const totalSubmissions = submissions.length
-  const pendingGrading = submissions.filter(s => s.status !== 'graded').length
+  const totalStudents = classes.reduce(
+    (sum, cls) => sum + cls.student_count,
+    0
+  );
+  const totalAssignments = assignments.length;
+  const totalSubmissions = submissions.length;
+  const pendingGrading = submissions.filter(
+    (s) => s.status !== "graded"
+  ).length;
 
   // Weekly submissions data
   const getWeeklySubmissions = () => {
-    const weeks = []
+    const weeks = [];
     for (let i = 6; i >= 0; i--) {
-      const weekStart = startOfWeek(subWeeks(new Date(), i))
-      const weekEnd = endOfWeek(weekStart)
-      
-      const weekSubmissions = submissions.filter(s => 
-        isWithinInterval(new Date(s.created_at), { start: weekStart, end: weekEnd })
-      )
+      const weekStart = startOfWeek(subWeeks(new Date(), i));
+      const weekEnd = endOfWeek(weekStart);
+
+      const weekSubmissions = submissions.filter((s) =>
+        isWithinInterval(new Date(s.created_at), {
+          start: weekStart,
+          end: weekEnd,
+        })
+      );
 
       weeks.push({
         week: format(weekStart, "MMM dd"),
         submissions: weekSubmissions.length,
-      })
+      });
     }
-    return weeks
-  }
+    return weeks;
+  };
 
   // Class performance data
   const getClassPerformance = () => {
-    return classes.map(cls => ({
-      name: cls.name.length > 15 ? cls.name.substring(0, 15) + '...' : cls.name,
+    return classes.map((cls) => ({
+      name: cls.name.length > 15 ? cls.name.substring(0, 15) + "..." : cls.name,
       fullName: cls.name,
       students: cls.student_count,
       assignments: cls.assignment_count,
-      completion: cls.avg_completion_rate
-    }))
-  }
+      completion: cls.avg_completion_rate,
+    }));
+  };
 
   // Grade distribution
   const getGradeDistribution = () => {
-    const gradedSubmissions = submissions.filter(s => s.teacher_grade || s.ai_grade)
-    const total = gradedSubmissions.length
-    
-    if (total === 0) return []
+    const gradedSubmissions = submissions.filter(
+      (s) => s.teacher_grade || s.ai_grade
+    );
+    const total = gradedSubmissions.length;
 
-    const excellent = gradedSubmissions.filter(s => (s.teacher_grade || s.ai_grade) >= 90).length
-    const good = gradedSubmissions.filter(s => (s.teacher_grade || s.ai_grade) >= 80 && (s.teacher_grade || s.ai_grade) < 90).length
-    const satisfactory = gradedSubmissions.filter(s => (s.teacher_grade || s.ai_grade) >= 70 && (s.teacher_grade || s.ai_grade) < 80).length
-    const needsImprovement = gradedSubmissions.filter(s => (s.teacher_grade || s.ai_grade) < 70).length
+    if (total === 0) return [];
+
+    const excellent = gradedSubmissions.filter(
+      (s) => (s.teacher_grade || s.ai_grade) >= 90
+    ).length;
+    const good = gradedSubmissions.filter(
+      (s) =>
+        (s.teacher_grade || s.ai_grade) >= 80 &&
+        (s.teacher_grade || s.ai_grade) < 90
+    ).length;
+    const satisfactory = gradedSubmissions.filter(
+      (s) =>
+        (s.teacher_grade || s.ai_grade) >= 70 &&
+        (s.teacher_grade || s.ai_grade) < 80
+    ).length;
+    const needsImprovement = gradedSubmissions.filter(
+      (s) => (s.teacher_grade || s.ai_grade) < 70
+    ).length;
 
     return [
-      { name: 'Excellent (90+)', value: Math.min(Math.round((excellent / total) * 100), 100), count: excellent, fill: '#10B981' },
-      { name: 'Good (80-89)', value: Math.min(Math.round((good / total) * 100), 100), count: good, fill: '#3B82F6' },
-      { name: 'Satisfactory (70-79)', value: Math.min(Math.round((satisfactory / total) * 100), 100), count: satisfactory, fill: '#F59E0B' },
-      { name: 'Needs Improvement (<70)', value: Math.min(Math.round((needsImprovement / total) * 100), 100), count: needsImprovement, fill: '#EF4444' }
-    ]
-  }
+      {
+        name: "Excellent (90+)",
+        value: Math.min(Math.round((excellent / total) * 100), 100),
+        count: excellent,
+        fill: "#10B981",
+      },
+      {
+        name: "Good (80-89)",
+        value: Math.min(Math.round((good / total) * 100), 100),
+        count: good,
+        fill: "#3B82F6",
+      },
+      {
+        name: "Satisfactory (70-79)",
+        value: Math.min(Math.round((satisfactory / total) * 100), 100),
+        count: satisfactory,
+        fill: "#F59E0B",
+      },
+      {
+        name: "Needs Improvement (<70)",
+        value: Math.min(Math.round((needsImprovement / total) * 100), 100),
+        count: needsImprovement,
+        fill: "#EF4444",
+      },
+    ];
+  };
 
   // Assignment difficulty distribution
   const getDifficultyDistribution = () => {
-    const total = assignments.length
-    if (total === 0) return []
+    const total = assignments.length;
+    if (total === 0) return [];
 
-    const easy = assignments.filter(a => a.difficulty === 'easy').length
-    const medium = assignments.filter(a => a.difficulty === 'medium').length
-    const hard = assignments.filter(a => a.difficulty === 'hard').length
+    const easy = assignments.filter((a) => a.difficulty === "easy").length;
+    const medium = assignments.filter((a) => a.difficulty === "medium").length;
+    const hard = assignments.filter((a) => a.difficulty === "hard").length;
 
     return [
-      { name: 'Easy', value: Math.min(Math.round((easy / total) * 100), 100), count: easy, fill: '#10B981' },
-      { name: 'Medium', value: Math.min(Math.round((medium / total) * 100), 100), count: medium, fill: '#F59E0B' },
-      { name: 'Hard', value: Math.min(Math.round((hard / total) * 100), 100), count: hard, fill: '#EF4444' }
-    ]
-  }
+      {
+        name: "Easy",
+        value: Math.min(Math.round((easy / total) * 100), 100),
+        count: easy,
+        fill: "#10B981",
+      },
+      {
+        name: "Medium",
+        value: Math.min(Math.round((medium / total) * 100), 100),
+        count: medium,
+        fill: "#F59E0B",
+      },
+      {
+        name: "Hard",
+        value: Math.min(Math.round((hard / total) * 100), 100),
+        count: hard,
+        fill: "#EF4444",
+      },
+    ];
+  };
 
   if (loading) {
     return (
       <AuthGuard allowedRoles={["teacher"]}>
         <ModernDashboardLayout>
-          <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center">
-            <div className="relative">
-              <div className="w-20 h-20 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
-              <div className="absolute inset-0 w-20 h-20 border-4 border-transparent border-r-purple-400 rounded-full animate-spin animation-delay-150"></div>
-            </div>
-          </div>
+          <TeacherDashboardShimmer />
         </ModernDashboardLayout>
       </AuthGuard>
-    )
+    );
   }
 
   return (
@@ -523,52 +613,82 @@ export default function TeacherDashboard() {
       <ModernDashboardLayout>
         <div className="space-y-6">
           {/* Hero Section */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-violet-600 via-purple-600 to-indigo-600 p-8 text-white">
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-violet-600 via-purple-600 to-indigo-600 p-8 text-white shadow-2xl">
             <div className="relative z-10">
               <div className="flex items-center justify-between">
                 <div>
-                  <h1 className="text-4xl font-bold mb-2">
-                    Welcome, {profile?.full_name?.split(" ")[0]}! 🎓
-                  </h1>
-                  <p className="text-xl text-white/90 mb-6">Empowering the next generation of filmmakers</p>
-                  <div className="flex items-center gap-6">
-                    <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+                      <Sparkles className="h-6 w-6 text-yellow-300" />
+                    </div>
+                    <h1 className="text-4xl font-bold">
+                      Welcome, {profile?.full_name?.split(" ")[0]}!
+                    </h1>
+                  </div>
+                  <p className="text-xl text-white/90 mb-6 max-w-md">
+                    Empowering the next generation with AI-enhanced teaching
+                    tools
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="flex items-center gap-3 bg-white/10 rounded-lg p-3 backdrop-blur-sm">
                       <Users className="h-5 w-5 text-blue-300" />
-                      <span className="font-medium">{totalStudents} Students</span>
+                      <div>
+                        <div className="text-2xl font-bold">
+                          {totalStudents}
+                        </div>
+                        <div className="text-sm text-white/80">Students</div>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3 bg-white/10 rounded-lg p-3 backdrop-blur-sm">
                       <BookOpen className="h-5 w-5 text-green-300" />
-                      <span className="font-medium">{totalAssignments} Assignments</span>
+                      <div>
+                        <div className="text-2xl font-bold">
+                          {totalAssignments}
+                        </div>
+                        <div className="text-sm text-white/80">Assignments</div>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3 bg-white/10 rounded-lg p-3 backdrop-blur-sm">
                       <ClipboardCheck className="h-5 w-5 text-yellow-300" />
-                      <span className="font-medium">{totalSubmissions} Submissions</span>
+                      <div>
+                        <div className="text-2xl font-bold">
+                          {totalSubmissions}
+                        </div>
+                        <div className="text-sm text-white/80">Submissions</div>
+                      </div>
                     </div>
                   </div>
                 </div>
                 <div className="hidden lg:block">
-                  <div className="w-32 h-32 bg-white/10 rounded-full flex items-center justify-center backdrop-blur-sm">
-                    <GraduationCap className="h-16 w-16 text-white/80" />
+                  <div className="w-40 h-40 bg-gradient-to-br from-white/20 to-white/5 rounded-full flex items-center justify-center backdrop-blur-sm border border-white/20">
+                    <div className="w-32 h-32 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center">
+                      <GraduationCap className="h-16 w-16 text-white" />
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-            <div className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full -translate-y-48 translate-x-48"></div>
-            <div className="absolute bottom-0 left-0 w-64 h-64 bg-white/5 rounded-full translate-y-32 -translate-x-32"></div>
+            <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-white/10 to-transparent rounded-full -translate-y-48 translate-x-48"></div>
+            <div className="absolute bottom-0 left-0 w-64 h-64 bg-gradient-to-tr from-white/10 to-transparent rounded-full translate-y-32 -translate-x-32"></div>
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent"></div>
           </div>
 
           {/* Main Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-3 gap-6">
             {/* Left Column - Stats and Quick Actions */}
-            <div className="lg:col-span-4 space-y-6">
+            <div className="space-y-6">
               {/* Stats Cards */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-50 to-blue-100">
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-blue-600 mb-1">Classes</p>
-                        <p className="text-2xl font-bold text-blue-900">{classes.length}</p>
+                        <p className="text-sm font-medium text-blue-600 mb-1">
+                          Classes
+                        </p>
+                        <p className="text-2xl font-bold text-blue-900">
+                          {classes.length}
+                        </p>
                       </div>
                       <School className="h-8 w-8 text-blue-500" />
                     </div>
@@ -579,8 +699,12 @@ export default function TeacherDashboard() {
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-emerald-600 mb-1">Students</p>
-                        <p className="text-2xl font-bold text-emerald-900">{totalStudents}</p>
+                        <p className="text-sm font-medium text-emerald-600 mb-1">
+                          Students
+                        </p>
+                        <p className="text-2xl font-bold text-emerald-900">
+                          {totalStudents}
+                        </p>
                       </div>
                       <Users className="h-8 w-8 text-emerald-500" />
                     </div>
@@ -591,8 +715,12 @@ export default function TeacherDashboard() {
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-purple-600 mb-1">Assignments</p>
-                        <p className="text-2xl font-bold text-purple-900">{totalAssignments}</p>
+                        <p className="text-sm font-medium text-purple-600 mb-1">
+                          Assignments
+                        </p>
+                        <p className="text-2xl font-bold text-purple-900">
+                          {totalAssignments}
+                        </p>
                       </div>
                       <BookOpen className="h-8 w-8 text-purple-500" />
                     </div>
@@ -603,8 +731,12 @@ export default function TeacherDashboard() {
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-amber-600 mb-1">Pending</p>
-                        <p className="text-2xl font-bold text-amber-900">{pendingGrading}</p>
+                        <p className="text-sm font-medium text-amber-600 mb-1">
+                          Pending
+                        </p>
+                        <p className="text-2xl font-bold text-amber-900">
+                          {pendingGrading}
+                        </p>
                       </div>
                       <Clock className="h-8 w-8 text-amber-500" />
                     </div>
@@ -612,33 +744,58 @@ export default function TeacherDashboard() {
                 </Card>
               </div>
 
-              {/* Quick Actions */}
-              <Card className="border-0 shadow-lg">
+              {/* AI-Powered Quick Actions */}
+              <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-purple-50">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Zap className="h-5 w-5 text-indigo-600" />
-                    Quick Actions
+                    <Brain className="h-5 w-5 text-purple-600" />
+                    AI-Powered Quick Actions
                   </CardTitle>
+                  <p className="text-sm text-gray-600">
+                    Enhanced tools for modern teaching
+                  </p>
                 </CardHeader>
-                <CardContent className="space-y-3">
-                  <Link to="/teacher/create-assignment">
-                    <Button className="w-full justify-start bg-indigo-600 hover:bg-indigo-700">
-                      <Plus className="h-4 w-4 mr-2" />
-                      Create Assignment
-                    </Button>
-                  </Link>
-                  <Link to="/teacher/classes">
-                    <Button className="w-full justify-start bg-purple-600 hover:bg-purple-700">
-                      <School className="h-4 w-4 mr-2" />
-                      Manage Classes
-                    </Button>
-                  </Link>
-                  <Link to="/teacher/assignments">
-                    <Button className="w-full justify-start bg-emerald-600 hover:bg-emerald-700">
-                      <Eye className="h-4 w-4 mr-2" />
-                      View All Assignments
-                    </Button>
-                  </Link>
+                <CardContent className="space-y-4">
+                  {/* AI Assignment Generator */}
+                  <div className="group">
+                    <Link to="/teacher/create-assignment">
+                      <Button className="w-full justify-start bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 transition-all duration-200 group-hover:shadow-lg">
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        AI Assignment Generator
+                      </Button>
+                    </Link>
+                    <p className="text-xs text-gray-500 mt-1 ml-1">
+                      Create assignments with AI assistance
+                    </p>
+                  </div>
+
+                  {/* Smart Grading Assistant */}
+                  <div className="group">
+                    <Link to="/teacher/assignments">
+                      <Button className="w-full justify-start bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 transition-all duration-200 group-hover:shadow-lg">
+                        <Brain className="h-4 w-4 mr-2" />
+                        Smart Grading Assistant
+                      </Button>
+                    </Link>
+                    <p className="text-xs text-gray-500 mt-1 ml-1">
+                      AI-powered grading and feedback
+                    </p>
+                  </div>
+
+                  {/* Automated Class Management */}
+                  <div className="group">
+                    <Link to="/teacher/classes">
+                      <Button className="w-full justify-start bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 transition-all duration-200 group-hover:shadow-lg">
+                        <School className="h-4 w-4 mr-2" />
+                        Automated Class Management
+                      </Button>
+                    </Link>
+                    <p className="text-xs text-gray-500 mt-1 ml-1">
+                      Streamline class administration
+                    </p>
+                  </div>
+
+                  {/* Divider */}
                 </CardContent>
               </Card>
 
@@ -658,12 +815,12 @@ export default function TeacherDashboard() {
                         <XAxis dataKey="week" />
                         <YAxis />
                         <Tooltip />
-                        <Area 
-                          type="monotone" 
-                          dataKey="submissions" 
-                          stroke="#6366f1" 
-                          fill="#6366f1" 
-                          fillOpacity={0.3} 
+                        <Area
+                          type="monotone"
+                          dataKey="submissions"
+                          stroke="#6366f1"
+                          fill="#6366f1"
+                          fillOpacity={0.3}
                         />
                       </AreaChart>
                     </ResponsiveContainer>
@@ -673,7 +830,7 @@ export default function TeacherDashboard() {
             </div>
 
             {/* Middle Column - Assignments and Classes */}
-            <div className="lg:col-span-5 space-y-6">
+            <div className="space-y-6">
               {/* Recent Assignments */}
               <Card className="border-0 shadow-lg">
                 <CardHeader>
@@ -693,21 +850,25 @@ export default function TeacherDashboard() {
                 <CardContent>
                   <div className="space-y-3 max-h-96 overflow-y-auto">
                     {assignments.slice(0, 5).map((assignment) => (
-                      <div key={assignment.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
+                      <div
+                        key={assignment.id}
+                        className="border rounded-lg p-4 hover:shadow-md transition-shadow"
+                      >
                         <div className="flex items-center justify-between mb-2">
                           <h4 className="font-semibold text-gray-900 truncate flex-1 mr-2">
                             {assignment.title}
                           </h4>
-                          <Badge 
+                          <Badge
                             className={
-                              assignment.difficulty === 'easy' 
-                                ? 'bg-green-100 text-green-700 border-green-200' 
-                                : assignment.difficulty === 'medium'
-                                  ? 'bg-yellow-100 text-yellow-700 border-yellow-200'
-                                  : 'bg-red-100 text-red-700 border-red-200'
+                              assignment.difficulty === "easy"
+                                ? "bg-green-100 text-green-700 border-green-200"
+                                : assignment.difficulty === "medium"
+                                ? "bg-yellow-100 text-yellow-700 border-yellow-200"
+                                : "bg-red-100 text-red-700 border-red-200"
                             }
                           >
-                            {assignment.difficulty?.charAt(0).toUpperCase() + assignment.difficulty?.slice(1)}
+                            {assignment.difficulty?.charAt(0).toUpperCase() +
+                              assignment.difficulty?.slice(1)}
                           </Badge>
                         </div>
                         <div className="text-sm text-gray-600 mb-2">
@@ -718,7 +879,8 @@ export default function TeacherDashboard() {
                         </div>
                         <div className="flex items-center justify-between text-sm">
                           <span className="text-gray-500">
-                            {assignment.submission_count}/{assignment.total_students} submitted
+                            {assignment.submission_count}/
+                            {assignment.total_students} submitted
                           </span>
                           <div className="flex items-center gap-2">
                             {assignment.avg_grade > 0 && (
@@ -741,7 +903,9 @@ export default function TeacherDashboard() {
                         <BookOpen className="h-12 w-12 mx-auto mb-2 text-gray-300" />
                         <p>No assignments created yet</p>
                         <Link to="/teacher/create-assignment">
-                          <Button className="mt-3">Create Your First Assignment</Button>
+                          <Button className="mt-3">
+                            Create Your First Assignment
+                          </Button>
                         </Link>
                       </div>
                     )}
@@ -769,8 +933,12 @@ export default function TeacherDashboard() {
                     {classes.map((classItem) => (
                       <div key={classItem.id} className="border rounded-lg p-4">
                         <div className="flex items-center justify-between mb-2">
-                          <h4 className="font-semibold text-gray-900">{classItem.name}</h4>
-                          <Badge variant="secondary">Sem {classItem.semester}</Badge>
+                          <h4 className="font-semibold text-gray-900">
+                            {classItem.name}
+                          </h4>
+                          <Badge variant="secondary">
+                            Sem {classItem.semester}
+                          </Badge>
                         </div>
                         <div className="grid grid-cols-3 gap-2 text-sm text-gray-600 mb-3">
                           <div className="flex items-center gap-1">
@@ -787,9 +955,14 @@ export default function TeacherDashboard() {
                           </div>
                         </div>
                         <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div 
-                            className="bg-indigo-600 h-2 rounded-full transition-all duration-300" 
-                            style={{ width: `${Math.min(classItem.avg_completion_rate, 100)}%` }}
+                          <div
+                            className="bg-indigo-600 h-2 rounded-full transition-all duration-300"
+                            style={{
+                              width: `${Math.min(
+                                classItem.avg_completion_rate,
+                                100
+                              )}%`,
+                            }}
                           ></div>
                         </div>
                       </div>
@@ -806,7 +979,7 @@ export default function TeacherDashboard() {
             </div>
 
             {/* Right Column - Analytics and Recent Activity */}
-            <div className="lg:col-span-3 space-y-6">
+            <div className="space-y-6">
               {/* Grade Distribution */}
               <Card className="border-0 shadow-lg">
                 <CardHeader>
@@ -821,24 +994,42 @@ export default function TeacherDashboard() {
                       <div className="h-[200px]">
                         <ResponsiveContainer width="100%" height="100%">
                           <RechartsPieChart>
-                            <Tooltip 
-                              formatter={(value: any, name: string) => [`${value}%`, name]}
+                            <Tooltip
+                              formatter={(value: any, name: string) => [
+                                `${value}%`,
+                                name,
+                              ]}
                             />
-                            {getGradeDistribution().map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={entry.fill} />
-                            ))}
+                            <Pie
+                              data={getGradeDistribution()}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={40}
+                              outerRadius={80}
+                              paddingAngle={5}
+                              dataKey="value"
+                            >
+                              {getGradeDistribution().map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={entry.fill} />
+                              ))}
+                            </Pie>
                           </RechartsPieChart>
                         </ResponsiveContainer>
                       </div>
                       <div className="space-y-2">
                         {getGradeDistribution().map((entry) => (
-                          <div key={entry.name} className="flex items-center justify-between text-xs">
+                          <div
+                            key={entry.name}
+                            className="flex items-center justify-between text-xs"
+                          >
                             <div className="flex items-center gap-2">
-                              <div 
-                                className="w-3 h-3 rounded-full" 
+                              <div
+                                className="w-3 h-3 rounded-full"
                                 style={{ backgroundColor: entry.fill }}
                               ></div>
-                              <span className="text-gray-600">{entry.name}</span>
+                              <span className="text-gray-600">
+                                {entry.name}
+                              </span>
                             </div>
                             <span className="font-medium">{entry.count}</span>
                           </div>
@@ -868,24 +1059,47 @@ export default function TeacherDashboard() {
                       <div className="h-[200px]">
                         <ResponsiveContainer width="100%" height="100%">
                           <RechartsPieChart>
-                            <Tooltip 
-                              formatter={(value: any, name: string) => [`${value}%`, name]}
+                            <Tooltip
+                              formatter={(value: any, name: string) => [
+                                `${value}%`,
+                                name,
+                              ]}
                             />
-                            {getDifficultyDistribution().map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={entry.fill} />
-                            ))}
+                            <Pie
+                              data={getDifficultyDistribution()}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={40}
+                              outerRadius={80}
+                              paddingAngle={5}
+                              dataKey="value"
+                            >
+                              {getDifficultyDistribution().map(
+                                (entry, index) => (
+                                  <Cell
+                                    key={`cell-${index}`}
+                                    fill={entry.fill}
+                                  />
+                                )
+                              )}
+                            </Pie>
                           </RechartsPieChart>
                         </ResponsiveContainer>
                       </div>
                       <div className="space-y-2">
                         {getDifficultyDistribution().map((entry) => (
-                          <div key={entry.name} className="flex items-center justify-between text-xs">
+                          <div
+                            key={entry.name}
+                            className="flex items-center justify-between text-xs"
+                          >
                             <div className="flex items-center gap-2">
-                              <div 
-                                className="w-3 h-3 rounded-full" 
+                              <div
+                                className="w-3 h-3 rounded-full"
                                 style={{ backgroundColor: entry.fill }}
                               ></div>
-                              <span className="text-gray-600">{entry.name}</span>
+                              <span className="text-gray-600">
+                                {entry.name}
+                              </span>
                             </div>
                             <span className="font-medium">{entry.count}</span>
                           </div>
@@ -912,33 +1126,43 @@ export default function TeacherDashboard() {
                 <CardContent>
                   <div className="space-y-3 max-h-64 overflow-y-auto">
                     {submissions.slice(0, 5).map((submission) => (
-                      <div key={submission.id} className="border rounded-lg p-3">
+                      <div
+                        key={submission.id}
+                        className="border rounded-lg p-3"
+                      >
                         <div className="flex items-center justify-between mb-1">
                           <h5 className="text-sm font-medium text-gray-900 truncate flex-1 mr-2">
-                            {submission.assignment?.title || 'Unknown Assignment'}
+                            {submission.assignment?.title ||
+                              "Unknown Assignment"}
                           </h5>
-                          <Badge 
+                          <Badge
                             className={`text-xs ${
-                              submission.status === 'graded' 
-                                ? 'bg-green-100 text-green-700 border-green-200' 
-                                : 'bg-blue-100 text-blue-700 border-blue-200'
+                              submission.status === "graded"
+                                ? "bg-green-100 text-green-700 border-green-200"
+                                : "bg-blue-100 text-blue-700 border-blue-200"
                             }`}
                           >
-                            {submission.status === 'graded' ? 'Graded' : 'Pending'}
+                            {submission.status === "graded"
+                              ? "Graded"
+                              : "Pending"}
                           </Badge>
                         </div>
                         <div className="text-xs text-gray-600 mb-2">
-                          {submission.profiles?.full_name} • {submission.assignment?.classes?.name}
+                          {submission.profiles?.full_name} •{" "}
+                          {submission.assignment?.classes?.name}
                         </div>
                         <div className="flex items-center justify-between">
                           <span className="text-xs text-gray-500">
                             {format(new Date(submission.created_at), "MMM dd")}
                           </span>
-                          {(submission.teacher_grade || submission.ai_grade) && (
+                          {(submission.teacher_grade ||
+                            submission.ai_grade) && (
                             <div className="flex items-center gap-1">
                               <Star className="h-3 w-3 text-yellow-500" />
                               <span className="text-sm font-medium text-gray-700">
-                                {submission.teacher_grade || submission.ai_grade}%
+                                {submission.teacher_grade ||
+                                  submission.ai_grade}
+                                %
                               </span>
                             </div>
                           )}
@@ -973,29 +1197,46 @@ export default function TeacherDashboard() {
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="name" />
                       <YAxis />
-                      <Tooltip 
+                      <Tooltip
                         formatter={(value: any, name: string) => {
-                          if (name === 'students') return [`${value}`, 'Students']
-                          if (name === 'assignments') return [`${value}`, 'Assignments']
-                          if (name === 'completion') return [`${value}%`, 'Completion Rate']
-                          return [value, name]
+                          if (name === "students")
+                            return [`${value}`, "Students"];
+                          if (name === "assignments")
+                            return [`${value}`, "Assignments"];
+                          if (name === "completion")
+                            return [`${value}%`, "Completion Rate"];
+                          return [value, name];
                         }}
                         labelFormatter={(label: string) => {
-                          const item = getClassPerformance().find(c => c.name === label)
-                          return item ? item.fullName : label
+                          const item = getClassPerformance().find(
+                            (c) => c.name === label
+                          );
+                          return item ? item.fullName : label;
                         }}
                       />
                       <Bar dataKey="students" fill="#3B82F6" name="students" />
-                      <Bar dataKey="assignments" fill="#10B981" name="assignments" />
-                      <Bar dataKey="completion" fill="#6366F1" name="completion" />
+                      <Bar
+                        dataKey="assignments"
+                        fill="#10B981"
+                        name="assignments"
+                      />
+                      <Bar
+                        dataKey="completion"
+                        fill="#6366F1"
+                        name="completion"
+                      />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
               ) : (
                 <div className="text-center py-12 text-gray-500">
                   <Trophy className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-                  <h3 className="text-lg font-medium mb-2">No classes to display</h3>
-                  <p>Classes will appear here once you're assigned to teach them.</p>
+                  <h3 className="text-lg font-medium mb-2">
+                    No classes to display
+                  </h3>
+                  <p>
+                    Classes will appear here once you're assigned to teach them.
+                  </p>
                 </div>
               )}
             </CardContent>
@@ -1010,39 +1251,55 @@ export default function TeacherDashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
                 {studentPerformance
-                  .filter(student => student.avg_grade > 0)
+                  .filter((student) => student.avg_grade > 0)
                   .sort((a, b) => b.avg_grade - a.avg_grade)
                   .slice(0, 6)
                   .map((student) => (
-                    <div key={student.student_id} className="border rounded-lg p-4 bg-gradient-to-br from-white to-gray-50">
+                    <div
+                      key={student.student_id}
+                      className="border rounded-lg p-4 bg-gradient-to-br from-white to-gray-50"
+                    >
                       <div className="flex items-center gap-3 mb-3">
                         <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
                           <User className="h-5 w-5 text-indigo-600" />
                         </div>
                         <div className="flex-1">
-                          <h4 className="font-semibold text-gray-900">{student.student_name}</h4>
-                          <p className="text-sm text-gray-600">{student.class_name}</p>
+                          <h4 className="font-semibold text-gray-900">
+                            {student.student_name}
+                          </h4>
+                          <p className="text-sm text-gray-600">
+                            {student.class_name}
+                          </p>
                         </div>
                       </div>
                       <div className="space-y-2">
                         <div className="flex items-center justify-between text-sm">
                           <span className="text-gray-600">Average Grade:</span>
-                          <span className="font-medium text-green-600">{student.avg_grade}%</span>
+                          <span className="font-medium text-green-600">
+                            {student.avg_grade}%
+                          </span>
                         </div>
                         <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-600">Completion Rate:</span>
-                          <span className="font-medium text-blue-600">{student.completion_rate}%</span>
+                          <span className="text-gray-600">
+                            Completion Rate:
+                          </span>
+                          <span className="font-medium text-blue-600">
+                            {student.completion_rate}%
+                          </span>
                         </div>
                         <div className="flex items-center justify-between text-sm">
                           <span className="text-gray-600">Submissions:</span>
-                          <span className="font-medium text-gray-700">{student.submissions_count}</span>
+                          <span className="font-medium text-gray-700">
+                            {student.submissions_count}
+                          </span>
                         </div>
                       </div>
                     </div>
                   ))}
-                {studentPerformance.filter(s => s.avg_grade > 0).length === 0 && (
+                {studentPerformance.filter((s) => s.avg_grade > 0).length ===
+                  0 && (
                   <div className="col-span-full text-center py-8 text-gray-500">
                     <UserCheck className="h-12 w-12 mx-auto mb-2 text-gray-300" />
                     <p>No student performance data available yet</p>
@@ -1053,7 +1310,11 @@ export default function TeacherDashboard() {
           </Card>
 
           {/* Assignments Requiring Attention */}
-          {assignments.filter(a => a.submission_count < a.total_students && new Date(a.due_date) < new Date()).length > 0 && (
+          {assignments.filter(
+            (a) =>
+              a.submission_count < a.total_students &&
+              new Date(a.due_date) < new Date()
+          ).length > 0 && (
             <Card className="border-0 shadow-lg border-amber-200">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-amber-700">
@@ -1062,12 +1323,19 @@ export default function TeacherDashboard() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
                   {assignments
-                    .filter(a => a.submission_count < a.total_students && new Date(a.due_date) < new Date())
+                    .filter(
+                      (a) =>
+                        a.submission_count < a.total_students &&
+                        new Date(a.due_date) < new Date()
+                    )
                     .slice(0, 6)
                     .map((assignment) => (
-                      <div key={assignment.id} className="border border-amber-200 rounded-lg p-4 bg-amber-50">
+                      <div
+                        key={assignment.id}
+                        className="border border-amber-200 rounded-lg p-4 bg-amber-50"
+                      >
                         <div className="flex items-center gap-2 mb-2">
                           <AlertCircle className="h-4 w-4 text-amber-600" />
                           <h4 className="font-semibold text-gray-900 truncate flex-1">
@@ -1081,15 +1349,24 @@ export default function TeacherDashboard() {
                           </div>
                           <div className="flex items-center gap-1">
                             <Calendar className="h-3 w-3" />
-                            Due: {format(new Date(assignment.due_date), "MMM dd, yyyy")}
+                            Due:{" "}
+                            {format(
+                              new Date(assignment.due_date),
+                              "MMM dd, yyyy"
+                            )}
                           </div>
                         </div>
                         <div className="flex items-center justify-between">
                           <span className="text-sm text-amber-700 font-medium">
-                            {assignment.submission_count}/{assignment.total_students} submitted
+                            {assignment.submission_count}/
+                            {assignment.total_students} submitted
                           </span>
                           <Link to="/teacher/assignments">
-                            <Button size="sm" variant="outline" className="border-amber-300 text-amber-700 hover:bg-amber-100">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-amber-300 text-amber-700 hover:bg-amber-100"
+                            >
                               Review
                               <ChevronRight className="h-3 w-3 ml-1" />
                             </Button>
@@ -1104,5 +1381,5 @@ export default function TeacherDashboard() {
         </div>
       </ModernDashboardLayout>
     </AuthGuard>
-  )
+  );
 }

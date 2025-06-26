@@ -7,6 +7,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { AuthGuard } from "@/components/AuthGuard";
 import { ModernDashboardLayout } from "@/components/ModernDashboardLayout";
+import { DashboardShimmer } from "@/components/DashboardShimmer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -260,14 +261,15 @@ export default function ModernStudentDashboard() {
         )
         .in("class_id", classIds)
         .eq("status", "published")
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+;
 
       const assignmentsWithUserSubmissions =
-        assignmentsData?.map((assignment) => ({
+        assignmentsData?.map((assignment: any) => ({
           ...assignment,
           submissions:
             assignment.submissions?.filter(
-              (sub) => sub.student_id === profile?.id
+              (sub: any) => sub.student_id === profile?.id
             ) || [],
         })) || [];
 
@@ -299,7 +301,7 @@ export default function ModernStudentDashboard() {
       }
 
       const classesWithDetails = await Promise.all(
-        classData.map(async (item) => {
+        classData.map(async (item: any) => {
           const classInfo = item.classes;
 
           const { data: teacherData } = await supabase
@@ -525,18 +527,7 @@ export default function ModernStudentDashboard() {
     return (
       <AuthGuard allowedRoles={["student"]}>
         <ModernDashboardLayout>
-          <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 flex items-center justify-center">
-            <div className="text-center">
-              <div className="relative mb-6">
-                <div className="w-20 h-20 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
-                <div className="absolute inset-0 w-20 h-20 border-4 border-transparent border-r-purple-400 rounded-full animate-spin animation-delay-150"></div>
-              </div>
-              <div className="space-y-2">
-                <h3 className="text-xl font-semibold text-gray-700">Loading your dashboard...</h3>
-                <p className="text-gray-500">Please wait while we gather your data</p>
-              </div>
-            </div>
-          </div>
+          <DashboardShimmer />
         </ModernDashboardLayout>
       </AuthGuard>
     );

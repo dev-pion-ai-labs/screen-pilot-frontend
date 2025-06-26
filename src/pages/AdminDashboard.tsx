@@ -364,8 +364,9 @@ const AdminDashboard = () => {
               .eq("class_id", cls.id),
             supabase
               .from("submissions")
-              .select("grade")
-              .not("grade", "is", null),
+              .select("grade, assignments!inner(class_id)")
+              .not("grade", "is", null)
+              .eq("assignments.class_id", cls.id),
           ]);
 
         const completed = submissions?.length || 0;

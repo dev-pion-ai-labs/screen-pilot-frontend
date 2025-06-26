@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth"
 import { supabase } from "@/integrations/supabase/client"
 import { ModernDashboardLayout } from "@/components/ModernDashboardLayout"
 import { AuthGuard } from "@/components/AuthGuard"
+import { TeacherAssignmentShimmer } from "@/components/TeacherAssignmentShimmer"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -254,12 +255,7 @@ const TeacherAssignment = () => {
     return (
       <AuthGuard allowedRoles={["teacher"]}>
         <ModernDashboardLayout>
-          <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center">
-            <div className="relative">
-              <div className="w-20 h-20 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
-              <div className="absolute inset-0 w-20 h-20 border-4 border-transparent border-r-purple-400 rounded-full animate-spin animation-delay-150"></div>
-            </div>
-          </div>
+          <TeacherAssignmentShimmer />
         </ModernDashboardLayout>
       </AuthGuard>
     )

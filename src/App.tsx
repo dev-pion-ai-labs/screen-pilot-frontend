@@ -25,6 +25,7 @@ import TeacherStudentSubmission from "./pages/TeacherStudentSubmission";
 import TeacherStudents from "./pages/TeacherStudents";
 import TeacherClasses from "./pages/TeacherClasses";
 import StudentAssignments from "./pages/StudentAssignments";
+import CreateAssignment from "./pages/CreateAssignment";
 
 const queryClient = new QueryClient();
 
@@ -41,11 +42,15 @@ const App = () => (
             <Route path="/signup" element={<Signup />} />
             <Route path="/student/dashboard" element={<StudentDashboard />} />
             <Route path="/student/assignments" element={<StudentAssignments />} />
-            <Route path="/teacher/dashboard" element={<TeacherDashboard />} />
+            
+
+
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
             <Route path="/admin/users" element={<AdminUsers />} />
             <Route path="/admin/assign-class" element={<AdminAssignClass />} />
             <Route path="/admin/settings" element={<AdminSettings />} />
+            <Route path="/teacher/dashboard" element={<TeacherDashboard />} />
+            <Route path="/teacher/create-assignment" element={<CreateAssignment />} />
             <Route path="/teacher/classes" element={<TeacherClasses />} />
             <Route path="/teacher/assignments" element={<TeacherAssignment />} />
             <Route path="/teacher/student-submission" element={<TeacherStudentSubmission />} />

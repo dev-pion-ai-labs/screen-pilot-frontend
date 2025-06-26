@@ -116,6 +116,12 @@ export function AppSidebar() {
             icon: BookOpen,
             description: "Create and manage assignments",
           },
+          {
+            name:"Create Assignment",
+            href: "/teacher/create-assignment",
+            icon: Clapperboard,
+            description: "Create new assignments for your students",
+          }
           // {
           //   name: "Submissions",
           //   href: "/teacher/student-submission",

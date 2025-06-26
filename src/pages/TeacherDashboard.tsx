@@ -1,1455 +1,1108 @@
 "use client"
 
-import type React from "react"
-
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect } from "react"
 import { Link } from "react-router-dom"
 import { useAuth } from "@/hooks/useAuth"
 import { AuthGuard } from "@/components/AuthGuard"
+import { ModernDashboardLayout } from "@/components/ModernDashboardLayout"
 import { Button } from "@/components/ui/button"
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
-import { Textarea } from "@/components/ui/textarea"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { supabase } from "@/integrations/supabase/client"
+import { useToast } from "@/hooks/use-toast"
 import {
   BookOpen,
   Users,
-  FileText,
-  Plus,
-  Sparkles,
-  Calendar,
-  Target,
-  GraduationCap,
   Clock,
-  User,
-  Loader2,
-  Paperclip,
-  ArrowUp,
-  TrendingUp,
   CheckCircle,
   AlertCircle,
+  FileText,
+  TrendingUp,
+  Calendar,
+  Award,
+  ArrowRight,
+  User,
+  GraduationCap,
+  BarChart3,
+  PieChart,
+  Activity,
+  School,
+  Star,
+  Target,
+  Plus,
+  Eye,
+  Edit,
+  ClipboardCheck,
+  UserCheck,
+  BookMarked,
+  Timer,
+  Zap,
+  Brain,
+  MessageSquare,
+  Download,
+  Upload,
+  ChevronRight,
+  Globe,
+  TrendingDown,
+  PlayCircle,
+  Flame,
+  TrophyIcon
 } from "lucide-react"
-import { format } from "date-fns"
-import { ModernDashboardLayout } from "@/components/ModernDashboardLayout"
-import { useToast } from "@/hooks/use-toast"
-import { cn } from "@/lib/utils"
+import { format, startOfWeek, endOfWeek, subWeeks, isWithinInterval, subDays } from "date-fns"
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart as RechartsPieChart,
+  Cell,
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  RadialBarChart,
+  RadialBar
+} from "recharts"
+
+interface TeacherClass {
+  id: string
+  name: string
+  semester: number
+  created_at: string
+  student_count: number
+  assignment_count: number
+  avg_completion_rate: number
+}
 
 interface Assignment {
   id: string
   title: string
   description: string
   due_date: string
-  submissions: any[]
-}
-
-interface Message {
-  id: string
-  type: "user" | "agent"
-  content: string
-  timestamp: Date
-  isError?: boolean
-  isFile?: boolean
-  fileName?: string
-  fileSize?: number
-  aiResponse?: any
-}
-
-interface Profile {
-  id: string;
-  full_name: string;
-  email: string;
-  role: string;
-  semester?: number;
-  created_at: string;
-  updated_at: string;
-}
-
-// Add these interfaces at the top with other interfaces
-interface Class {
-  id: string;
-  name: string;
-  semester: number;
-  created_at: string;
-  updated_at: string;
-}
-
-interface TeacherClass extends Class {
-  student_count?: number;
-}
-
-
-const ClassSelectionCard = ({ classItem, isSelected, onSelect, studentCount }) => (
-  <Card 
-    className={cn(
-      "cursor-pointer transition-all hover:shadow-lg relative",
-      isSelected 
-        ? "border-2 border-purple-500 bg-purple-50 shadow-lg" 
-        : "border hover:border-purple-300"
-    )}
-    onClick={() => onSelect(classItem)}
-  >
-    {isSelected && (
-      <div className="absolute -top-2 -right-2 bg-purple-500 rounded-full p-1">
-        <CheckCircle className="h-4 w-4 text-white" />
-      </div>
-    )}
-    
-    <CardHeader className="flex flex-row items-center justify-between pb-2">
-      <CardTitle className={cn(
-        "text-lg font-medium",
-        isSelected ? "text-purple-700" : ""
-      )}>
-        {classItem.name}
-      </CardTitle>
-      <Badge variant={isSelected ? "default" : "secondary"}>
-        Sem {classItem.semester}
-      </Badge>
-    </CardHeader>
-    
-    <CardContent>
-      <div className="flex items-center justify-between text-sm">
-        <div className="flex items-center gap-2">
-          <Users className={cn(
-            "h-4 w-4",
-            isSelected ? "text-purple-600" : "text-gray-500"
-          )} />
-          <span className={isSelected ? "text-purple-700" : ""}>
-            {studentCount || 0} Students
-          </span>
-        </div>
-        <span className="text-xs text-gray-500">
-          Created {new Date(classItem.created_at).toLocaleDateString()}
-        </span>
-      </div>
-      
-      {isSelected && (
-        <div className="mt-2 text-xs text-purple-600 font-medium">
-          ✓ Selected for assignment creation
-        </div>
-      )}
-    </CardContent>
-  </Card>
-);
-
-const isSafari = () => {
-  const ua = navigator.userAgent.toLowerCase()
-  return ua.indexOf("safari") !== -1 && ua.indexOf("chrome") === -1
-}
-
-const isIOS = () => {
-  return /iPad|iPhone|iPod/.test(navigator.userAgent)
-}
-
-const safeFetch = (url: string, options: RequestInit): Promise<Response> => {
-  const safariOptions = {
-    ...options,
-    mode: "cors" as RequestMode,
-    credentials: "omit" as RequestCredentials,
-    headers: {
-      ...options.headers,
-      "User-Agent": navigator.userAgent,
-    },
+  created_at: string
+  class_id: string
+  topic: string
+  difficulty: string
+  total_points: number
+  status: string
+  submission_count: number
+  total_students: number
+  avg_grade: number
+  classes: {
+    id: string
+    name: string
+    semester: number
   }
-
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    setTimeout(() => reject(new Error("Request timeout")), 30000)
-  })
-
-  return Promise.race([fetch(url, safariOptions), timeoutPromise])
 }
 
-const smartDelay = (ms: number): Promise<void> => {
-  const delayTime = isSafari() || isIOS() ? ms * 1.5 : ms
-  return new Promise((resolve) => {
-    if (typeof requestAnimationFrame !== "undefined") {
-      let start: number
-      const step = (timestamp: number) => {
-        if (!start) start = timestamp
-        if (timestamp - start >= delayTime) {
-          resolve()
-        } else {
-          requestAnimationFrame(step)
-        }
-      }
-      requestAnimationFrame(step)
-    } else {
-      setTimeout(resolve, delayTime)
+interface Submission {
+  id: string
+  assignment_id: string
+  student_id: string
+  created_at: string
+  ai_grade: number
+  teacher_grade: number
+  status: string
+  file_name: string
+  assignment: {
+    title: string
+    total_points: number
+    classes: {
+      name: string
     }
-  })
+  }
+  profiles: {
+    full_name: string
+  }
 }
 
-const RELEVANCE_CONFIG = {
-  agent: {
-    endpoint: "https://api-d7b62b.stack.tryrelevance.com/latest/agents/trigger",
-    authorization: "5cc7752400a6-4648-b47b-04fc92b47cae:sk-NmM2YzQ1N2ItM2Q0ZC00NTQ3LTg2YzYtZTU4NjQ3ODkxYWVj",
-    agent_id: "42219033-a9cd-4dca-97b2-a1f2c73ebb64",
-  },
-  tools: {
-    generateAssignment: {
-      endpoint:
-        "https://api-d7b62b.stack.tryrelevance.com/latest/studios/01eebbab-522a-4c36-9baa-bc97bc7d2e89/trigger_webhook",
-      authorization: "5cc7752400a6-4648-b47b-04fc92b47cae:sk-OTliYjJlMGMtOTEzOC00MTQwLTlhN2QtZmQzZDI2ZTUzOWU1",
-    },
-    runPythonCode: {
-      endpoint:
-        "https://api-d7b62b.stack.tryrelevance.com/latest/studios/e43078da-1071-4681-8677-02b2cb1d77cf/trigger_webhook",
-      authorization: "5cc7752400a6-4648-b47b-04fc92b47cae:sk-MTY3NWNhYmYtOWEwNi00ZjVkLWJjYmEtNjY1OWE1MTA4MmY4",
-    },
-  },
-  region: "d7b62b",
-  project: "5cc7752400a6-4648-b47b-04fc92b47cae",
+interface StudentPerformance {
+  student_id: string
+  student_name: string
+  class_name: string
+  submissions_count: number
+  avg_grade: number
+  completion_rate: number
 }
 
 export default function TeacherDashboard() {
   const { profile } = useAuth()
   const { toast } = useToast()
+  const [classes, setClasses] = useState<TeacherClass[]>([])
   const [assignments, setAssignments] = useState<Assignment[]>([])
+  const [submissions, setSubmissions] = useState<Submission[]>([])
+  const [studentPerformance, setStudentPerformance] = useState<StudentPerformance[]>([])
   const [loading, setLoading] = useState(true)
-  const [currentTime, setCurrentTime] = useState(new Date())
-
-  // Chat state with improvements
-  const [messages, setMessages] = useState<Message[]>([])
-  const [inputMessage, setInputMessage] = useState<string>("")
-  const [isLoading, setIsLoading] = useState<boolean>(false)
-  const [conversationId, setConversationId] = useState<string | null>(null)
-
-  // New state for preventing loops and duplicates
-  const [processedMessageIds, setProcessedMessageIds] = useState<Set<string>>(new Set())
-  const [lastRequestTime, setLastRequestTime] = useState<number>(0)
-  const [isProcessing, setIsProcessing] = useState<boolean>(false)
-
-  
-  const [currentTopic, setCurrentTopic] = useState<string | null>(null)
-  const [currentDueDate, setCurrentDueDate] = useState<string | null>(null)
-
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-
-  // Add these state declarations with other state variables
-const [classes, setClasses] = useState<TeacherClass[]>([])
-const [selectedClass, setSelectedClass] = useState<TeacherClass | null>(null)
-
-  // Constants for rate limiting
-  const MIN_REQUEST_INTERVAL = 2000 // 2 seconds
-  const MAX_MESSAGE_LENGTH = 4000
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date())
-    }, 60000)
-    return () => clearInterval(timer)
-  }, [])
-
-  useEffect(() => {
-     fetchTeacherClasses()
-    fetchAssignments()
-  }, [])
-
-  useEffect(() => {
-    const welcomeMessage: Message = {
-      id: `welcome_${Date.now()}`,
-      type: "agent",
-      content: `Welcome to AI Assistant Manager, your intelligent teaching companion!
-
-I can help you with:
-• Generating custom assignments and exercises
-• Creating lesson plans and educational materials
-• Running Python code for demonstrations
-• Managing classroom activities and resources
-• Providing teaching suggestions and best practices
-
-Ask me anything or upload files to get started with your teaching tasks.`,
-      timestamp: new Date(),
+    if (profile?.id) {
+      fetchDashboardData()
     }
+  }, [profile])
 
-    setMessages([welcomeMessage])
-  }, [])
-
-  const fetchAssignments = async () => {
+  const fetchDashboardData = async () => {
     try {
-      const { data: assignmentsData } = await supabase
-        .from("assignments")
-        .select(`
-          *,
-          submissions(*)
-        `)
-        .eq("teacher_id", (profile as Profile)?.id)
-        .order("created_at", { ascending: false })
-
-      setAssignments(assignmentsData || [])
+      await Promise.all([
+        fetchTeacherClasses(),
+        fetchTeacherAssignments(),
+        fetchRecentSubmissions(),
+        fetchStudentPerformance()
+      ])
     } catch (error) {
-      console.error("Error fetching assignments:", error)
+      console.error("Error fetching dashboard data:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load dashboard data",
+        variant: "destructive",
+      })
     } finally {
       setLoading(false)
     }
   }
 
-
-  // Add this function near other fetch functions
-const fetchTeacherClasses = async () => {
-  try {
-    const { data: classesData, error } = await supabase
-      .from('class_teachers')
-      .select(`
-        class_id,
-        classes:class_id (
-          id,
-          name,
-          semester,
-          created_at,
-          updated_at
-        )
-      `)
-      .eq('teacher_id', (profile as Profile)?.id)
-
-    if (error) throw error
-
-    // Get student count for each class
-    const classesWithCount = await Promise.all(
-      classesData.map(async (item) => {
-        const { count } = await supabase
-          .from('class_students')
-          .select('*', { count: 'exact', head: true })
-          .eq('class_id', item.class_id)
-
-        return {
-          ...item.classes,
-          student_count: count
-        }
-      })
-    )
-
-    setClasses(classesWithCount)
-  } catch (error) {
-    console.error('Error fetching classes:', error)
-    toast({
-      title: "Error",
-      description: "Failed to load classes",
-      variant: "destructive"
-    })
-  }
-}
-
-  // Function to parse assignment data from AI response
-  const parseAssignmentFromResponse = (content: string,  topic: string | null, dueDate: string | null) => {
-    console.log('🔍 Parsing assignment with parameters:', {
-      content: content.substring(0, 100) + '...',
-      
-      topic,
-      dueDate
-    })
-
-    let title = ''
-    let description = content
-    let parsedDueDate = dueDate
-
-    // Extract title with more flexible patterns
-    const titlePatterns = [
-      /\*\*ASSIGNMENT TITLE\*\*:\s*(.+?)(?:\n|$)/i,
-      /ASSIGNMENT TITLE:\s*(.+?)(?:\n|$)/i,
-      /Assignment Title:\s*(.+?)(?:\n|$)/i,
-      /Title:\s*(.+?)(?:\n|$)/i
-    ]
-
-    for (const pattern of titlePatterns) {
-      const match = content.match(pattern)
-      if (match) {
-        title = match[1].trim()
-        console.log('📝 Found title:', title)
-        break
-      }
-    }
-
-    // Extract description with more flexible patterns
-    const descPatterns = [
-      /\*\*ASSIGNMENT DESCRIPTION\*\*:\s*([\s\S]*?)(?:\*\*DUE DATE\*\*|$)/i,
-      /ASSIGNMENT DESCRIPTION:\s*([\s\S]*?)(?:DUE DATE|$)/i,
-      /Assignment Description:\s*([\s\S]*?)(?:Due Date|$)/i
-    ]
-
-    for (const pattern of descPatterns) {
-      const match = content.match(pattern)
-      if (match) {
-        description = match[1].trim()
-        console.log('📄 Found description length:', description.length)
-        break
-      }
-    }
-
-    // Extract due date from content if not already set
-    const dueDatePatterns = [
-      /\*\*DUE DATE\*\*:\s*(.+?)(?:\n|$)/i,
-      /DUE DATE:\s*(.+?)(?:\n|$)/i,
-      /Due Date:\s*(.+?)(?:\n|$)/i
-    ]
-
-    for (const pattern of dueDatePatterns) {
-      const match = content.match(pattern)
-      if (match && !parsedDueDate) {
-        parsedDueDate = match[1].trim()
-        console.log('📅 Found due date in content:', parsedDueDate)
-        break
-      }
-    }
-
-    // Format the due date if it exists
-    let formattedDueDate = null
-    if (parsedDueDate) {
-      try {
-        // Handle DD/MM/YYYY format
-        const [day, month, year] = parsedDueDate.split(/[\/\-]/).map(num => parseInt(num, 10))
-        if (day && month && year) {
-          // Create date with proper month (0-based index)
-          const date = new Date(year, month - 1, day)
-          if (!isNaN(date.getTime())) {
-            formattedDueDate = date.toISOString()
-            console.log('📅 Formatted due date:', formattedDueDate)
-          } else {
-            console.log('⚠️ Invalid date values:', { day, month, year })
-          }
-        } else {
-          console.log('⚠️ Invalid date format:', parsedDueDate)
-        }
-      } catch (error) {
-        console.error('❌ Error formatting date:', error)
-      }
-    }
-
-    // Ensure we have a valid due date
-    if (!formattedDueDate) {
-      // Set a default due date (30 days from now) if none provided
-      const defaultDate = new Date()
-      defaultDate.setDate(defaultDate.getDate() + 30)
-      formattedDueDate = defaultDate.toISOString()
-      console.log('📅 Using default due date:', formattedDueDate)
-    }
-
-   
-    const result = {
-      title: title || 'AI Generated Assignment',
-      description,
-      dueDate: formattedDueDate,
-      
-      topic: topic || '',
-      aiGeneratedContent: content
-    }
-
-    console.log('✅ Final parsed assignment data:', result)
-    return result
-  }
-
-  // Function to save assignment to database
-// Fixed saveAssignmentToDatabase function
-const saveAssignmentToDatabase = async (assignmentData: any) => {
-  try {
-    // Check if class is selected - throw error instead of silent return
-    if (!selectedClass) {
-      const error = new Error("No class selected. Please select a class to create an assignment.");
-      console.error('❌ No class selected for assignment creation');
-      toast({
-        title: "No Class Selected",
-        description: "Please select a class to create an assignment",
-        variant: "destructive"
-      });
-      throw error; // Throw error instead of returning
-    }
-
-    console.log('💾 Saving assignment with data:', assignmentData);
-    console.log('📚 Selected class:', selectedClass);
-
-    const { data, error } = await supabase
-      .from('assignments')
-      .insert([
-        {
-          title: assignmentData.title,
-          description: assignmentData.description,
-          teacher_id: (profile as Profile)?.id,
-          class_id: selectedClass.id,
-          semester: selectedClass.semester,
-          topic: assignmentData.topic,
-          due_date: assignmentData.dueDate,
-          total_points: 100,
-          difficulty: 'medium',
-          ai_generated_content: assignmentData.aiGeneratedContent,
-          status: 'published'
-        }
-      ])
-      .select()
-      .single()
-
-    if (error) {
-      console.error('❌ Database error:', error);
-      throw error;
-    }
-
-    console.log('✅ Assignment created successfully:', data);
-
-    // Create assignment enrollments for all students in the class
-    const { data: students, error: studentsError } = await supabase
-      .from('class_students')
-      .select('student_id')
-      .eq('class_id', selectedClass.id)
-
-    if (studentsError) {
-      console.error('⚠️ Error fetching students:', studentsError);
-      throw studentsError;
-    }
-
-    if (students && students.length > 0) {
-      const enrollments = students.map(student => ({
-        assignment_id: data.id,
-        student_id: student.student_id,
-        status: 'assigned',
-        assigned_at: new Date().toISOString()
-      }));
-
-      const { error: enrollmentError } = await supabase
-        .from('assignment_enrollments')
-        .insert(enrollments)
-
-      if (enrollmentError) {
-        console.error('⚠️ Error creating enrollments:', enrollmentError);
-        throw enrollmentError;
-      }
-
-      console.log('✅ Assignment enrollments created for', students.length, 'students');
-    }
-
-    toast({
-      title: "Assignment Created Successfully!",
-      description: `Assignment has been created and assigned to ${students?.length || 0} students in ${selectedClass.name}.`
-    });
-
-    // Refresh assignments list
-    fetchAssignments();
-    return data;
-    
-  } catch (error) {
-    console.error('❌ Error saving assignment:', error);
-    toast({
-      title: "Error",
-      description: error instanceof Error ? error.message : "Failed to save assignment. Please try again.",
-      variant: "destructive"
-    });
-    throw error; // Re-throw to let calling code handle it
-  }
-}
-
-  // Function to detect if response contains a complete assignment
-  const isCompleteAssignment = (content: string) => {
-    console.log('Checking if complete assignment:', content.substring(0, 200))
-
-    const hasTitle = /\*\*ASSIGNMENT TITLE\*\*|ASSIGNMENT TITLE|Assignment Title/i.test(content)
-    const hasDescription = /\*\*ASSIGNMENT DESCRIPTION\*\*|ASSIGNMENT DESCRIPTION|Assignment Description/i.test(content)
-    const hasDueDate = /\*\*DUE DATE\*\*|DUE DATE|Due Date/i.test(content) || currentDueDate
-
-    const isComplete = hasTitle && hasDescription && hasDueDate
-    console.log('Assignment completeness check:', { hasTitle, hasDescription, hasDueDate, isComplete })
-
-    return isComplete
-  }
-
-  
-
-  // Function to extract topic from message
-  const extractTopicFromMessage = (message: string) => {
-    const topicPatterns = [
-      /film and society part \d+/i,
-      /introduction to direction & screenwriting part \d+/i,
-      /film and society/i,
-      /direction.*screenwriting/i
-    ]
-
-    for (const pattern of topicPatterns) {
-      const match = message.match(pattern)
-      if (match) {
-        return match[0]
-      }
-    }
-    return null
-  }
-
-  // Function to extract due date from message
-  const extractDueDateFromMessage = (message: string) => {
-    console.log('🔍 Starting due date extraction from message:', message)
-
-    const datePatterns = [
-      /(\d{1,2})\/(\d{1,2})\/(\d{4})/,
-      /(\d{1,2})-(\d{1,2})-(\d{4})/,
-      /(\d{4})-(\d{1,2})-(\d{1,2})/
-    ]
-
-    console.log('📅 Testing date patterns:', datePatterns)
-
-    for (const pattern of datePatterns) {
-      const match = message.match(pattern)
-      console.log('🔎 Testing pattern:', pattern, 'Match result:', match)
-
-      if (match) {
-        console.log('✅ Found matching date:', match[0])
-        return match[0]
-      }
-    }
-
-    console.log('❌ No date pattern matched in message')
-    return null
-  }
-
-  const scrollToBottom = (): void => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }
-
-  useEffect(() => {
-    scrollToBottom()
-  }, [messages])
-
-  // Utility functions
-  const getInitials = (name: string) => {
-    if (!name) return "T"
-    return name
-      .split(" ")
-      .map((part) => part[0])
-      .join("")
-      .toUpperCase()
-      .substring(0, 2)
-  }
-
-  const getGreeting = () => {
-    const hour = currentTime.getHours()
-    if (hour < 12) return "Good Morning"
-    if (hour < 17) return "Good Afternoon"
-    return "Good Evening"
-  }
-
-  const getInspirationalMessage = () => {
-    const messages = [
-      "Inspiring the next generation of leaders!",
-      "Great teachers make great students.",
-      "Today is a perfect day to make a difference.",
-      "Your guidance shapes the future.",
-      "Teaching creates all other professions.",
-    ]
-    return messages[Math.floor(Math.random() * messages.length)]
-  }
-
-  // Message validation
-  const isValidMessage = (content: string): boolean => {
-    return content.trim().length > 0 && content.trim().length <= MAX_MESSAGE_LENGTH
-  }
-
-  // Generate unique message ID
-  const generateMessageId = (prefix: string): string => {
-    return `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-  }
-
-  // Process agent response with better error handling
-  const processAgentResponse = (content: any): string => {
-    if (typeof content === "string") {
-      return content.trim()
-    }
-
-    if (typeof content === "object" && content !== null) {
-      // Handle nested output structures
-      if (content.output && content.output.answer) {
-        return String(content.output.answer).trim()
-      }
-      if (content.answer) return String(content.answer).trim()
-      if (content.response) return String(content.response).trim()
-      if (content.result) return String(content.result).trim()
-      if (content.text) return String(content.text).trim()
-      if (content.message) return String(content.message).trim()
-      if (content.output && typeof content.output === "string") {
-        return content.output.trim()
-      }
-
-      // Check for other common response patterns
-      if (content.data && typeof content.data === "string") {
-        return content.data.trim()
-      }
-
-      // Avoid returning raw JSON unless it's a structured response
-      const jsonStr = JSON.stringify(content, null, 2)
-      if (jsonStr.length < 500) {
-        return `Response: ${jsonStr}`
-      }
-
-      return "Task completed successfully."
-    }
-
-    const result = String(content || "Task completed.").trim()
-    return result.length > 0 ? result : "Response received."
-  }
-
-  // Enhanced API call with better error handling and conversation ID extraction
-  const callRelevanceAgent = async (message: string, conversationId: string | null = null): Promise<any> => {
-    if (!message || message.trim().length === 0) {
-      throw new Error("Message cannot be empty")
-    }
-
-    const cleanMessage = message.trim()
-    if (cleanMessage.length > MAX_MESSAGE_LENGTH) {
-      throw new Error("Message too long")
-    }
-
-    const payload: any = {
-      message: { role: "user", content: cleanMessage },
-      agent_id: RELEVANCE_CONFIG.agent.agent_id,
-    }
-
-    // Only include conversation_id if it's valid and not empty
-    if (conversationId && conversationId.trim().length > 0) {
-      payload.conversation_id = conversationId.trim()
-    }
-
-    console.log("Sending payload:", JSON.stringify(payload, null, 2))
-
+  const fetchTeacherClasses = async () => {
     try {
-      const fetchFunction = isSafari() ? safeFetch : fetch
-      const response = await fetchFunction(RELEVANCE_CONFIG.agent.endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: RELEVANCE_CONFIG.agent.authorization,
-          Accept: "application/json",
-          ...(isSafari() && {
-            "Cache-Control": "no-cache",
-            Pragma: "no-cache",
-          }),
-        },
-        body: JSON.stringify(payload),
-      })
+      const { data: classData } = await supabase
+        .from("class_teachers")
+        .select(`
+          classes:class_id (
+            id,
+            name,
+            semester,
+            created_at
+          )
+        `)
+        .eq("teacher_id", profile?.id)
 
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error("API Error Response:", errorText)
-        throw new Error(`API Error: ${response.status} - ${response.statusText}`)
+      if (!classData?.length) {
+        setClasses([])
+        return
       }
 
-      const result = await response.json()
-      console.log("Full agent response received:", JSON.stringify(result, null, 2))
+      const classesWithDetails = await Promise.all(
+        classData.map(async (item) => {
+          const classInfo = item.classes
 
-      return result
-    } catch (error) {
-      console.error("Agent Call Error:", error)
-      throw error
-    }
-  }
+          // Get student count
+          const { count: studentCount } = await supabase
+            .from("class_students")
+            .select("*", { count: "exact", head: true })
+            .eq("class_id", classInfo.id)
 
-  // Enhanced polling with circuit breaker and conversation ID extraction
-  const pollAgentResponse = async (jobInfo: any): Promise<any> => {
-    const maxAttempts = isSafari() ? 30 : 25
-    let attempts = 0
-    let consecutiveErrors = 0
-    const maxConsecutiveErrors = 3
-    const baseDelay = 2000
+          // Get assignment count
+          const { count: assignmentCount } = await supabase
+            .from("assignments")
+            .select("*", { count: "exact", head: true })
+            .eq("class_id", classInfo.id)
+            .eq("status", "published")
 
-    console.log("Starting polling for job:", jobInfo.job_id)
-    console.log("Job info conversation_id:", jobInfo.conversation_id)
+          // Calculate average completion rate
+          const { data: assignmentIds } = await supabase
+            .from("assignments")
+            .select("id")
+            .eq("class_id", classInfo.id)
+            .eq("status", "published")
 
-    while (attempts < maxAttempts && consecutiveErrors < maxConsecutiveErrors) {
-      try {
-        const pollUrl = `https://api-${RELEVANCE_CONFIG.region}.stack.tryrelevance.com/latest/studios/${jobInfo.studio_id}/async_poll/${jobInfo.job_id}`
+          let avgCompletionRate = 0
+          if (assignmentIds?.length && studentCount) {
+            const { count: totalSubmissions } = await supabase
+              .from("submissions")
+              .select("*", { count: "exact", head: true })
+              .in("assignment_id", assignmentIds.map(a => a.id))
 
-        const fetchFunction = isSafari() ? safeFetch : fetch
-        const response = await fetchFunction(pollUrl, {
-          method: "GET",
-          headers: {
-            Authorization: RELEVANCE_CONFIG.agent.authorization,
-            Accept: "application/json",
-            ...(isSafari() && {
-              "Cache-Control": "no-cache",
-              Pragma: "no-cache",
-            }),
-          },
+            const expectedSubmissions = assignmentIds.length * (studentCount || 0)
+            avgCompletionRate = expectedSubmissions > 0 
+              ? Math.min(Math.round(((totalSubmissions || 0) / expectedSubmissions) * 100), 100)
+              : 0
+          }
+
+          return {
+            id: classInfo.id,
+            name: classInfo.name,
+            semester: classInfo.semester,
+            created_at: classInfo.created_at,
+            student_count: studentCount || 0,
+            assignment_count: assignmentCount || 0,
+            avg_completion_rate: avgCompletionRate
+          }
         })
+      )
 
-        if (!response.ok) {
-          consecutiveErrors++
-          throw new Error(`Polling failed: ${response.status} - ${response.statusText}`)
-        }
-
-        consecutiveErrors = 0
-        const status = await response.json()
-
-        console.log(`Polling attempt ${attempts + 1}:`, status.updates?.length || 0, "updates")
-        console.log("Full status response:", status)
-
-        for (const update of status.updates || []) {
-          if (update.type === "chain-success") {
-            console.log("Chain success:", update.output)
-
-            let extractedConversationId = null
-
-            if (update.conversation_id) {
-              extractedConversationId = update.conversation_id
-            } else if (jobInfo.conversation_id) {
-              extractedConversationId = jobInfo.conversation_id
-            } else if (status.conversation_id) {
-              extractedConversationId = status.conversation_id
-            } else if (update.output && update.output.conversation_id) {
-              extractedConversationId = update.output.conversation_id
-            }
-
-            console.log("Extracted conversation ID:", extractedConversationId)
-
-            return {
-              success: true,
-              content: update.output,
-              conversationId: extractedConversationId,
-            }
-          }
-          if (update.type === "chain-error") {
-            console.error("Chain error:", update.error)
-            return {
-              success: false,
-              error: update.error || "An error occurred during processing.",
-            }
-          }
-        }
-
-        attempts++
-        const delay = Math.min(baseDelay + attempts * 300, 8000)
-        await smartDelay(delay)
-
-      } catch (error) {
-        console.error(`Polling error on attempt ${attempts + 1}:`, error)
-        attempts++
-        consecutiveErrors++
-
-        const errorDelay = Math.min(3000 + consecutiveErrors * 1000, 10000)
-        await smartDelay(errorDelay)
-      }
-    }
-
-    return {
-      success: false,
-      error: `Request timed out after ${maxAttempts} attempts or too many consecutive errors. Please try again.`,
+      setClasses(classesWithDetails)
+    } catch (error) {
+      console.error("Error fetching teacher classes:", error)
     }
   }
 
-  // Main message handler with assignment creation logic
-  const handleSendMessage = useCallback(async (): Promise<void> => {
-    // Early validation checks
-    if (!inputMessage.trim() || isLoading || isProcessing) {
-      console.log("Message rejected:", { empty: !inputMessage.trim(), loading: isLoading, processing: isProcessing })
-      return
-    }
-
-    if (!isValidMessage(inputMessage)) {
-      console.log("Invalid message length:", inputMessage.length)
-      toast({
-        title: "Invalid Message",
-        description: "Message is too long or empty. Please try again.",
-        variant: "destructive"
-      })
-      return
-    }
-
-    // Rate limiting
-    const now = Date.now()
-    if (now - lastRequestTime < MIN_REQUEST_INTERVAL) {
-      console.log("Rate limit hit:", { now, lastRequestTime, diff: now - lastRequestTime })
-      toast({
-        title: "Please wait",
-        description: "Please wait a moment before sending another message.",
-        variant: "destructive"
-      })
-      return
-    }
-
-    // Duplicate prevention
-    const messageKey = `${inputMessage.trim()}_${Math.floor(now / 5000)}` // 5-second window
-    if (processedMessageIds.has(messageKey)) {
-      console.log("Duplicate message detected:", messageKey)
-      return
-    }
-
-    // Lock processing
-    setIsProcessing(true)
-    setLastRequestTime(now)
-
-    const messageId = generateMessageId("user")
-    const currentInput = inputMessage.trim()
-
-    // Extract information from user message
-    console.log('🔍 Starting information extraction from message:', currentInput)
-
-    
-    const extractedTopic = extractTopicFromMessage(currentInput)
-    console.log('📝 Extracted topic:', extractedTopic)
-
-    const extractedDueDate = extractDueDateFromMessage(currentInput)
-    console.log('📅 Extracted due date:', extractedDueDate)
-
-  
-    if (extractedTopic) {
-      setCurrentTopic(extractedTopic)
-      console.log('✅ Set current topic:', extractedTopic)
-    }
-    if (extractedDueDate) {
-      setCurrentDueDate(extractedDueDate)
-      console.log('✅ Set current due date:', extractedDueDate)
-    } else {
-      console.log('⚠️ No due date extracted from message')
-    }
-
-    const userMessage: Message = {
-      id: messageId,
-      type: "user",
-      content: currentInput,
-      timestamp: new Date(),
-    }
-
-    // Update UI immediately
-    setMessages((prev) => [...prev, userMessage])
-    setInputMessage("")
-    setIsLoading(true)
-
-    // Add to processed messages
-    setProcessedMessageIds(prev => new Set([...prev, messageKey]))
-
+  const fetchTeacherAssignments = async () => {
     try {
-      console.log("Sending message:", currentInput)
-      console.log("Current conversation ID:", conversationId)
+      const { data: assignmentsData } = await supabase
+        .from("assignments")
+        .select(`
+          *,
+          classes:class_id (
+            id,
+            name,
+            semester
+          )
+        `)
+        .eq("teacher_id", profile?.id)
+        .eq("status", "published")
+        .order("created_at", { ascending: false })
 
-      const agentResponse = await callRelevanceAgent(currentInput, conversationId)
-      console.log("Agent response structure:", agentResponse)
+      if (!assignmentsData?.length) {
+        setAssignments([])
+        return
+      }
 
-      if (agentResponse.job_info) {
-        const result = await pollAgentResponse(agentResponse.job_info)
-        console.log("Polling result:", result)
+      const assignmentsWithStats = await Promise.all(
+        assignmentsData.map(async (assignment) => {
+          // Get submission count
+          const { count: submissionCount } = await supabase
+            .from("submissions")
+            .select("*", { count: "exact", head: true })
+            .eq("assignment_id", assignment.id)
 
-        if (result.success) {
-          const messageContent = processAgentResponse(result.content)
-          console.log("📝 Processed content:", messageContent)
+          // Get total students in class
+          const { count: totalStudents } = await supabase
+            .from("class_students")
+            .select("*", { count: "exact", head: true })
+            .eq("class_id", assignment.class_id)
 
-          if (!messageContent || messageContent.trim().length === 0) {
-            throw new Error("Empty response received")
-          }
+          // Get average grade
+          const { data: gradeData } = await supabase
+            .from("submissions")
+            .select("teacher_grade, ai_grade")
+            .eq("assignment_id", assignment.id)
+            .not("teacher_grade", "is", null)
+            .not("ai_grade", "is", null)
 
-          const agentMessage: Message = {
-            id: generateMessageId("agent"),
-            type: "agent",
-            content: messageContent,
-            timestamp: new Date(),
-            aiResponse: result.content
-          }
-
-          setMessages((prev) => [...prev, agentMessage])
-
-         
-          const topicToUse = extractedTopic || currentTopic
-          const dueDateToUse = extractedDueDate || currentDueDate
-
-          console.log('📊 Using values:', {
-           
-            topic: topicToUse,
-            dueDate: dueDateToUse
-          })
-
-          // Check if this is a complete assignment and save it
-          if (isCompleteAssignment(messageContent)) {
-            const assignmentData = parseAssignmentFromResponse(
-              messageContent,
-              
-              topicToUse,
-              dueDateToUse
+          let avgGrade = 0
+          if (gradeData?.length) {
+            const totalGrade = gradeData.reduce((sum, sub) => 
+              sum + (sub.teacher_grade || sub.ai_grade || 0), 0
             )
-            console.log("📋 Complete assignment detected:", assignmentData)
-
-            // Only save if we have all required data
-           if (assignmentData.title && assignmentData.topic) {
-    console.log('💾 Attempting to save assignment with data:', assignmentData);
-    
-    try {
-      await saveAssignmentToDatabase(assignmentData);
-      console.log('✅ Assignment saved successfully');
-      
-      // Reset assignment creation state only on success
-      setCurrentTopic(null);
-      setCurrentDueDate(null);
-      setConversationId(null);
-      setInputMessage("");
-      
-    } catch (saveError) {
-      console.error('❌ Failed to save assignment:', saveError);
-      
-      // Add an error message to the chat
-      const errorMessage: Message = {
-        id: generateMessageId("agent"),
-        type: "agent",
-        content: `I created the assignment content, but there was an issue saving it: ${saveError instanceof Error ? saveError.message : 'Unknown error'}. Please select a class and try again.`,
-        timestamp: new Date(),
-        isError: true,
-      };
-      
-      setMessages((prev) => [...prev, errorMessage]);
-      
-      // Don't reset state so user can try again
-      return; // Exit early to prevent further processing
-    }
-  } else {
-    console.log('⚠️ Assignment data incomplete:', assignmentData);
-  }
-} else {
-  console.log('ℹ️ Not a complete assignment, checking for partial data');
-}
-
-          // Improved conversation ID handling
-          if (result.conversationId) {
-            const newConversationId = String(result.conversationId).trim()
-            if (newConversationId.length > 0) {
-              console.log("Setting conversation ID:", newConversationId)
-              setConversationId(newConversationId)
-            }
-          } else if (agentResponse.conversation_id) {
-            const fallbackConversationId = String(agentResponse.conversation_id).trim()
-            if (fallbackConversationId.length > 0) {
-              console.log("Using fallback conversation ID:", fallbackConversationId)
-              setConversationId(fallbackConversationId)
-            }
+            avgGrade = Math.round(totalGrade / gradeData.length)
           }
-        } else {
-          throw new Error(result.error || "Processing failed")
-        }
-      } else {
-        if (agentResponse.conversation_id) {
-          const directConversationId = String(agentResponse.conversation_id).trim()
-          if (directConversationId.length > 0) {
-            console.log("Setting direct conversation ID:", directConversationId)
-            setConversationId(directConversationId)
+
+          return {
+            ...assignment,
+            submission_count: submissionCount || 0,
+            total_students: totalStudents || 0,
+            avg_grade: avgGrade
           }
-        }
-        throw new Error("No job info received from agent")
-      }
+        })
+      )
+
+      setAssignments(assignmentsWithStats)
     } catch (error) {
-      console.error("Error in handleSendMessage:", error)
-      const errorMessage: Message = {
-        id: generateMessageId("agent"),
-        type: "agent",
-        content: `I'm sorry, but I encountered an error: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`,
-        timestamp: new Date(),
-        isError: true,
+      console.error("Error fetching teacher assignments:", error)
+    }
+  }
+
+  const fetchRecentSubmissions = async () => {
+    try {
+      // Get assignments by this teacher
+      const { data: teacherAssignments } = await supabase
+        .from("assignments")
+        .select("id")
+        .eq("teacher_id", profile?.id)
+
+      if (!teacherAssignments?.length) {
+        setSubmissions([])
+        return
       }
-      setMessages((prev) => [...prev, errorMessage])
 
-      toast({
-        title: "Error",
-        description: "Failed to send message. Please try again.",
-        variant: "destructive"
-      })
-    } finally {
-      setIsLoading(false)
-      setIsProcessing(false)
+      const assignmentIds = teacherAssignments.map(a => a.id)
 
-      // Clean up old processed messages (keep only last 50)
-      setProcessedMessageIds(prev => {
-        const arr = Array.from(prev)
-        if (arr.length > 50) {
-          return new Set(arr.slice(-50))
-        }
-        return prev
+      const { data: submissionsData } = await supabase
+        .from("submissions")
+        .select(`
+          *,
+          assignment:assignment_id (
+            title,
+            total_points,
+            classes:class_id (
+              name
+            )
+          ),
+          profiles:student_id (
+            full_name
+          )
+        `)
+        .in("assignment_id", assignmentIds)
+        .order("created_at", { ascending: false })
+        .limit(20)
+
+      setSubmissions(submissionsData || [])
+    } catch (error) {
+      console.error("Error fetching recent submissions:", error)
+    }
+  }
+
+  const fetchStudentPerformance = async () => {
+    try {
+      // Get all students from teacher's classes
+      const { data: teacherClasses } = await supabase
+        .from("class_teachers")
+        .select("class_id")
+        .eq("teacher_id", profile?.id)
+
+      if (!teacherClasses?.length) {
+        setStudentPerformance([])
+        return
+      }
+
+      const classIds = teacherClasses.map(tc => tc.class_id)
+
+      const { data: studentsData } = await supabase
+        .from("class_students")
+        .select(`
+          student_id,
+          class_id,
+          classes:class_id (
+            name
+          ),
+          profiles:student_id (
+            full_name
+          )
+        `)
+        .in("class_id", classIds)
+
+      if (!studentsData?.length) {
+        setStudentPerformance([])
+        return
+      }
+
+      const studentStats = await Promise.all(
+        studentsData.map(async (student) => {
+          // Get assignments for this class
+          const { data: classAssignments } = await supabase
+            .from("assignments")
+            .select("id")
+            .eq("class_id", student.class_id)
+            .eq("teacher_id", profile?.id)
+            .eq("status", "published")
+
+          const assignmentIds = classAssignments?.map(a => a.id) || []
+
+          // Get student submissions
+          const { data: studentSubmissions } = await supabase
+            .from("submissions")
+            .select("teacher_grade, ai_grade")
+            .eq("student_id", student.student_id)
+            .in("assignment_id", assignmentIds)
+
+          const submissionsCount = studentSubmissions?.length || 0
+          const totalAssignments = assignmentIds.length
+          const completionRate = totalAssignments > 0 
+            ? Math.min(Math.round((submissionsCount / totalAssignments) * 100), 100)
+            : 0
+
+          // Calculate average grade
+          let avgGrade = 0
+          if (studentSubmissions?.length) {
+            const gradedSubmissions = studentSubmissions.filter(s => s.teacher_grade || s.ai_grade)
+            if (gradedSubmissions.length > 0) {
+              const totalGrade = gradedSubmissions.reduce((sum, sub) => 
+                sum + (sub.teacher_grade || sub.ai_grade || 0), 0
+              )
+              avgGrade = Math.round(totalGrade / gradedSubmissions.length)
+            }
+          }
+
+          return {
+            student_id: student.student_id,
+            student_name: student.profiles?.full_name || 'Unknown Student',
+            class_name: student.classes?.name || 'Unknown Class',
+            submissions_count: submissionsCount,
+            avg_grade: avgGrade,
+            completion_rate: completionRate
+          }
+        })
+      )
+
+      setStudentPerformance(studentStats)
+    } catch (error) {
+      console.error("Error fetching student performance:", error)
+    }
+  }
+
+  // Analytics calculations
+  const totalStudents = classes.reduce((sum, cls) => sum + cls.student_count, 0)
+  const totalAssignments = assignments.length
+  const totalSubmissions = submissions.length
+  const pendingGrading = submissions.filter(s => s.status !== 'graded').length
+
+  // Weekly submissions data
+  const getWeeklySubmissions = () => {
+    const weeks = []
+    for (let i = 6; i >= 0; i--) {
+      const weekStart = startOfWeek(subWeeks(new Date(), i))
+      const weekEnd = endOfWeek(weekStart)
+      
+      const weekSubmissions = submissions.filter(s => 
+        isWithinInterval(new Date(s.created_at), { start: weekStart, end: weekEnd })
+      )
+
+      weeks.push({
+        week: format(weekStart, "MMM dd"),
+        submissions: weekSubmissions.length,
       })
     }
-  }, [inputMessage, isLoading, isProcessing, conversationId, processedMessageIds, lastRequestTime, toast,  currentTopic, currentDueDate, profile])
+    return weeks
+  }
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
-    const file = event.target.files?.[0]
-    if (!file) return
+  // Class performance data
+  const getClassPerformance = () => {
+    return classes.map(cls => ({
+      name: cls.name.length > 15 ? cls.name.substring(0, 15) + '...' : cls.name,
+      fullName: cls.name,
+      students: cls.student_count,
+      assignments: cls.assignment_count,
+      completion: cls.avg_completion_rate
+    }))
+  }
 
-    const allowedTypes = [
-      ".txt",
-      ".js",
-      ".ts",
-      ".py",
-      ".java",
-      ".cpp",
-      ".c",
-      ".php",
-      ".rb",
-      ".go",
-      ".rs",
-      ".md",
-      ".json",
-      ".csv",
-      ".xml",
+  // Grade distribution
+  const getGradeDistribution = () => {
+    const gradedSubmissions = submissions.filter(s => s.teacher_grade || s.ai_grade)
+    const total = gradedSubmissions.length
+    
+    if (total === 0) return []
+
+    const excellent = gradedSubmissions.filter(s => (s.teacher_grade || s.ai_grade) >= 90).length
+    const good = gradedSubmissions.filter(s => (s.teacher_grade || s.ai_grade) >= 80 && (s.teacher_grade || s.ai_grade) < 90).length
+    const satisfactory = gradedSubmissions.filter(s => (s.teacher_grade || s.ai_grade) >= 70 && (s.teacher_grade || s.ai_grade) < 80).length
+    const needsImprovement = gradedSubmissions.filter(s => (s.teacher_grade || s.ai_grade) < 70).length
+
+    return [
+      { name: 'Excellent (90+)', value: Math.min(Math.round((excellent / total) * 100), 100), count: excellent, fill: '#10B981' },
+      { name: 'Good (80-89)', value: Math.min(Math.round((good / total) * 100), 100), count: good, fill: '#3B82F6' },
+      { name: 'Satisfactory (70-79)', value: Math.min(Math.round((satisfactory / total) * 100), 100), count: satisfactory, fill: '#F59E0B' },
+      { name: 'Needs Improvement (<70)', value: Math.min(Math.round((needsImprovement / total) * 100), 100), count: needsImprovement, fill: '#EF4444' }
     ]
-    const fileExtension = "." + file.name.split(".").pop()?.toLowerCase()
-
-    if (!allowedTypes.includes(fileExtension)) {
-      toast({
-        title: "Invalid File Type",
-        description: "Please upload a supported file type",
-        variant: "destructive"
-      })
-      return
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      toast({
-        title: "File Too Large",
-        description: "File size should be less than 5MB",
-        variant: "destructive"
-      })
-      return
-    }
-
-    try {
-      const text = await file.text()
-
-      const uploadMessage: Message = {
-        id: generateMessageId("user"),
-        type: "user",
-        content: `Uploaded file: ${file.name}\n\n${text}`,
-        timestamp: new Date(),
-        isFile: true,
-        fileName: file.name,
-        fileSize: file.size,
-      }
-
-      setMessages((prev) => [...prev, uploadMessage])
-
-      setTimeout(() => {
-        setInputMessage(`Please help me with this file: ${file.name}`)
-      }, 500)
-    } catch (error) {
-      toast({
-        title: "File Error",
-        description: "Error reading file. Please try again.",
-        variant: "destructive"
-      })
-    }
-
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ""
-    }
   }
 
-  const handleKeyPress = (e: React.KeyboardEvent): void => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault()
-      handleSendMessage()
-    }
+  // Assignment difficulty distribution
+  const getDifficultyDistribution = () => {
+    const total = assignments.length
+    if (total === 0) return []
+
+    const easy = assignments.filter(a => a.difficulty === 'easy').length
+    const medium = assignments.filter(a => a.difficulty === 'medium').length
+    const hard = assignments.filter(a => a.difficulty === 'hard').length
+
+    return [
+      { name: 'Easy', value: Math.min(Math.round((easy / total) * 100), 100), count: easy, fill: '#10B981' },
+      { name: 'Medium', value: Math.min(Math.round((medium / total) * 100), 100), count: medium, fill: '#F59E0B' },
+      { name: 'Hard', value: Math.min(Math.round((hard / total) * 100), 100), count: hard, fill: '#EF4444' }
+    ]
   }
 
-  // Function to reset conversation
-  const resetConversation = () => {
-    setConversationId(null)
-    setProcessedMessageIds(new Set())
-    
-    setCurrentTopic(null)
-    setCurrentDueDate(null)
-    toast({
-      title: "Conversation Reset",
-      description: "Starting a new conversation with the AI Assistant.",
-    })
+  if (loading) {
+    return (
+      <AuthGuard allowedRoles={["teacher"]}>
+        <ModernDashboardLayout>
+          <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center">
+            <div className="relative">
+              <div className="w-20 h-20 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+              <div className="absolute inset-0 w-20 h-20 border-4 border-transparent border-r-purple-400 rounded-full animate-spin animation-delay-150"></div>
+            </div>
+          </div>
+        </ModernDashboardLayout>
+      </AuthGuard>
+    )
   }
-
-  // Stats calculations
-  const totalSubmissions = assignments.reduce((acc, assignment) => acc + assignment.submissions.length, 0)
-  const pendingReviews = assignments.reduce(
-    (acc, assignment) => acc + assignment.submissions.filter((sub) => sub.grade === null).length,
-    0,
-  )
 
   return (
     <AuthGuard allowedRoles={["teacher"]}>
       <ModernDashboardLayout>
-        <div className="space-y-8">
-          {/* Enhanced Welcome Header */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-teal-500 via-blue-500 to-indigo-600 p-8 text-white">
-            <div className="absolute inset-0 bg-black/10"></div>
+        <div className="space-y-6">
+          {/* Hero Section */}
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-violet-600 via-purple-600 to-indigo-600 p-8 text-white">
             <div className="relative z-10">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-white/20 rounded-full backdrop-blur-sm">
-                  <GraduationCap className="h-6 w-6" />
-                </div>
+              <div className="flex items-center justify-between">
                 <div>
-                  <h1 className="text-3xl font-bold">
-                    {getGreeting()}, {(profile as Profile)?.full_name?.split(" ")[0] || "Teacher"}!
+                  <h1 className="text-4xl font-bold mb-2">
+                    Welcome, {profile?.full_name?.split(" ")[0]}! 🎓
                   </h1>
-                  <p className="text-white/90 text-lg">{getInspirationalMessage()}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-6 text-sm">
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4" />
-                  {currentTime.toLocaleDateString("en-US", {
-                    weekday: "long",
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                  })}
-                </div>
-                <div className="flex items-center gap-2">
-                  <Target className="h-4 w-4" />
-                  Teacher Dashboard
-                </div>
-              </div>
-            </div>
-            {/* Floating elements */}
-            <div className="absolute top-4 right-4 opacity-20">
-              <div className="flex gap-2">
-                <div className="w-3 h-3 bg-white rounded-full animate-pulse"></div>
-                <div className="w-3 h-3 bg-white rounded-full animate-pulse delay-100"></div>
-                <div className="w-3 h-3 bg-white rounded-full animate-pulse delay-200"></div>
-              </div>
-            </div>
-          </div>
-
-          {/* Enhanced Stats Cards */}
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-blue-50 hover:shadow-xl transition-all duration-300">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-blue-700">Total Assignments</CardTitle>
-                <div className="p-2 bg-blue-100 rounded-full">
-                  <BookOpen className="h-4 w-4 text-blue-600" />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-blue-900">{assignments.length}</div>
-                <div className="flex items-center gap-1 text-xs text-blue-600 mt-1">
-                  <TrendingUp className="h-3 w-3" />
-                  <span>Active assignments</span>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-green-50 hover:shadow-xl transition-all duration-300">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-green-700">Total Submissions</CardTitle>
-                <div className="p-2 bg-green-100 rounded-full">
-                  <FileText className="h-4 w-4 text-green-600" />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-green-900">{totalSubmissions}</div>
-                <div className="flex items-center gap-1 text-xs text-green-600 mt-1">
-                  <CheckCircle className="h-3 w-3" />
-                  <span>Student submissions</span>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-orange-50 hover:shadow-xl transition-all duration-300">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-orange-700">Pending Reviews</CardTitle>
-                <div className="p-2 bg-orange-100 rounded-full">
-                  <AlertCircle className="h-4 w-4 text-orange-600" />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-orange-900">{pendingReviews}</div>
-                <div className="flex items-center gap-1 text-xs text-orange-600 mt-1">
-                  <Clock className="h-3 w-3" />
-                  <span>Awaiting review</span>
-                </div>
-              </CardContent>
-            </Card>
-
-          
-
-
-          </div>
-
-          {classes.map((classItem) => (
-  <ClassSelectionCard
-    key={classItem.id}
-    classItem={classItem}
-    isSelected={selectedClass?.id === classItem.id}
-    onSelect={setSelectedClass}
-    studentCount={classItem.student_count}
-  />
-))}
-
-         
-          
-
-          {/* AI Chat Interface */}
-          <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-gray-50">
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-purple-100 rounded-full">
-                  <Sparkles className="h-5 w-5 text-purple-600" />
-                </div>
-                <div>
-                  <CardTitle className="text-xl">AI Assignment Creator</CardTitle>
-                  <CardDescription className="text-base">
-                    Your intelligent teaching companion for creating assignments, running code, and managing educational
-                    content
-                  </CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="bg-gradient-to-br from-purple-50 to-blue-50 rounded-xl border-2 border-dashed border-gray-200 overflow-hidden">
-                {/* Agent Info */}
-                <div className="p-4 bg-gradient-to-r from-purple-50 to-blue-50 border-b">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-blue-600 rounded-lg flex items-center justify-center">
-                      <Sparkles className="h-5 w-5 text-white" />
+                  <p className="text-xl text-white/90 mb-6">Empowering the next generation of filmmakers</p>
+                  <div className="flex items-center gap-6">
+                    <div className="flex items-center gap-2">
+                      <Users className="h-5 w-5 text-blue-300" />
+                      <span className="font-medium">{totalStudents} Students</span>
                     </div>
-                    <div>
-                      <h2 className="font-medium">AI Assistant Manager</h2>
-                      <p className="text-sm text-gray-600">
-                        Creates assignments automatically and saves them to your dashboard when complete.
-                      </p>
+                    <div className="flex items-center gap-2">
+                      <BookOpen className="h-5 w-5 text-green-300" />
+                      <span className="font-medium">{totalAssignments} Assignments</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <ClipboardCheck className="h-5 w-5 text-yellow-300" />
+                      <span className="font-medium">{totalSubmissions} Submissions</span>
                     </div>
                   </div>
                 </div>
+                <div className="hidden lg:block">
+                  <div className="w-32 h-32 bg-white/10 rounded-full flex items-center justify-center backdrop-blur-sm">
+                    <GraduationCap className="h-16 w-16 text-white/80" />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full -translate-y-48 translate-x-48"></div>
+            <div className="absolute bottom-0 left-0 w-64 h-64 bg-white/5 rounded-full translate-y-32 -translate-x-32"></div>
+          </div>
 
-                <ScrollArea className="h-[400px] p-4">
-                  <div className="max-w-3xl mx-auto space-y-4">
-                    {messages.map((message) => (
-                      <div
-                        key={message.id}
-                        className={cn(
-                          "flex gap-3",
-                          message.type === "user" ? "justify-end" : "justify-start"
-                        )}
-                      >
-                        {message.type === "agent" && (
-                          <div className="w-8 h-8 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
-                            <Sparkles className="h-4 w-4 text-white" />
-                          </div>
-                        )}
-                        <div
-                          className={cn(
-                            "max-w-[80%] rounded-lg p-3",
-                            message.type === "user"
-                              ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white ml-12"
-                              : message.isError
-                                ? "bg-red-50 border border-red-200"
-                                : "bg-white border"
-                          )}
-                        >
-                          <div className="whitespace-pre-wrap text-sm">
-                            {message.content}
-                          </div>
-                          {message.isFile && (
-                            <div className="flex items-center gap-1 mt-2 text-xs opacity-75">
-                              <FileText className="h-3 w-3" />
-                              {message.fileName} (
-                              {Math.round((message.fileSize || 0) / 1024)}KB)
-                            </div>
-                          )}
-                          {isCompleteAssignment(message.content) && (
-                            <div className="mt-2 p-2 bg-green-100 rounded text-xs text-green-800">
-                              ✅ Assignment will be saved automatically
-                            </div>
-                          )}
-                          <div className="text-xs opacity-60 mt-1">
-                            {message.timestamp.toLocaleTimeString()}
+          {/* Main Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Left Column - Stats and Quick Actions */}
+            <div className="lg:col-span-4 space-y-6">
+              {/* Stats Cards */}
+              <div className="grid grid-cols-2 gap-4">
+                <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-50 to-blue-100">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-blue-600 mb-1">Classes</p>
+                        <p className="text-2xl font-bold text-blue-900">{classes.length}</p>
+                      </div>
+                      <School className="h-8 w-8 text-blue-500" />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-0 shadow-lg bg-gradient-to-br from-emerald-50 to-emerald-100">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-emerald-600 mb-1">Students</p>
+                        <p className="text-2xl font-bold text-emerald-900">{totalStudents}</p>
+                      </div>
+                      <Users className="h-8 w-8 text-emerald-500" />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-0 shadow-lg bg-gradient-to-br from-purple-50 to-purple-100">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-purple-600 mb-1">Assignments</p>
+                        <p className="text-2xl font-bold text-purple-900">{totalAssignments}</p>
+                      </div>
+                      <BookOpen className="h-8 w-8 text-purple-500" />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-0 shadow-lg bg-gradient-to-br from-amber-50 to-amber-100">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-amber-600 mb-1">Pending</p>
+                        <p className="text-2xl font-bold text-amber-900">{pendingGrading}</p>
+                      </div>
+                      <Clock className="h-8 w-8 text-amber-500" />
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Quick Actions */}
+              <Card className="border-0 shadow-lg">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Zap className="h-5 w-5 text-indigo-600" />
+                    Quick Actions
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <Link to="/teacher/create-assignment">
+                    <Button className="w-full justify-start bg-indigo-600 hover:bg-indigo-700">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create Assignment
+                    </Button>
+                  </Link>
+                  <Link to="/teacher/classes">
+                    <Button className="w-full justify-start bg-purple-600 hover:bg-purple-700">
+                      <School className="h-4 w-4 mr-2" />
+                      Manage Classes
+                    </Button>
+                  </Link>
+                  <Link to="/teacher/assignments">
+                    <Button className="w-full justify-start bg-emerald-600 hover:bg-emerald-700">
+                      <Eye className="h-4 w-4 mr-2" />
+                      View All Assignments
+                    </Button>
+                  </Link>
+                </CardContent>
+              </Card>
+
+              {/* Weekly Submissions */}
+              <Card className="border-0 shadow-lg">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Activity className="h-5 w-5 text-indigo-600" />
+                    Weekly Submissions
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-[200px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={getWeeklySubmissions()}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="week" />
+                        <YAxis />
+                        <Tooltip />
+                        <Area 
+                          type="monotone" 
+                          dataKey="submissions" 
+                          stroke="#6366f1" 
+                          fill="#6366f1" 
+                          fillOpacity={0.3} 
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Middle Column - Assignments and Classes */}
+            <div className="lg:col-span-5 space-y-6">
+              {/* Recent Assignments */}
+              <Card className="border-0 shadow-lg">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2">
+                      <BookMarked className="h-5 w-5 text-indigo-600" />
+                      Recent Assignments
+                    </CardTitle>
+                    <Link to="/teacher/create-assignment">
+                      <Button size="sm">
+                        <Plus className="h-4 w-4 mr-1" />
+                        Create New
+                      </Button>
+                    </Link>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {assignments.slice(0, 5).map((assignment) => (
+                      <div key={assignment.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="font-semibold text-gray-900 truncate flex-1 mr-2">
+                            {assignment.title}
+                          </h4>
+                          <Badge 
+                            className={
+                              assignment.difficulty === 'easy' 
+                                ? 'bg-green-100 text-green-700 border-green-200' 
+                                : assignment.difficulty === 'medium'
+                                  ? 'bg-yellow-100 text-yellow-700 border-yellow-200'
+                                  : 'bg-red-100 text-red-700 border-red-200'
+                            }
+                          >
+                            {assignment.difficulty?.charAt(0).toUpperCase() + assignment.difficulty?.slice(1)}
+                          </Badge>
+                        </div>
+                        <div className="text-sm text-gray-600 mb-2">
+                          <div className="flex items-center gap-1">
+                            <School className="h-3 w-3" />
+                            {assignment.classes?.name}
                           </div>
                         </div>
-                        {message.type === "user" && (
-                          <div className="w-8 h-8 bg-gray-400 rounded-full flex items-center justify-center flex-shrink-0">
-                            <User className="h-4 w-4 text-white" />
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-500">
+                            {assignment.submission_count}/{assignment.total_students} submitted
+                          </span>
+                          <div className="flex items-center gap-2">
+                            {assignment.avg_grade > 0 && (
+                              <span className="text-green-600 font-medium">
+                                Avg: {assignment.avg_grade}%
+                              </span>
+                            )}
+                            <Link to={`/teacher/assignments`}>
+                              <Button size="sm" variant="ghost">
+                                View
+                                <ChevronRight className="h-3 w-3 ml-1" />
+                              </Button>
+                            </Link>
                           </div>
-                        )}
+                        </div>
                       </div>
                     ))}
-
-                    {isLoading && (
-                      <div className="flex gap-3">
-                        <div className="w-8 h-8 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
-                          <Sparkles className="h-4 w-4 text-white" />
-                        </div>
-                        <div className="bg-white border rounded-lg p-3">
-                          <div className="flex items-center gap-2 text-sm text-gray-600">
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            {isProcessing ? "Processing your request..." : "Thinking..."}
-                          </div>
-                        </div>
+                    {assignments.length === 0 && (
+                      <div className="text-center py-8 text-gray-500">
+                        <BookOpen className="h-12 w-12 mx-auto mb-2 text-gray-300" />
+                        <p>No assignments created yet</p>
+                        <Link to="/teacher/create-assignment">
+                          <Button className="mt-3">Create Your First Assignment</Button>
+                        </Link>
                       </div>
                     )}
-
-                    <div ref={messagesEndRef} />
                   </div>
-                </ScrollArea>
+                </CardContent>
+              </Card>
 
-                <div className="border-t p-4 bg-white">
-                  <div className="max-w-3xl mx-auto">
-                    <div className="flex gap-2">
-                      <div className="flex-1 relative">
-                        <Textarea
-                          placeholder="Ask AI Assistant Manager to create assignments with semester, topic, and due date..."
-                          value={inputMessage}
-                          onChange={(e) => setInputMessage(e.target.value)}
-                          onKeyPress={handleKeyPress}
-                          className="resize-none border-gray-300 focus:border-purple-500 pr-12"
-                          rows={3}
-                          disabled={isLoading || isProcessing}
-                        />
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => fileInputRef.current?.click()}
-                          className="absolute right-2 bottom-2 h-8 w-8"
-                          disabled={isLoading || isProcessing}
-                        >
-                          <Paperclip className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <Button
-                        onClick={handleSendMessage}
-                        disabled={!inputMessage.trim() || isLoading || isProcessing}
-                        className="h-12 w-12 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 disabled:opacity-50"
-                      >
-                        {isLoading || isProcessing ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <ArrowUp className="h-4 w-4" />
-                        )}
+              {/* My Classes */}
+              <Card className="border-0 shadow-lg">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2">
+                      <School className="h-5 w-5 text-indigo-600" />
+                      My Classes
+                    </CardTitle>
+                    <Link to="/teacher/classes">
+                      <Button size="sm" variant="outline">
+                        Manage All
                       </Button>
-                    </div>
-
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept=".txt,.js,.ts,.py,.java,.cpp,.c,.php,.rb,.go,.rs,.md,.json,.csv,.xml"
-                      onChange={handleFileUpload}
-                      className="hidden"
-                    />
-
-                    <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
-                      <div className="flex items-center gap-2">
-                        <span>✨ AI will auto-save complete assignments</span>
-                        {conversationId && (
-                          <Badge variant="outline" className="text-xs">
-                            Chat Active: {conversationId.substring(0, 8)}...
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {isProcessing && (
-                          <Badge variant="secondary" className="text-xs">
-                            Processing...
-                          </Badge>
-                        )}
-                        {conversationId && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={resetConversation}
-                            className="text-xs h-6 px-2"
-                          >
-                            Reset Chat
-                          </Button>
-                        )}
-                      </div>
-                    </div>
+                    </Link>
                   </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3 max-h-80 overflow-y-auto">
+                    {classes.map((classItem) => (
+                      <div key={classItem.id} className="border rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="font-semibold text-gray-900">{classItem.name}</h4>
+                          <Badge variant="secondary">Sem {classItem.semester}</Badge>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 text-sm text-gray-600 mb-3">
+                          <div className="flex items-center gap-1">
+                            <Users className="h-3 w-3" />
+                            {classItem.student_count} students
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <BookOpen className="h-3 w-3" />
+                            {classItem.assignment_count} assignments
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Target className="h-3 w-3" />
+                            {classItem.avg_completion_rate}% completion
+                          </div>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div 
+                            className="bg-indigo-600 h-2 rounded-full transition-all duration-300" 
+                            style={{ width: `${Math.min(classItem.avg_completion_rate, 100)}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    ))}
+                    {classes.length === 0 && (
+                      <div className="text-center py-8 text-gray-500">
+                        <School className="h-12 w-12 mx-auto mb-2 text-gray-300" />
+                        <p>No classes assigned yet</p>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Right Column - Analytics and Recent Activity */}
+            <div className="lg:col-span-3 space-y-6">
+              {/* Grade Distribution */}
+              <Card className="border-0 shadow-lg">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <PieChart className="h-5 w-5 text-purple-600" />
+                    Grade Distribution
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {getGradeDistribution().length > 0 ? (
+                    <>
+                      <div className="h-[200px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <RechartsPieChart>
+                            <Tooltip 
+                              formatter={(value: any, name: string) => [`${value}%`, name]}
+                            />
+                            {getGradeDistribution().map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.fill} />
+                            ))}
+                          </RechartsPieChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div className="space-y-2">
+                        {getGradeDistribution().map((entry) => (
+                          <div key={entry.name} className="flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-2">
+                              <div 
+                                className="w-3 h-3 rounded-full" 
+                                style={{ backgroundColor: entry.fill }}
+                              ></div>
+                              <span className="text-gray-600">{entry.name}</span>
+                            </div>
+                            <span className="font-medium">{entry.count}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      <BarChart3 className="h-12 w-12 mx-auto mb-2 text-gray-300" />
+                      <p className="text-sm">No graded submissions yet</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Assignment Difficulty */}
+              <Card className="border-0 shadow-lg">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Target className="h-5 w-5 text-orange-600" />
+                    Assignment Difficulty
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {getDifficultyDistribution().length > 0 ? (
+                    <>
+                      <div className="h-[200px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <RechartsPieChart>
+                            <Tooltip 
+                              formatter={(value: any, name: string) => [`${value}%`, name]}
+                            />
+                            {getDifficultyDistribution().map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.fill} />
+                            ))}
+                          </RechartsPieChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div className="space-y-2">
+                        {getDifficultyDistribution().map((entry) => (
+                          <div key={entry.name} className="flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-2">
+                              <div 
+                                className="w-3 h-3 rounded-full" 
+                                style={{ backgroundColor: entry.fill }}
+                              ></div>
+                              <span className="text-gray-600">{entry.name}</span>
+                            </div>
+                            <span className="font-medium">{entry.count}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      <Target className="h-12 w-12 mx-auto mb-2 text-gray-300" />
+                      <p className="text-sm">No assignments created yet</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Recent Submissions */}
+              <Card className="border-0 shadow-lg">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <ClipboardCheck className="h-5 w-5 text-green-600" />
+                    Recent Submissions
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3 max-h-64 overflow-y-auto">
+                    {submissions.slice(0, 5).map((submission) => (
+                      <div key={submission.id} className="border rounded-lg p-3">
+                        <div className="flex items-center justify-between mb-1">
+                          <h5 className="text-sm font-medium text-gray-900 truncate flex-1 mr-2">
+                            {submission.assignment?.title || 'Unknown Assignment'}
+                          </h5>
+                          <Badge 
+                            className={`text-xs ${
+                              submission.status === 'graded' 
+                                ? 'bg-green-100 text-green-700 border-green-200' 
+                                : 'bg-blue-100 text-blue-700 border-blue-200'
+                            }`}
+                          >
+                            {submission.status === 'graded' ? 'Graded' : 'Pending'}
+                          </Badge>
+                        </div>
+                        <div className="text-xs text-gray-600 mb-2">
+                          {submission.profiles?.full_name} • {submission.assignment?.classes?.name}
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-gray-500">
+                            {format(new Date(submission.created_at), "MMM dd")}
+                          </span>
+                          {(submission.teacher_grade || submission.ai_grade) && (
+                            <div className="flex items-center gap-1">
+                              <Star className="h-3 w-3 text-yellow-500" />
+                              <span className="text-sm font-medium text-gray-700">
+                                {submission.teacher_grade || submission.ai_grade}%
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    {submissions.length === 0 && (
+                      <div className="text-center py-8 text-gray-500">
+                        <ClipboardCheck className="h-12 w-12 mx-auto mb-2 text-gray-300" />
+                        <p className="text-sm">No submissions yet</p>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+
+          {/* Class Performance Section */}
+          <Card className="border-0 shadow-lg">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <TrophyIcon className="h-5 w-5 text-yellow-600" />
+                Class Performance Overview
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {getClassPerformance().length > 0 ? (
+                <div className="h-[300px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={getClassPerformance()}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" />
+                      <YAxis />
+                      <Tooltip 
+                        formatter={(value: any, name: string) => {
+                          if (name === 'students') return [`${value}`, 'Students']
+                          if (name === 'assignments') return [`${value}`, 'Assignments']
+                          if (name === 'completion') return [`${value}%`, 'Completion Rate']
+                          return [value, name]
+                        }}
+                        labelFormatter={(label: string) => {
+                          const item = getClassPerformance().find(c => c.name === label)
+                          return item ? item.fullName : label
+                        }}
+                      />
+                      <Bar dataKey="students" fill="#3B82F6" name="students" />
+                      <Bar dataKey="assignments" fill="#10B981" name="assignments" />
+                      <Bar dataKey="completion" fill="#6366F1" name="completion" />
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
+              ) : (
+                <div className="text-center py-12 text-gray-500">
+                  <Trophy className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                  <h3 className="text-lg font-medium mb-2">No classes to display</h3>
+                  <p>Classes will appear here once you're assigned to teach them.</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Student Performance Section */}
+          <Card className="border-0 shadow-lg">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <UserCheck className="h-5 w-5 text-blue-600" />
+                Top Performing Students
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {studentPerformance
+                  .filter(student => student.avg_grade > 0)
+                  .sort((a, b) => b.avg_grade - a.avg_grade)
+                  .slice(0, 6)
+                  .map((student) => (
+                    <div key={student.student_id} className="border rounded-lg p-4 bg-gradient-to-br from-white to-gray-50">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
+                          <User className="h-5 w-5 text-indigo-600" />
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="font-semibold text-gray-900">{student.student_name}</h4>
+                          <p className="text-sm text-gray-600">{student.class_name}</p>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-600">Average Grade:</span>
+                          <span className="font-medium text-green-600">{student.avg_grade}%</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-600">Completion Rate:</span>
+                          <span className="font-medium text-blue-600">{student.completion_rate}%</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-600">Submissions:</span>
+                          <span className="font-medium text-gray-700">{student.submissions_count}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                {studentPerformance.filter(s => s.avg_grade > 0).length === 0 && (
+                  <div className="col-span-full text-center py-8 text-gray-500">
+                    <UserCheck className="h-12 w-12 mx-auto mb-2 text-gray-300" />
+                    <p>No student performance data available yet</p>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
+
+          {/* Assignments Requiring Attention */}
+          {assignments.filter(a => a.submission_count < a.total_students && new Date(a.due_date) < new Date()).length > 0 && (
+            <Card className="border-0 shadow-lg border-amber-200">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-amber-700">
+                  <AlertCircle className="h-5 w-5" />
+                  Assignments Requiring Attention
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {assignments
+                    .filter(a => a.submission_count < a.total_students && new Date(a.due_date) < new Date())
+                    .slice(0, 6)
+                    .map((assignment) => (
+                      <div key={assignment.id} className="border border-amber-200 rounded-lg p-4 bg-amber-50">
+                        <div className="flex items-center gap-2 mb-2">
+                          <AlertCircle className="h-4 w-4 text-amber-600" />
+                          <h4 className="font-semibold text-gray-900 truncate flex-1">
+                            {assignment.title}
+                          </h4>
+                        </div>
+                        <div className="text-sm text-gray-600 mb-3">
+                          <div className="flex items-center gap-1 mb-1">
+                            <School className="h-3 w-3" />
+                            {assignment.classes?.name}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Calendar className="h-3 w-3" />
+                            Due: {format(new Date(assignment.due_date), "MMM dd, yyyy")}
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-amber-700 font-medium">
+                            {assignment.submission_count}/{assignment.total_students} submitted
+                          </span>
+                          <Link to="/teacher/assignments">
+                            <Button size="sm" variant="outline" className="border-amber-300 text-amber-700 hover:bg-amber-100">
+                              Review
+                              <ChevronRight className="h-3 w-3 ml-1" />
+                            </Button>
+                          </Link>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </ModernDashboardLayout>
     </AuthGuard>
   )
 }
-
-
-

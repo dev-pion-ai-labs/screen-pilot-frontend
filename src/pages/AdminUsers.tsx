@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client"
 import { Users, UserPlus, Trash2, Edit, Search, GraduationCap, School, Shield } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { ModernDashboardLayout } from "@/components/ModernDashboardLayout"
+import { AdminUsersShimmer } from "@/components/AdminUsersShimmer"
 
 interface User {
   id: string
@@ -381,12 +382,7 @@ const AdminUsers = () => {
     return (
       <AuthGuard allowedRoles={["admin"]}>
         <ModernDashboardLayout>
-          <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center">
-            <div className="relative">
-              <div className="w-20 h-20 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
-              <div className="absolute inset-0 w-20 h-20 border-4 border-transparent border-r-purple-400 rounded-full animate-spin animation-delay-150"></div>
-            </div>
-          </div>
+          <AdminUsersShimmer />
         </ModernDashboardLayout>
       </AuthGuard>
     )

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { AuthGuard } from "@/components/AuthGuard";
 import { ModernDashboardLayout } from "@/components/ModernDashboardLayout";
+import { TeacherClassesShimmer } from "@/components/TeacherClassesShimmer";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -543,12 +544,7 @@ const TeacherClasses = () => {
     return (
       <AuthGuard allowedRoles={["teacher"]}>
         <ModernDashboardLayout>
-          <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center">
-            <div className="relative">
-              <div className="w-20 h-20 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
-              <div className="absolute inset-0 w-20 h-20 border-4 border-transparent border-r-purple-400 rounded-full animate-spin animation-delay-150"></div>
-            </div>
-          </div>
+          <TeacherClassesShimmer />
         </ModernDashboardLayout>
       </AuthGuard>
     );

@@ -8,6 +8,7 @@ import { ModernDashboardLayout } from "@/components/ModernDashboardLayout";
 import { AdminClassHeader } from "@/components/AdminClassHeader";
 import { AdminClassTable } from "@/components/AdminClassTable";
 import { AdminClassDialog } from "@/components/AdminClassDialog";
+import { AdminAssignClassShimmer } from "@/components/AdminAssignClassShimmer";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
@@ -399,9 +400,7 @@ const AdminAssignClass = () => {
     return (
       <AuthGuard allowedRoles={["admin"]}>
         <ModernDashboardLayout>
-          <div className="min-h-screen flex items-center justify-center">
-            <div className="animate-spin rounded-full h-20 w-20 border-t-4 border-b-4 border-indigo-500"></div>
-          </div>
+          <AdminAssignClassShimmer />
         </ModernDashboardLayout>
       </AuthGuard>
     );
@@ -413,7 +412,7 @@ const AdminAssignClass = () => {
         <div className="min-h-screen p-8">
           <AdminClassHeader />
 
-          <div className="flex justify-center">
+          <div className="flex justify-center mb-2">
             <Button
               size="lg"
               onClick={() => setIsAddDialogOpen(true)}

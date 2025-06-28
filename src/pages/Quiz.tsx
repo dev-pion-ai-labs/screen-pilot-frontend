@@ -480,6 +480,46 @@ const createFallbackQuestions = (content: string): QuizQuestion[] => {
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
+// Function to parse and format mentor response content
+const formatMentorResponse = (content: string): string => {
+  // Replace **text** with proper HTML bold tags
+  let formattedContent = content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  
+  // Format section headers that end with colon (like "Study Guide & Exam Preparation:")
+  formattedContent = formattedContent.replace(/^([A-Z][^:\n]*:)$/gm, '<div class="mb-3 mt-4"><strong class="text-lg text-purple-700">$1</strong></div>');
+  
+  // Format numbered lists with better spacing and styling
+  formattedContent = formattedContent.replace(/(\d+\.\s\*\*[^*]+\*\*)/g, '\n\n<div class="mb-2">$1</div>');
+  
+  // Format bullet points with better spacing and styling
+  formattedContent = formattedContent.replace(/^\*\s(.+)$/gm, '<div class="mb-2 ml-4">• $1</div>');
+  
+  // Format sub-section headers (like "What is it about?")
+  formattedContent = formattedContent.replace(/^([A-Z][^:\n?]*\?)\s*$/gm, '<div class="mb-3 mt-3"><strong class="text-base text-blue-600">$1</strong></div>');
+  
+  // Format reference materials section
+  formattedContent = formattedContent.replace(/Reference Materials:\s*\n((?:- .+\n?)+)/g, 
+    '<div class="mb-3 mt-4"><strong class="text-lg text-purple-700">Reference Materials:</strong></div><div class="bg-gray-50 p-3 rounded-lg mb-3">$1</div>');
+  
+  // Format reference list items
+  formattedContent = formattedContent.replace(/^- (.+)$/gm, '<div class="mb-1">📚 $1</div>');
+  
+  // Format question at the end with special styling
+  formattedContent = formattedContent.replace(
+    /Feeling confident\? Would you like to take a quiz on this topic to test your understanding\?/g,
+    '<div class="mt-6 p-4 bg-gradient-to-r from-purple-100 to-blue-100 rounded-lg border-l-4 border-purple-500"><strong class="text-purple-700">Feeling confident? Would you like to take a quiz on this topic to test your understanding?</strong></div>'
+  );
+  
+  // Add proper paragraph spacing for main content blocks
+  formattedContent = formattedContent.replace(/\n\n/g, '</p><p class="mb-3">');
+  formattedContent = '<p class="mb-3">' + formattedContent + '</p>';
+  
+  // Clean up empty paragraphs
+  formattedContent = formattedContent.replace(/<p class="mb-3"><\/p>/g, '');
+  
+  return formattedContent;
+};
+
 export default function AIMentorAgent(): JSX.Element {
   // State Management
   const [currentStage, setCurrentStage] =
@@ -788,7 +828,8 @@ After providing this comprehensive explanation, end with this exact prompt:
         const result = await pollAgentResponse(agentResponse.job_info);
 
         if (result.success) {
-          addMessage("mentor", result.content, "mentor_explanation");
+          const formattedContent = formatMentorResponse(result.content);
+          addMessage("mentor", formattedContent, "mentor_explanation");
           setConversationId(result.conversationId);
           setCurrentStage("quiz_prompt");
         } else {
@@ -1399,8 +1440,20 @@ After providing this comprehensive explanation, end with this exact prompt:
                                 : "bg-yellow-50 border border-yellow-200"
                             )}
                           >
-                            <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                              {message.content}
+                            <div 
+                              className={cn(
+                                "text-sm leading-relaxed",
+                                message.type === "mentor" 
+                                  ? "prose prose-sm max-w-none" 
+                                  : "whitespace-pre-wrap"
+                              )}
+                              dangerouslySetInnerHTML={
+                                message.type === "mentor" 
+                                  ? { __html: message.content }
+                                  : undefined
+                              }
+                            >
+                              {message.type !== "mentor" ? message.content : null}
                             </div>
                             <div
                               className={cn(
@@ -1532,7 +1585,7 @@ After providing this comprehensive explanation, end with this exact prompt:
                         className="resize-none border-gray-300 focus:border-purple-500 focus:ring-purple-500 rounded-xl"
                         rows={2}
                         disabled={isLoading}
-                        onKeyPress={(e) => {
+                        onKeyDown={(e) => {
                           if (e.key === "Enter" && !e.shiftKey) {
                             e.preventDefault();
                             if (inputMessage.trim()) {

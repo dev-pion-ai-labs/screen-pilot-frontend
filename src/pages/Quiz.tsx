@@ -354,127 +354,44 @@ const parseQuizContent = (content: string): QuizQuestion[] => {
 };
 
 const createFallbackQuestions = (content: string): QuizQuestion[] => {
-  // Create questions based on the actual API response format
   console.log("Creating fallback questions from content:", content);
 
-  // Extract specific questions from the API response
+  // Try to parse questions from the content string
   const questions: QuizQuestion[] = [];
-
-  // Check if content contains the expected questions
-  if (content.includes("What is the primary focus of film analysis")) {
-    questions.push(
-      {
-        id: 1,
-        question:
-          "What is the primary focus of film analysis as discussed in 'How to Read a Film: Movies, Media, and Beyond'?",
-        options: [
-          "A) The technical aspects of film production",
-          "B) The economic impact of films",
-          "C) The interpretation of visual and narrative elements in films",
-          "D) The historical development of cinema",
-        ],
-      },
-      {
-        id: 2,
-        question:
-          "According to 'Film Art: An Introduction,' what is the purpose of mise-en-scène in a film?",
-        options: [
-          "A) To create special effects",
-          "B) To enhance the film's soundtrack",
-          "C) To establish the setting and mood of a scene",
-          "D) To dictate the film's editing style",
-        ],
-      },
-      {
-        id: 3,
-        question:
-          "In the context of creating simple screenplays using the 3-act structure, as outlined in 'Save the Cat,' which of the following is NOT a typical component of Act I?",
-        options: [
-          "A) The setup",
-          "B) The inciting incident",
-          "C) The climax",
-          "D) The introduction of the protagonist",
-        ],
-      },
-      {
-        id: 4,
-        question:
-          "In 'Screenplay: The Foundations of Screenwriting,' Syd Field emphasizes the importance of plot points. What is a plot point according to Field's paradigm?",
-        options: [
-          "A) A minor event that adds humor to the story",
-          "B) A significant event that changes the direction of the story",
-          "C) A dialogue exchange that reveals character backstory",
-          "D) An action sequence that increases the film's runtime",
-        ],
-      },
-      {
-        id: 5,
-        question:
-          "Based on 'The Anatomy of Story: 22 Steps to Becoming a Master Storyteller,' which of the following best describes the role of a central moral problem in a narrative?",
-        options: [
-          "A) It provides a subplot to entertain the audience",
-          "B) It serves as the main obstacle for the protagonist to overcome",
-          "C) It is an optional element that can be included for depth",
-          "D) It determines the genre of the film",
-        ],
+  
+  // Split content by question numbers (1., 2., 3., etc.)
+  const questionBlocks = content.split(/\d+\.\s*\*\*/).filter(block => block.trim());
+  
+  questionBlocks.forEach((block, index) => {
+    if (block.trim()) {
+      // Extract question text (between ** and **)
+      const questionMatch = block.match(/^([^*]+)\*\*/);
+      if (questionMatch) {
+        const questionText = questionMatch[1].trim();
+        
+        // Extract options - handle both formats: "- a)" and "A)"
+        const optionMatches = block.match(/[-\s]*[a-dA-D]\)\s*[^\n-]+/g);
+        
+        if (optionMatches && optionMatches.length >= 4) {
+          const options = optionMatches.slice(0, 4).map(opt => {
+            // Clean up the option text and format consistently
+            const cleanOpt = opt.trim().replace(/^[-\s]*/, '');
+            // Convert lowercase to uppercase for consistency
+            return cleanOpt.replace(/^([a-d])\)/, (match, letter) => `${letter.toUpperCase()})`);
+          });
+          
+          questions.push({
+            id: index + 1,
+            question: questionText,
+            options: options
+          });
+        }
       }
-    );
-  } else {
-    // Generic fallback if content doesn't match expected format
-    questions.push(
-      {
-        id: 1,
-        question: "What is the primary purpose of film analysis?",
-        options: [
-          "A) To critique the technical quality",
-          "B) To understand visual and narrative elements",
-          "C) To evaluate commercial success",
-          "D) To compare with other films",
-        ],
-      },
-      {
-        id: 2,
-        question: "Which element is most important in visual storytelling?",
-        options: [
-          "A) Camera angles",
-          "B) Lighting",
-          "C) Composition",
-          "D) All of the above",
-        ],
-      },
-      {
-        id: 3,
-        question: "In screenplay structure, what typically happens in Act I?",
-        options: [
-          "A) The climax",
-          "B) The setup and inciting incident",
-          "C) The resolution",
-          "D) The final confrontation",
-        ],
-      },
-      {
-        id: 4,
-        question: "What is mise-en-scène?",
-        options: [
-          "A) The editing style",
-          "B) The sound design",
-          "C) The visual arrangement within a frame",
-          "D) The camera movement",
-        ],
-      },
-      {
-        id: 5,
-        question: "Which is a key component of character development?",
-        options: [
-          "A) Physical appearance",
-          "B) Backstory and motivation",
-          "C) Dialogue style",
-          "D) All of the above",
-        ],
-      }
-    );
-  }
+    }
+  });
 
+  
+  console.log("Parsed questions from content:", questions);
   return questions;
 };
 

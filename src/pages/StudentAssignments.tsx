@@ -86,6 +86,7 @@ interface Assignment {
   topic: string;
   difficulty: string;
   created_at: string;
+  ai_generated_content: any;
   submissions?: Submission[];
 }
 
@@ -411,8 +412,8 @@ const formatAssignmentDescription = (description: string) => {
   lines.forEach((line, index) => {
     const trimmedLine = line.trim();
 
-    // Check if this is a header line (starts with ### or **)
-    if (trimmedLine.startsWith("###")) {
+    // Check if this is a markdown header line (starts with #, ##, ###, etc.)
+    if (trimmedLine.match(/^#{1,6}\s+/)) {
       // Save any pending paragraph
       if (currentParagraph.length > 0) {
         elements.push(
@@ -426,14 +427,38 @@ const formatAssignmentDescription = (description: string) => {
         currentParagraph = [];
       }
 
-      elements.push(
-        <h3
-          key={`h3-${index}`}
-          className="text-xl font-bold text-gray-900 mt-6 mb-3"
-        >
-          {trimmedLine.replace(/^###\s*/, "")}
-        </h3>
-      );
+      const headerLevel = trimmedLine.match(/^(#{1,6})/)?.[1].length || 1;
+      const headerText = trimmedLine.replace(/^#{1,6}\s*/, "");
+      
+      // Create different header styles based on level
+      if (headerLevel === 1) {
+        elements.push(
+          <h1
+            key={`h1-${index}`}
+            className="text-3xl font-bold text-gray-900 mt-8 mb-4"
+          >
+            {headerText}
+          </h1>
+        );
+      } else if (headerLevel === 2) {
+        elements.push(
+          <h2
+            key={`h2-${index}`}
+            className="text-2xl font-bold text-gray-900 mt-6 mb-3"
+          >
+            {headerText}
+          </h2>
+        );
+      } else {
+        elements.push(
+          <h3
+            key={`h3-${index}`}
+            className="text-xl font-bold text-gray-900 mt-6 mb-3"
+          >
+            {headerText}
+          </h3>
+        );
+      }
     }
     // Check if line contains **bold text**
     else if (trimmedLine.includes("**")) {
@@ -693,8 +718,6 @@ export default function StudentAssignments() {
         )
         .eq("student_id", user?.id);
 
-      console.log("Full response:", { data: enrollments, error });
-      console.log("Enrollments count:", enrollments?.length);
 
       if (error) throw error;
 
@@ -776,12 +799,14 @@ export default function StudentAssignments() {
     studentName: string,
     additionalNotes: string,
     fileContent: string,
-    fileUrl: string
+    fileUrl: string,
+    aiGeneratedContent: any
   ): Promise<any> => {
     const message = `Assignment Title: ${assignmentTitle}
 Student: ${studentName}
 Notes from student: ${additionalNotes || "None"}
 Assignment File URL: ${fileUrl}
+Assignment AI Generated Content: ${JSON.stringify(aiGeneratedContent, null, 2)}
 Assignment Text Content:
 ${fileContent}
 Please evaluate the assignment according to the assignment rubric, provide an overall grade and a rubric-based breakdown, and detailed feedback in JSON.`;
@@ -872,7 +897,8 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
         profile.full_name,
         additionalNotes,
         fileContent,
-        publicUrl
+        publicUrl,
+        selectedAssignment.ai_generated_content
       );
       // 4. Parse AI result
       const aiData = parseAIFeedback(aiResult);
@@ -881,32 +907,37 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
 
       const submissionId = uuidv4();
       const now = new Date().toISOString();
-      const { error: insertErr } = await supabase.from("submissions").insert([
-        {
-          id: submissionId,
-          assignment_id: selectedAssignment.id,
-          student_id: user.id,
-          script_url: publicUrl,
-          file_path: filePath,
-          file_name: selectedFile.name,
-          submission_date: now,
-          ai_feedback: aiData.ai_feedback,
-          grade: aiData.grade,
-          ai_grade: aiData.ai_grade,
-          ai_overall_grade: aiData.ai_overall_grade,
-          ai_strengths: aiData.ai_strengths,
-          ai_areas_for_improvement: aiData.ai_areas_for_improvement,
-          ai_recommendations: aiData.ai_recommendations,
-          ai_rubric_breakdown: aiData.ai_rubric_breakdown,
-          ai_academic_integrity: aiData.ai_academic_integrity,
-          ai_status: aiData.ai_status,
-          ai_red_flags: aiData.ai_red_flags,
-          ai_evaluation: aiData.ai_evaluation,
-          status: "submitted",
-          created_at: now,
-          updated_at: now,
-        },
-      ]);
+      
+      const submissionPayload = {
+        id: submissionId,
+        assignment_id: selectedAssignment.id,
+        student_id: user.id,
+        script_url: publicUrl,
+        file_path: filePath,
+        file_name: selectedFile.name,
+        submission_date: now,
+        ai_feedback: aiData.ai_feedback,
+        grade: aiData.grade,
+        ai_grade: aiData.ai_grade,
+        ai_overall_grade: aiData.ai_overall_grade,
+        ai_strengths: aiData.ai_strengths,
+        ai_areas_for_improvement: aiData.ai_areas_for_improvement,
+        ai_recommendations: aiData.ai_recommendations,
+        ai_rubric_breakdown: aiData.ai_rubric_breakdown,
+        ai_academic_integrity: aiData.ai_academic_integrity,
+        ai_status: aiData.ai_status,
+        ai_red_flags: aiData.ai_red_flags,
+        ai_evaluation: aiData.ai_evaluation,
+        status: "submitted",
+        created_at: now,
+        updated_at: now,
+      };
+      
+      console.log("SUBMISSION PAYLOAD:", JSON.stringify(submissionPayload, null, 2));
+      console.log("Assignment ai_generated_content:", selectedAssignment.ai_generated_content);
+      console.log("Additional notes from student:", additionalNotes);
+      
+      const { error: insertErr } = await supabase.from("submissions").insert([submissionPayload]);
       if (insertErr) throw insertErr;
       toast({
         title: "Assignment submitted! 🎉",
@@ -1255,7 +1286,7 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
                                   {getDifficultyBadge(assignment.difficulty)}
                                 </div>
                                 <p className="text-gray-600 mb-4 line-clamp-2">
-                                  {assignment.description}
+                                  {assignment.description || assignment.ai_generated_content}
                                 </p>
                                 <div className="flex items-center gap-6 text-sm">
                                   <div className="flex items-center gap-2">
@@ -1386,11 +1417,21 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
                   {/* Assignment Description with better formatting */}
                   {/* Assignment Description with better formatting */}
                   <div className="mb-6">
-                    <div className="bg-gray-50/50 rounded-xl p-6 border border-gray-100">
-                      {formatAssignmentDescription(
-                        selectedAssignment?.description || ""
-                      )}
-                    </div>
+                    {/* Basic Description */}
+                    {selectedAssignment?.description && (
+                      <div className="bg-gray-50/50 rounded-xl p-6 border border-gray-100 mb-4">
+                        <h3 className="text-lg font-semibold text-gray-800 mb-3">Assignment Overview</h3>
+                        {formatAssignmentDescription(selectedAssignment.description)}
+                      </div>
+                    )}
+                    
+                    {/* AI Generated Content - Detailed Assignment Brief */}
+                    {selectedAssignment?.ai_generated_content && (
+                      <div className="bg-blue-50/50 rounded-xl p-6 border border-blue-100">
+                        <h3 className="text-lg font-semibold text-blue-800 mb-3">Detailed Assignment Brief</h3>
+                        {formatAssignmentDescription(selectedAssignment.ai_generated_content)}
+                      </div>
+                    )}
 
                     {/* Due date and points */}
                     <div className="flex justify-between items-center mt-4 p-4 bg-white rounded-lg border border-gray-200">

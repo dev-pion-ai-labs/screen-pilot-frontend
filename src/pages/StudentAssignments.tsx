@@ -42,6 +42,7 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  Brain,
 } from "lucide-react";
 import { format, isAfter } from "date-fns";
 import { v4 as uuidv4 } from "uuid";
@@ -675,7 +676,7 @@ export default function StudentAssignments() {
   const [additionalNotes, setAdditionalNotes] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
-  const [sortBy, setSortBy] = useState<string>("due_date_nearest");
+  const [sortBy, setSortBy] = useState<string>("latest");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // --- Fetch assignments + submissions ---
@@ -1081,6 +1082,18 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
       ? Math.round((submittedCount / assignments.length) * 100)
       : 0;
 
+
+      const [dots, setDots] = useState('');
+
+      // Animated dots effect
+  useEffect(() => {
+    const dotsInterval = setInterval(() => {
+      setDots(prev => prev.length >= 3 ? '' : prev + '.');
+    }, 500);
+
+    return () => clearInterval(dotsInterval);
+  }, []);
+
   // --- Main render ---
   if (loading) {
     return (
@@ -1091,6 +1104,11 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
       </AuthGuard>
     );
   }
+
+
+  
+
+
 
   return (
     <AuthGuard allowedRoles={["student"]}>
@@ -1594,7 +1612,7 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
                         <div className="space-y-4">
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Upload File (Only TXT)
+                              Upload File (txt / pdf / docx)
                             </label>
                             <Input
                               ref={fileInputRef}
@@ -1640,41 +1658,53 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
                     )}
                 </div>
 
-                <DialogFooter className="flex gap-3 pt-4 border-t border-gray-100 mt-auto">
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setSubmitDialogOpen(false);
-                      setSelectedAssignment(null);
-                      resetSubmission();
-                    }}
-                    disabled={submissionStep === "submitting"}
-                    className="px-6 py-3 h-auto"
-                  >
-                    Close
-                  </Button>
+                <>
+  {/* Loading state above footer */}
+  {submissionStep === "submitting" && (
+    <div className="px-6 py-4 bg-blue-50 border-t border-blue-100">
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          <Loader2 className="animate-spin h-4 w-4 text-blue-600" />
+          <Brain className="animate-pulse h-4 w-4 text-indigo-600" />
+        </div>
+        <div>
+          <p className="font-medium text-blue-900 text-sm">
+            Processing Your Submission
+          </p>
+          <p className="text-xs text-blue-700">
+            Our AI agent is analyzing your work • Expected time: 30-90 seconds
+          </p>
+        </div>
+      </div>
+    </div>
+  )}
+  
+  {/* DialogFooter with consistent button sizes */}
+  <DialogFooter className="flex justify-between items-center gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
+    <Button
+      variant="outline"
+      onClick={() => {
+        setSubmitDialogOpen(false);
+        setSelectedAssignment(null);
+        resetSubmission();
+      }}
+      disabled={submissionStep === "submitting"}
+      className="px-4 py-2 h-auto text-sm" // Consistent small size
+    >
+      Close
+    </Button>
 
-                  {submissionStep === "upload" &&
-                    selectedFile &&
-                    submitDialogOpen && (
-                      <Button
-                        onClick={handleSubmitAssignment}
-                        className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 border-0 px-6 py-3 h-auto"
-                      >
-                        <Send className="h-4 w-4 mr-2" />
-                        Submit Assignment
-                      </Button>
-                    )}
-
-                  {submissionStep === "submitting" && (
-                    <div className="flex items-center gap-2 px-6 py-3">
-                      <Loader2 className="animate-spin h-5 w-5 text-blue-600" />
-                      <span className="font-medium">
-                        Submitting and evaluating...
-                      </span>
-                    </div>
-                  )}
-                </DialogFooter>
+    {submissionStep === "upload" && selectedFile && submitDialogOpen && (
+      <Button
+        onClick={handleSubmitAssignment}
+        className="flex items-center gap-2 px-4 py-2 h-auto text-sm bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 border-0"
+      >
+        <Send className="h-4 w-4" />
+        Submit Assignment
+      </Button>
+    )}
+  </DialogFooter>
+</>
               </DialogContent>
             </Dialog>
           </div>

@@ -108,12 +108,7 @@ interface AnalyticsData {
     students: number;
     avg_grade: number;
   }>;
-  systemHealth: {
-    server_uptime: number;
-    response_time: number;
-    error_rate: number;
-    active_sessions: number;
-  };
+  
 }
 
 const AdminDashboard = () => {
@@ -137,12 +132,7 @@ const AdminDashboard = () => {
     subjectPerformance: [],
     dailyActivity: [],
     teacherProductivity: [],
-    systemHealth: {
-      server_uptime: 99.9,
-      response_time: 150,
-      error_rate: 0.1,
-      active_sessions: 0,
-    },
+    
   });
 
   const [loading, setLoading] = useState(true);
@@ -476,12 +466,7 @@ const AdminDashboard = () => {
       teacherProductivity: teacherProductivity.filter(
         (tp) => tp.assignments > 0
       ),
-      systemHealth: {
-        server_uptime: 99.9,
-        response_time: Math.floor(Math.random() * 100) + 50,
-        error_rate: Math.random() * 0.5,
-        active_sessions: stats.activeUsers,
-      },
+      
     });
   };
 
@@ -532,26 +517,7 @@ const AdminDashboard = () => {
                   <p className="text-xl text-white/90 mb-6">
                     Complete system oversight and analytics
                   </p>
-                  <div className="flex items-center gap-6">
-                    <div className="flex items-center gap-2">
-                      <Shield className="h-5 w-5 text-blue-300" />
-                      <span className="font-medium">
-                        System Health: {analytics.systemHealth.server_uptime}%
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Database className="h-5 w-5 text-green-300" />
-                      <span className="font-medium">
-                        {stats.totalUsers} Users
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Server className="h-5 w-5 text-orange-300" />
-                      <span className="font-medium">
-                        {analytics.systemHealth.response_time}ms Response
-                      </span>
-                    </div>
-                  </div>
+                 
                 </div>
                 <div className="hidden lg:block">
                   <div className="w-32 h-32 bg-white/10 rounded-full flex items-center justify-center backdrop-blur-sm">
@@ -560,35 +526,7 @@ const AdminDashboard = () => {
                 </div>
               </div>
 
-              {/* Period Selection */}
-              <div className="mt-8 flex items-center gap-3">
-                <span className="text-white/80 text-sm font-medium">
-                  Time Period:
-                </span>
-                <div className="flex bg-white/20 rounded-lg backdrop-blur-sm">
-                  {["7d", "30d", "90d"].map((period) => (
-                    <Button
-                      key={period}
-                      variant={
-                        selectedPeriod === period ? "secondary" : "ghost"
-                      }
-                      size="sm"
-                      onClick={() => setSelectedPeriod(period)}
-                      className={
-                        selectedPeriod === period
-                          ? "bg-white text-purple-600 hover:bg-white/90"
-                          : "text-white hover:bg-white/20"
-                      }
-                    >
-                      {period === "7d"
-                        ? "7 Days"
-                        : period === "30d"
-                        ? "30 Days"
-                        : "90 Days"}
-                    </Button>
-                  ))}
-                </div>
-              </div>
+              
             </div>
             <div className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full -translate-y-48 translate-x-48"></div>
             <div className="absolute bottom-0 left-0 w-64 h-64 bg-white/5 rounded-full translate-y-32 -translate-x-32"></div>
@@ -741,67 +679,7 @@ const AdminDashboard = () => {
 
             <TabsContent value="overview" className="space-y-6">
               {/* System Health Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <Card className="border-0 shadow-lg bg-gradient-to-br from-green-50 to-green-100">
-                  <CardContent className="p-6 text-center">
-                    <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-3">
-                      <Server className="h-6 w-6 text-white" />
-                    </div>
-                    <h3 className="font-semibold text-green-900 mb-1">
-                      Server Uptime
-                    </h3>
-                    <p className="text-2xl font-bold text-green-600">
-                      {analytics.systemHealth.server_uptime}%
-                    </p>
-                    <p className="text-sm text-green-700">Last 30 days</p>
-                  </CardContent>
-                </Card>
-
-                <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-50 to-blue-100">
-                  <CardContent className="p-6 text-center">
-                    <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center mx-auto mb-3">
-                      <Activity className="h-6 w-6 text-white" />
-                    </div>
-                    <h3 className="font-semibold text-blue-900 mb-1">
-                      Response Time
-                    </h3>
-                    <p className="text-2xl font-bold text-blue-600">
-                      {analytics.systemHealth.response_time}ms
-                    </p>
-                    <p className="text-sm text-blue-700">Average response</p>
-                  </CardContent>
-                </Card>
-
-                <Card className="border-0 shadow-lg bg-gradient-to-br from-orange-50 to-orange-100">
-                  <CardContent className="p-6 text-center">
-                    <div className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center mx-auto mb-3">
-                      <AlertTriangle className="h-6 w-6 text-white" />
-                    </div>
-                    <h3 className="font-semibold text-orange-900 mb-1">
-                      Error Rate
-                    </h3>
-                    <p className="text-2xl font-bold text-orange-600">
-                      {analytics.systemHealth.error_rate.toFixed(2)}%
-                    </p>
-                    <p className="text-sm text-orange-700">Last 24 hours</p>
-                  </CardContent>
-                </Card>
-
-                <Card className="border-0 shadow-lg bg-gradient-to-br from-purple-50 to-purple-100">
-                  <CardContent className="p-6 text-center">
-                    <div className="w-12 h-12 bg-purple-500 rounded-full flex items-center justify-center mx-auto mb-3">
-                      <Users className="h-6 w-6 text-white" />
-                    </div>
-                    <h3 className="font-semibold text-purple-900 mb-1">
-                      Active Sessions
-                    </h3>
-                    <p className="text-2xl font-bold text-purple-600">
-                      {analytics.systemHealth.active_sessions}
-                    </p>
-                    <p className="text-sm text-purple-700">Current users</p>
-                  </CardContent>
-                </Card>
-              </div>
+              
 
               {/* Daily Activity Chart */}
               <Card className="border-0 shadow-lg">
@@ -1231,22 +1109,7 @@ const AdminDashboard = () => {
                   </CardContent>
                 </Card>
 
-                <Card className="border-0 shadow-lg bg-gradient-to-br from-orange-50 to-amber-50">
-                  <CardContent className="p-6 text-center">
-                    <div className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center mx-auto mb-3">
-                      <Clock className="h-6 w-6 text-white" />
-                    </div>
-                    <h3 className="font-semibold text-orange-900 mb-1">
-                      Avg. Response
-                    </h3>
-                    <p className="text-2xl font-bold text-orange-600">
-                      {analytics.systemHealth.response_time}ms
-                    </p>
-                    <p className="text-sm text-orange-700">
-                      System performance
-                    </p>
-                  </CardContent>
-                </Card>
+                
               </div>
 
               {/* Top Performers */}

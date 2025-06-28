@@ -1,61 +1,189 @@
-
-
-
 "use client"
 
 import type React from "react"
 
-import { useState, useEffect, useRef, useCallback } from "react"
-import { Link } from "react-router-dom"
+import { useState, useEffect } from "react"
 import { useAuth } from "@/hooks/useAuth"
 import { AuthGuard } from "@/components/AuthGuard"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
-import { Textarea } from "@/components/ui/textarea"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Badge } from "@/components/ui/badge"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Label } from "@/components/ui/label"
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Textarea } from "@/components/ui/textarea"
 import { supabase } from "@/integrations/supabase/client"
 import {
-  BookOpen,
   Users,
-  FileText,
   Plus,
   Sparkles,
-  Calendar,
+  Calendar as CalendarIcon,
   Target,
   GraduationCap,
-  Clock,
-  User,
   Loader2,
-  Paperclip,
-  ArrowUp,
-  TrendingUp,
   CheckCircle,
+  BookOpen,
+  Clock,
+  ArrowRight,
+  FileText,
+  Save,
+  UserPlus,
+  Edit3,
+  RotateCcw,
+  Eye,
+  MessageSquare,
   AlertCircle,
+  RefreshCw,
 } from "lucide-react"
 import { format } from "date-fns"
 import { ModernDashboardLayout } from "@/components/ModernDashboardLayout"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 
-interface Assignment {
-  id: string
-  title: string
-  description: string
-  due_date: string
-  submissions: any[]
+// Semester syllabus data
+const semester1Syllabus = { 
+  introductionToDirection: { 
+    topic: "Introduction to Direction", 
+    subtopics: [ 
+      "Film Analysis", 
+      "Different Approaches to Shooting and Types of Films", 
+      "Case Studies of Filmmakers and Their Approach", 
+      "Case Studies of Filmmakers in Historical Perspective", 
+      "Writing an Actuality Report", 
+      "Film Diary (Analysis of Films, Directors, Scripts, Thoughts, Ideas/Stories, Scenes, Photographs)", 
+    ], 
+  }, 
+  visualStorytellingAndCollaboration: { 
+    topic: "Visual Storytelling and Collaboration", 
+    subtopics: [ 
+      "Introduction to Visual Storytelling (Composition, Cutting, Closeup, Continuity, Camera Angles)", 
+      "Recreating a Painting", 
+      "Collaboration with Camera, Editing, and Sound", 
+      "Turning Actualities into Stories (Writing Based on Observations)", 
+      "Trip to a Closed Public Space (e.g., Library, Museum)", 
+      "Trip to an Open Public Space (e.g., Park, Marketplace, Bus Stop)", 
+    ], 
+  }, 
+  principlesOfContinuity: { 
+    topic: "Principles of Continuity", 
+    subtopics: [ 
+      "Decoupage (Script Breakdown) and Continuity Planning", 
+      "Aspects of Continuity in Films", 
+      "Understanding Time and Space in Films", 
+      "Scene Analysis of Classical Hollywood Films and Contemporary Films", 
+    ], 
+  }, 
+  conceptIdeationAndResearch: { 
+    topic: "Concept, Ideation & Research", 
+    subtopics: [ 
+      "Types of Stories", 
+      "Developing a Concept for a Film", 
+      "Usage of VFX Elements in Storytelling", 
+      "Oral Narrative Skills (Storytelling Practice)", 
+      "Creative Writing: Personal Memoir, Descriptive Writing", 
+      "Reading and Analysis of Short Stories", 
+    ], 
+  }, 
+  theoriesAndFormatsOfScriptwriting: { 
+    topic: "Theories and Formats of Scriptwriting", 
+    subtopics: [ 
+      "History of Storytelling", 
+      "Overview of Screenplay Writing Process", 
+      "Elements of a Screenplay (Premise, Plot, Treatment, Characters, Conflict)", 
+      "Screenwriting Software Introduction", 
+      "Introduction to Story Structures (Three-Act Structure, Five-Act Structure)", 
+      "Creating Simple Screenplays using the Three-Act Structure", 
+    ], 
+  } 
 }
 
-interface Message {
-  id: string
-  type: "user" | "agent"
-  content: string
-  timestamp: Date
-  isError?: boolean
-  isFile?: boolean
-  fileName?: string
-  fileSize?: number
-  aiResponse?: any
+const semester2Syllabus = {
+  stagingAndBlocking: {
+    topic: "Staging and Blocking",
+    subtopics: [
+      "Understanding the Concept of Staging and Blocking",
+      "Types of Staging and Blocking",
+      "Usage of Props and Space",
+      "I, A, L, C, S Patterns",
+      "Blocking for VFX",
+    ],
+  },
+  workingWithActors: {
+    topic: "Working with Actors",
+    subtopics: [
+      "Staging a Scene with Actors",
+      "Exercise on Improvisation",
+      "Styles of Acting",
+      "Difference between Stage and Film Acting",
+      "Working with Virtual/Digital Actors: Possibilities & Limitations",
+    ],
+  },
+  sceneAnalysis: {
+    topic: "Scene Analysis",
+    subtopics: [
+      "Dialogue – Acting – Composition – Staging and Blocking",
+      "Use of Visualization Tools like Traditional/Digital Storyboards",
+      "Using AI Tools for Mood Boards",
+    ],
+  },
+  dialogueWritingAndStoryStructures: {
+    topic: "Dialogue Writing & Story Structures",
+    subtopics: [
+      "Dialogue, Monologue and Conversation",
+      "Types of Dialogue",
+      "Writing Effective Dialogue",
+      "Dialogue Through Observation",
+      "Dialogue in a Situation",
+      "Story Structures II (Hero's Journey, Dan Harmon Story Circle)",
+      "Creating Effective Story Conflicts",
+    ],
+  },
+  rhythmAndPace: {
+    topic: "Rhythm and Pace",
+    subtopics: [
+      "Usage of Edit, Sound, and BGM from the Director's Point of View",
+      "Tonalities of Dialogue",
+      "Space and Action Dynamics",
+    ],
+  },
+}
+
+// API configurations for each semester
+const semester1Config = {
+  agent: {
+    endpoint: "https://api-d7b62b.stack.tryrelevance.com/latest/agents/trigger",
+    authorization: "5cc7752400a6-4648-b47b-04fc92b47cae:sk-NDFiZmEyM2YtOWM4NC00NmY0LTkxNDQtN2NiMTVmMGRkYzU0",
+    agent_id: "714816ed-a5ad-480d-acb9-4d67dd17ff70",
+  },
+  tools: {
+    generateAssignment: {
+      endpoint:
+        "https://api-d7b62b.stack.tryrelevance.com/latest/studios/01eebbab-522a-4c36-9baa-bc97bc7d2e89/trigger_webhook?project=5cc7752400a6-4648-b47b-04fc92b47cae",
+      authorization:
+        "5cc7752400a6-4648-b47b-04fc92b47cae:sk-YmMyYmU0ZmUtOTMwNi00YjA1LWE2NDUtZjQ1N2ExYjk2MTgw",
+    },
+  },
+  region: "d7b62b",
+  project: "5cc7752400a6-4648-b47b-04fc92b47cae",
+}
+
+const semester2Config = {
+  agent: {
+    endpoint: "https://api-d7b62b.stack.tryrelevance.com/latest/agents/trigger",
+    authorization: "5cc7752400a6-4648-b47b-04fc92b47cae:sk-OWVlZmZiMmQtYzQyMy00YWJlLTg1MTYtMmRmN2ZiNzdmMGQy",
+    agent_id: "94336a05-ebcd-4171-8ba7-9e1477e1f35e",
+  },
+  tools: {
+    generateAssignment: {
+      endpoint:
+        "https://api-d7b62b.stack.tryrelevance.com/latest/studios/e84887f3-baab-47ff-9b70-333d44c705a3/trigger_webhook?project=5cc7752400a6-4648-b47b-04fc92b47cae",
+      authorization:
+        "5cc7752400a6-4648-b47b-04fc92b47cae:sk-NGI5MzQ2NTAtYTk3Mi00OTg0LWE3MmMtMDVkMGMzMzZiOGE3",
+    },
+  },
+  region: "d7b62b",
+  project: "5cc7752400a6-4648-b47b-04fc92b47cae",
 }
 
 interface Profile {
@@ -68,7 +196,6 @@ interface Profile {
   updated_at: string;
 }
 
-// Add these interfaces at the top with other interfaces
 interface Class {
   id: string;
   name: string;
@@ -81,54 +208,81 @@ interface TeacherClass extends Class {
   student_count?: number;
 }
 
+interface GeneratedAssignment {
+  title: string;
+  topic: string;
+  content: string;
+  revisionHistory: Array<{
+    version: number;
+    content: string;
+    revisionRequest?: string;
+    timestamp: Date;
+  }>;
+}
 
-const ClassSelectionCard = ({ classItem, isSelected, onSelect, studentCount }) => (
+// Assignment workflow states
+type WorkflowState = 
+  | 'form' 
+  | 'generating' 
+  | 'reviewing' 
+  | 'requesting-changes' 
+  | 'regenerating' 
+  | 'saving' 
+  | 'enrolling' 
+  | 'complete'
+
+const ClassCard = ({ classItem, isSelected, onSelect, studentCount }) => (
   <Card 
     className={cn(
-      "cursor-pointer transition-all hover:shadow-lg relative",
+      "cursor-pointer transition-all duration-200 hover:shadow-md group relative overflow-hidden",
       isSelected 
-        ? "border-2 border-purple-500 bg-purple-50 shadow-lg" 
-        : "border hover:border-purple-300"
+        ? "ring-2 ring-purple-500 bg-gradient-to-br from-purple-50 to-blue-50 shadow-lg transform scale-[1.02]" 
+        : "hover:ring-1 hover:ring-purple-300 bg-white"
     )}
     onClick={() => onSelect(classItem)}
   >
     {isSelected && (
-      <div className="absolute -top-2 -right-2 bg-purple-500 rounded-full p-1">
+      <div className="absolute top-3 right-3 bg-purple-500 rounded-full p-1.5">
         <CheckCircle className="h-4 w-4 text-white" />
       </div>
     )}
     
-    <CardHeader className="flex flex-row items-center justify-between pb-2">
-      <CardTitle className={cn(
-        "text-lg font-medium",
-        isSelected ? "text-purple-700" : ""
-      )}>
-        {classItem.name}
-      </CardTitle>
-      <Badge variant={isSelected ? "default" : "secondary"}>
-        Sem {classItem.semester}
-      </Badge>
-    </CardHeader>
-    
-    <CardContent>
-      <div className="flex items-center justify-between text-sm">
-        <div className="flex items-center gap-2">
-          <Users className={cn(
-            "h-4 w-4",
-            isSelected ? "text-purple-600" : "text-gray-500"
-          )} />
-          <span className={isSelected ? "text-purple-700" : ""}>
-            {studentCount || 0} Students
-          </span>
+    <CardContent className="p-6">
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex-1">
+          <h3 className={cn(
+            "text-lg font-semibold mb-2 transition-colors",
+            isSelected ? "text-purple-700" : "text-gray-900 group-hover:text-purple-600"
+          )}>
+            {classItem.name}
+          </h3>
+          <div className="flex items-center gap-3">
+            <Badge 
+              variant={isSelected ? "default" : "secondary"}
+              className={cn(
+                "font-medium",
+                isSelected && "bg-purple-600 hover:bg-purple-700"
+              )}
+            >
+              <GraduationCap className="h-3 w-3 mr-1" />
+              Semester {classItem.semester}
+            </Badge>
+            <div className="flex items-center gap-1 text-sm text-gray-600">
+              <Users className="h-4 w-4" />
+              <span>{studentCount || 0} Students</span>
+            </div>
+          </div>
         </div>
-        <span className="text-xs text-gray-500">
-          Created {new Date(classItem.created_at).toLocaleDateString()}
-        </span>
+      </div>
+      
+      <div className="text-xs text-gray-500">
+        Created {new Date(classItem.created_at).toLocaleDateString()}
       </div>
       
       {isSelected && (
-        <div className="mt-2 text-xs text-purple-600 font-medium">
-          ✓ Selected for assignment creation
+        <div className="mt-3 flex items-center gap-2 text-sm text-purple-600 font-medium">
+          <CheckCircle className="h-4 w-4" />
+          Selected for assignment creation
         </div>
       )}
     </CardContent>
@@ -138,10 +292,6 @@ const ClassSelectionCard = ({ classItem, isSelected, onSelect, studentCount }) =
 const isSafari = () => {
   const ua = navigator.userAgent.toLowerCase()
   return ua.indexOf("safari") !== -1 && ua.indexOf("chrome") === -1
-}
-
-const isIOS = () => {
-  return /iPad|iPhone|iPod/.test(navigator.userAgent)
 }
 
 const safeFetch = (url: string, options: RequestInit): Promise<Response> => {
@@ -163,7 +313,7 @@ const safeFetch = (url: string, options: RequestInit): Promise<Response> => {
 }
 
 const smartDelay = (ms: number): Promise<void> => {
-  const delayTime = isSafari() || isIOS() ? ms * 1.5 : ms
+  const delayTime = isSafari() ? ms * 1.5 : ms
   return new Promise((resolve) => {
     if (typeof requestAnimationFrame !== "undefined") {
       let start: number
@@ -182,603 +332,182 @@ const smartDelay = (ms: number): Promise<void> => {
   })
 }
 
-const RELEVANCE_CONFIG = {
-  agent: {
-    endpoint: "https://api-d7b62b.stack.tryrelevance.com/latest/agents/trigger",
-    authorization: "5cc7752400a6-4648-b47b-04fc92b47cae:sk-NmM2YzQ1N2ItM2Q0ZC00NTQ3LTg2YzYtZTU4NjQ3ODkxYWVj",
-    agent_id: "42219033-a9cd-4dca-97b2-a1f2c73ebb64",
-  },
-  tools: {
-    generateAssignment: {
-      endpoint:
-        "https://api-d7b62b.stack.tryrelevance.com/latest/studios/01eebbab-522a-4c36-9baa-bc97bc7d2e89/trigger_webhook",
-      authorization: "5cc7752400a6-4648-b47b-04fc92b47cae:sk-OTliYjJlMGMtOTEzOC00MTQwLTlhN2QtZmQzZDI2ZTUzOWU1",
-    },
-    runPythonCode: {
-      endpoint:
-        "https://api-d7b62b.stack.tryrelevance.com/latest/studios/e43078da-1071-4681-8677-02b2cb1d77cf/trigger_webhook",
-      authorization: "5cc7752400a6-4648-b47b-04fc92b47cae:sk-MTY3NWNhYmYtOWEwNi00ZjVkLWJjYmEtNjY1OWE1MTA4MmY4",
-    },
-  },
-  region: "d7b62b",
-  project: "5cc7752400a6-4648-b47b-04fc92b47cae",
-}
-
 export default function CreateAssignment() {
   const { profile } = useAuth()
   const { toast } = useToast()
-  const [assignments, setAssignments] = useState<Assignment[]>([])
   const [loading, setLoading] = useState(true)
-  const [currentTime, setCurrentTime] = useState(new Date())
+  const [workflowState, setWorkflowState] = useState<WorkflowState>('form')
 
-  // Chat state with improvements
-  const [messages, setMessages] = useState<Message[]>([])
-  const [inputMessage, setInputMessage] = useState<string>("")
-  const [isLoading, setIsLoading] = useState<boolean>(false)
-  const [conversationId, setConversationId] = useState<string | null>(null)
-
-  // New state for preventing loops and duplicates
-  const [processedMessageIds, setProcessedMessageIds] = useState<Set<string>>(new Set())
-  const [lastRequestTime, setLastRequestTime] = useState<number>(0)
-  const [isProcessing, setIsProcessing] = useState<boolean>(false)
-
+  // Form state
+  const [classes, setClasses] = useState<TeacherClass[]>([])
+  const [selectedClass, setSelectedClass] = useState<TeacherClass | null>(null)
+  const [selectedTopic, setSelectedTopic] = useState<string>("")
+  const [selectedSubtopic, setSelectedSubtopic] = useState<string>("")
+  const [dueDate, setDueDate] = useState<Date | undefined>(undefined)
+  const [availableTopics, setAvailableTopics] = useState<any>({})
+  const [availableSubtopics, setAvailableSubtopics] = useState<string[]>([])
   
-  const [currentTopic, setCurrentTopic] = useState<string | null>(null)
-  const [currentDueDate, setCurrentDueDate] = useState<string | null>(null)
+  // Assignment workflow state
+  const [currentAssignment, setCurrentAssignment] = useState<GeneratedAssignment | null>(null)
+  const [revisionRequest, setRevisionRequest] = useState<string>("")
+  const [finalAssignmentId, setFinalAssignmentId] = useState<string | null>(null)
 
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-
-  // Add these state declarations with other state variables
-const [classes, setClasses] = useState<TeacherClass[]>([])
-const [selectedClass, setSelectedClass] = useState<TeacherClass | null>(null)
-
-  // Constants for rate limiting
-  const MIN_REQUEST_INTERVAL = 2000 // 2 seconds
-  const MAX_MESSAGE_LENGTH = 4000
+  // Calendar state
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false)
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date())
-    }, 60000)
-    return () => clearInterval(timer)
+    fetchTeacherClasses()
   }, [])
 
+  // Update available topics when class is selected
   useEffect(() => {
-     fetchTeacherClasses()
-    fetchAssignments()
-  }, [])
-
-  useEffect(() => {
-    const welcomeMessage: Message = {
-      id: `welcome_${Date.now()}`,
-      type: "agent",
-      content: `Welcome to AI Assistant Manager, your intelligent teaching companion!
-
-I can help you with:
-• Generating custom assignments and exercises
-• Creating lesson plans and educational materials
-• Running Python code for demonstrations
-• Managing classroom activities and resources
-• Providing teaching suggestions and best practices
-
-Ask me anything or upload files to get started with your teaching tasks.`,
-      timestamp: new Date(),
+    if (selectedClass) {
+      const syllabus = selectedClass.semester === 1 ? semester1Syllabus : semester2Syllabus
+      setAvailableTopics(syllabus)
+      setSelectedTopic("")
+      setSelectedSubtopic("")
+      setAvailableSubtopics([])
     }
+  }, [selectedClass])
 
-    setMessages([welcomeMessage])
-  }, [])
+  // Update available subtopics when topic is selected
+  useEffect(() => {
+    if (selectedTopic && availableTopics[selectedTopic]) {
+      setAvailableSubtopics(availableTopics[selectedTopic].subtopics)
+      setSelectedSubtopic("")
+    }
+  }, [selectedTopic, availableTopics])
 
-  const fetchAssignments = async () => {
+  const fetchTeacherClasses = async () => {
     try {
-      const { data: assignmentsData } = await supabase
-        .from("assignments")
+      const { data: classesData, error } = await supabase
+        .from('class_teachers')
         .select(`
-          *,
-          submissions(*)
+          class_id,
+          classes:class_id (
+            id,
+            name,
+            semester,
+            created_at,
+            updated_at
+          )
         `)
-        .eq("teacher_id", (profile as Profile)?.id)
-        .order("created_at", { ascending: false })
+        .eq('teacher_id', (profile as Profile)?.id)
 
-      setAssignments(assignmentsData || [])
+      if (error) throw error
+
+      const classesWithCount = await Promise.all(
+        classesData.map(async (item) => {
+          const { count } = await supabase
+            .from('class_students')
+            .select('*', { count: 'exact', head: true })
+            .eq('class_id', item.class_id)
+
+          return {
+            ...item.classes,
+            student_count: count
+          }
+        })
+      )
+
+      setClasses(classesWithCount)
     } catch (error) {
-      console.error("Error fetching assignments:", error)
+      console.error('Error fetching classes:', error)
+      toast({
+        title: "Error",
+        description: "Failed to load classes",
+        variant: "destructive"
+      })
     } finally {
       setLoading(false)
     }
   }
 
-
-  // Add this function near other fetch functions
-const fetchTeacherClasses = async () => {
-  try {
-    const { data: classesData, error } = await supabase
-      .from('class_teachers')
-      .select(`
-        class_id,
-        classes:class_id (
-          id,
-          name,
-          semester,
-          created_at,
-          updated_at
-        )
-      `)
-      .eq('teacher_id', (profile as Profile)?.id)
-
-    if (error) throw error
-
-    // Get student count for each class
-    const classesWithCount = await Promise.all(
-      classesData.map(async (item) => {
-        const { count } = await supabase
-          .from('class_students')
-          .select('*', { count: 'exact', head: true })
-          .eq('class_id', item.class_id)
-
-        return {
-          ...item.classes,
-          student_count: count
-        }
-      })
-    )
-
-    setClasses(classesWithCount)
-  } catch (error) {
-    console.error('Error fetching classes:', error)
-    toast({
-      title: "Error",
-      description: "Failed to load classes",
-      variant: "destructive"
-    })
-  }
-}
-
-  // Function to parse assignment data from AI response
-  const parseAssignmentFromResponse = (content: string,  topic: string | null, dueDate: string | null) => {
-    console.log('🔍 Parsing assignment with parameters:', {
-      content: content.substring(0, 100) + '...',
-      
-      topic,
-      dueDate
+  const callRelevanceAgent = async (message: string, config: any): Promise<any> => {
+    console.log("🚀 Calling Relevance Agent with:", {
+      message,
+      agent_id: config.agent.agent_id,
+      endpoint: config.agent.endpoint
     })
 
-    let title = ''
-    let description = content
-    let parsedDueDate = dueDate
-
-    // Extract title with more flexible patterns
-    const titlePatterns = [
-      /\*\*ASSIGNMENT TITLE\*\*:\s*(.+?)(?:\n|$)/i,
-      /ASSIGNMENT TITLE:\s*(.+?)(?:\n|$)/i,
-      /Assignment Title:\s*(.+?)(?:\n|$)/i,
-      /Title:\s*(.+?)(?:\n|$)/i
-    ]
-
-    for (const pattern of titlePatterns) {
-      const match = content.match(pattern)
-      if (match) {
-        title = match[1].trim()
-        console.log('📝 Found title:', title)
-        break
-      }
+    const payload = {
+      message: { role: "user", content: message },
+      agent_id: config.agent.agent_id,
     }
 
-    // Extract description with more flexible patterns
-    const descPatterns = [
-      /\*\*ASSIGNMENT DESCRIPTION\*\*:\s*([\s\S]*?)(?:\*\*DUE DATE\*\*|$)/i,
-      /ASSIGNMENT DESCRIPTION:\s*([\s\S]*?)(?:DUE DATE|$)/i,
-      /Assignment Description:\s*([\s\S]*?)(?:Due Date|$)/i
-    ]
-
-    for (const pattern of descPatterns) {
-      const match = content.match(pattern)
-      if (match) {
-        description = match[1].trim()
-        console.log('📄 Found description length:', description.length)
-        break
-      }
-    }
-
-    // Extract due date from content if not already set
-    const dueDatePatterns = [
-      /\*\*DUE DATE\*\*:\s*(.+?)(?:\n|$)/i,
-      /DUE DATE:\s*(.+?)(?:\n|$)/i,
-      /Due Date:\s*(.+?)(?:\n|$)/i
-    ]
-
-    for (const pattern of dueDatePatterns) {
-      const match = content.match(pattern)
-      if (match && !parsedDueDate) {
-        parsedDueDate = match[1].trim()
-        console.log('📅 Found due date in content:', parsedDueDate)
-        break
-      }
-    }
-
-    // Format the due date if it exists
-    let formattedDueDate = null
-    if (parsedDueDate) {
-      try {
-        // Handle DD/MM/YYYY format
-        const [day, month, year] = parsedDueDate.split(/[\/\-]/).map(num => parseInt(num, 10))
-        if (day && month && year) {
-          // Create date with proper month (0-based index)
-          const date = new Date(year, month - 1, day)
-          if (!isNaN(date.getTime())) {
-            formattedDueDate = date.toISOString()
-            console.log('📅 Formatted due date:', formattedDueDate)
-          } else {
-            console.log('⚠️ Invalid date values:', { day, month, year })
-          }
-        } else {
-          console.log('⚠️ Invalid date format:', parsedDueDate)
-        }
-      } catch (error) {
-        console.error('❌ Error formatting date:', error)
-      }
-    }
-
-    // Ensure we have a valid due date
-    if (!formattedDueDate) {
-      // Set a default due date (30 days from now) if none provided
-      const defaultDate = new Date()
-      defaultDate.setDate(defaultDate.getDate() + 30)
-      formattedDueDate = defaultDate.toISOString()
-      console.log('📅 Using default due date:', formattedDueDate)
-    }
-
-   
-    const result = {
-      title: title || 'AI Generated Assignment',
-      description,
-      dueDate: formattedDueDate,
-      
-      topic: topic || '',
-      aiGeneratedContent: content
-    }
-
-    console.log('✅ Final parsed assignment data:', result)
-    return result
-  }
-
-  // Function to save assignment to database
-// Fixed saveAssignmentToDatabase function
-const saveAssignmentToDatabase = async (assignmentData: any) => {
-  try {
-    // Check if class is selected - throw error instead of silent return
-    if (!selectedClass) {
-      const error = new Error("No class selected. Please select a class to create an assignment.");
-      console.error('❌ No class selected for assignment creation');
-      toast({
-        title: "No Class Selected",
-        description: "Please select a class to create an assignment",
-        variant: "destructive"
-      });
-      throw error; // Throw error instead of returning
-    }
-
-    console.log('💾 Saving assignment with data:', assignmentData);
-    console.log('📚 Selected class:', selectedClass);
-
-    const { data, error } = await supabase
-      .from('assignments')
-      .insert([
-        {
-          title: assignmentData.title,
-          description: assignmentData.description,
-          teacher_id: (profile as Profile)?.id,
-          class_id: selectedClass.id,
-          semester: selectedClass.semester,
-          topic: assignmentData.topic,
-          due_date: assignmentData.dueDate,
-          total_points: 100,
-          difficulty: 'medium',
-          ai_generated_content: assignmentData.aiGeneratedContent,
-          status: 'published'
-        }
-      ])
-      .select()
-      .single()
-
-    if (error) {
-      console.error('❌ Database error:', error);
-      throw error;
-    }
-
-    console.log('✅ Assignment created successfully:', data);
-
-    // Create assignment enrollments for all students in the class
-    const { data: students, error: studentsError } = await supabase
-      .from('class_students')
-      .select('student_id')
-      .eq('class_id', selectedClass.id)
-
-    if (studentsError) {
-      console.error('⚠️ Error fetching students:', studentsError);
-      throw studentsError;
-    }
-
-    if (students && students.length > 0) {
-      const enrollments = students.map(student => ({
-        assignment_id: data.id,
-        student_id: student.student_id,
-        status: 'assigned',
-        assigned_at: new Date().toISOString()
-      }));
-
-      const { error: enrollmentError } = await supabase
-        .from('assignment_enrollments')
-        .insert(enrollments)
-
-      if (enrollmentError) {
-        console.error('⚠️ Error creating enrollments:', enrollmentError);
-        throw enrollmentError;
-      }
-
-      console.log('✅ Assignment enrollments created for', students.length, 'students');
-    }
-
-    toast({
-      title: "Assignment Created Successfully!",
-      description: `Assignment has been created and assigned to ${students?.length || 0} students in ${selectedClass.name}.`
-    });
-
-    // Refresh assignments list
-    fetchAssignments();
-    return data;
-    
-  } catch (error) {
-    console.error('❌ Error saving assignment:', error);
-    toast({
-      title: "Error",
-      description: error instanceof Error ? error.message : "Failed to save assignment. Please try again.",
-      variant: "destructive"
-    });
-    throw error; // Re-throw to let calling code handle it
-  }
-}
-
-  // Function to detect if response contains a complete assignment
-  const isCompleteAssignment = (content: string) => {
-    console.log('Checking if complete assignment:', content.substring(0, 200))
-
-    const hasTitle = /\*\*ASSIGNMENT TITLE\*\*|ASSIGNMENT TITLE|Assignment Title/i.test(content)
-    const hasDescription = /\*\*ASSIGNMENT DESCRIPTION\*\*|ASSIGNMENT DESCRIPTION|Assignment Description/i.test(content)
-    const hasDueDate = /\*\*DUE DATE\*\*|DUE DATE|Due Date/i.test(content) || currentDueDate
-
-    const isComplete = hasTitle && hasDescription && hasDueDate
-    console.log('Assignment completeness check:', { hasTitle, hasDescription, hasDueDate, isComplete })
-
-    return isComplete
-  }
-
-  
-
-  // Function to extract topic from message
-  const extractTopicFromMessage = (message: string) => {
-    const topicPatterns = [
-      /film and society part \d+/i,
-      /introduction to direction & screenwriting part \d+/i,
-      /film and society/i,
-      /direction.*screenwriting/i
-    ]
-
-    for (const pattern of topicPatterns) {
-      const match = message.match(pattern)
-      if (match) {
-        return match[0]
-      }
-    }
-    return null
-  }
-
-  // Function to extract due date from message
-  const extractDueDateFromMessage = (message: string) => {
-    console.log('🔍 Starting due date extraction from message:', message)
-
-    const datePatterns = [
-      /(\d{1,2})\/(\d{1,2})\/(\d{4})/,
-      /(\d{1,2})-(\d{1,2})-(\d{4})/,
-      /(\d{4})-(\d{1,2})-(\d{1,2})/
-    ]
-
-    console.log('📅 Testing date patterns:', datePatterns)
-
-    for (const pattern of datePatterns) {
-      const match = message.match(pattern)
-      console.log('🔎 Testing pattern:', pattern, 'Match result:', match)
-
-      if (match) {
-        console.log('✅ Found matching date:', match[0])
-        return match[0]
-      }
-    }
-
-    console.log('❌ No date pattern matched in message')
-    return null
-  }
-
-  const scrollToBottom = (): void => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }
-
-  useEffect(() => {
-    scrollToBottom()
-  }, [messages])
-
-  // Utility functions
-  
- 
-
-  // Message validation
-  const isValidMessage = (content: string): boolean => {
-    return content.trim().length > 0 && content.trim().length <= MAX_MESSAGE_LENGTH
-  }
-
-  // Generate unique message ID
-  const generateMessageId = (prefix: string): string => {
-    return `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-  }
-
-  // Process agent response with better error handling
-  const processAgentResponse = (content: any): string => {
-    if (typeof content === "string") {
-      return content.trim()
-    }
-
-    if (typeof content === "object" && content !== null) {
-      // Handle nested output structures
-      if (content.output && content.output.answer) {
-        return String(content.output.answer).trim()
-      }
-      if (content.answer) return String(content.answer).trim()
-      if (content.response) return String(content.response).trim()
-      if (content.result) return String(content.result).trim()
-      if (content.text) return String(content.text).trim()
-      if (content.message) return String(content.message).trim()
-      if (content.output && typeof content.output === "string") {
-        return content.output.trim()
-      }
-
-      // Check for other common response patterns
-      if (content.data && typeof content.data === "string") {
-        return content.data.trim()
-      }
-
-      // Avoid returning raw JSON unless it's a structured response
-      const jsonStr = JSON.stringify(content, null, 2)
-      if (jsonStr.length < 500) {
-        return `Response: ${jsonStr}`
-      }
-
-      return "Task completed successfully."
-    }
-
-    const result = String(content || "Task completed.").trim()
-    return result.length > 0 ? result : "Response received."
-  }
-
-  // Enhanced API call with better error handling and conversation ID extraction
-  const callRelevanceAgent = async (message: string, conversationId: string | null = null): Promise<any> => {
-    if (!message || message.trim().length === 0) {
-      throw new Error("Message cannot be empty")
-    }
-
-    const cleanMessage = message.trim()
-    if (cleanMessage.length > MAX_MESSAGE_LENGTH) {
-      throw new Error("Message too long")
-    }
-
-    const payload: any = {
-      message: { role: "user", content: cleanMessage },
-      agent_id: RELEVANCE_CONFIG.agent.agent_id,
-    }
-
-    // Only include conversation_id if it's valid and not empty
-    if (conversationId && conversationId.trim().length > 0) {
-      payload.conversation_id = conversationId.trim()
-    }
-
-    console.log("Sending payload:", JSON.stringify(payload, null, 2))
+    console.log("📤 Sending payload:", JSON.stringify(payload, null, 2))
 
     try {
       const fetchFunction = isSafari() ? safeFetch : fetch
-      const response = await fetchFunction(RELEVANCE_CONFIG.agent.endpoint, {
+      const response = await fetchFunction(config.agent.endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: RELEVANCE_CONFIG.agent.authorization,
+          Authorization: config.agent.authorization,
           Accept: "application/json",
-          ...(isSafari() && {
-            "Cache-Control": "no-cache",
-            Pragma: "no-cache",
-          }),
         },
         body: JSON.stringify(payload),
       })
 
       if (!response.ok) {
         const errorText = await response.text()
-        console.error("API Error Response:", errorText)
+        console.error("❌ API Error Response:", errorText)
         throw new Error(`API Error: ${response.status} - ${response.statusText}`)
       }
 
       const result = await response.json()
-      console.log("Full agent response received:", JSON.stringify(result, null, 2))
+      console.log("📥 Agent Response:", JSON.stringify(result, null, 2))
 
       return result
     } catch (error) {
-      console.error("Agent Call Error:", error)
+      console.error("❌ Agent Call Error:", error)
       throw error
     }
   }
 
-  // Enhanced polling with circuit breaker and conversation ID extraction
-  const pollAgentResponse = async (jobInfo: any): Promise<any> => {
-    const maxAttempts = isSafari() ? 30 : 25
+  const pollAgentResponse = async (jobInfo: any, config: any): Promise<any> => {
+    const maxAttempts = 25
     let attempts = 0
-    let consecutiveErrors = 0
-    const maxConsecutiveErrors = 3
     const baseDelay = 2000
 
-    console.log("Starting polling for job:", jobInfo.job_id)
-    console.log("Job info conversation_id:", jobInfo.conversation_id)
+    console.log("🔄 Starting polling for job:", jobInfo.job_id)
 
-    while (attempts < maxAttempts && consecutiveErrors < maxConsecutiveErrors) {
+    while (attempts < maxAttempts) {
       try {
-        const pollUrl = `https://api-${RELEVANCE_CONFIG.region}.stack.tryrelevance.com/latest/studios/${jobInfo.studio_id}/async_poll/${jobInfo.job_id}`
+        const pollUrl = `https://api-${config.region}.stack.tryrelevance.com/latest/studios/${jobInfo.studio_id}/async_poll/${jobInfo.job_id}`
+        
+        console.log(`📡 Polling attempt ${attempts + 1}/${maxAttempts}:`, pollUrl)
 
         const fetchFunction = isSafari() ? safeFetch : fetch
         const response = await fetchFunction(pollUrl, {
           method: "GET",
           headers: {
-            Authorization: RELEVANCE_CONFIG.agent.authorization,
+            Authorization: config.agent.authorization,
             Accept: "application/json",
-            ...(isSafari() && {
-              "Cache-Control": "no-cache",
-              Pragma: "no-cache",
-            }),
           },
         })
 
         if (!response.ok) {
-          consecutiveErrors++
           throw new Error(`Polling failed: ${response.status} - ${response.statusText}`)
         }
 
-        consecutiveErrors = 0
         const status = await response.json()
-
-        console.log(`Polling attempt ${attempts + 1}:`, status.updates?.length || 0, "updates")
-        console.log("Full status response:", status)
+        console.log(`📊 Polling status:`, {
+          attempt: attempts + 1,
+          updatesCount: status.updates?.length || 0,
+          status: status
+        })
 
         for (const update of status.updates || []) {
           if (update.type === "chain-success") {
-            console.log("Chain success:", update.output)
-
-            let extractedConversationId = null
-
-            if (update.conversation_id) {
-              extractedConversationId = update.conversation_id
-            } else if (jobInfo.conversation_id) {
-              extractedConversationId = jobInfo.conversation_id
-            } else if (status.conversation_id) {
-              extractedConversationId = status.conversation_id
-            } else if (update.output && update.output.conversation_id) {
-              extractedConversationId = update.output.conversation_id
-            }
-
-            console.log("Extracted conversation ID:", extractedConversationId)
-
+            console.log("✅ Chain Success - Final Output:", JSON.stringify(update.output, null, 2))
             return {
               success: true,
               content: update.output,
-              conversationId: extractedConversationId,
             }
           }
           if (update.type === "chain-error") {
-            console.error("Chain error:", update.error)
+            console.error("❌ Chain Error:", update.error)
             return {
               success: false,
               error: update.error || "An error occurred during processing.",
@@ -791,547 +520,963 @@ const saveAssignmentToDatabase = async (assignmentData: any) => {
         await smartDelay(delay)
 
       } catch (error) {
-        console.error(`Polling error on attempt ${attempts + 1}:`, error)
+        console.error(`❌ Polling error on attempt ${attempts + 1}:`, error)
         attempts++
-        consecutiveErrors++
-
-        const errorDelay = Math.min(3000 + consecutiveErrors * 1000, 10000)
-        await smartDelay(errorDelay)
+        await smartDelay(3000)
       }
     }
 
+    console.error("⏰ Polling timeout after", maxAttempts, "attempts")
     return {
       success: false,
-      error: `Request timed out after ${maxAttempts} attempts or too many consecutive errors. Please try again.`,
+      error: `Request timed out after ${maxAttempts} attempts. Please try again.`,
     }
   }
 
-  // Main message handler with assignment creation logic
-  const handleSendMessage = useCallback(async (): Promise<void> => {
-    // Early validation checks
-    if (!inputMessage.trim() || isLoading || isProcessing) {
-      console.log("Message rejected:", { empty: !inputMessage.trim(), loading: isLoading, processing: isProcessing })
-      return
-    }
-
-    if (!isValidMessage(inputMessage)) {
-      console.log("Invalid message length:", inputMessage.length)
-      toast({
-        title: "Invalid Message",
-        description: "Message is too long or empty. Please try again.",
-        variant: "destructive"
-      })
-      return
-    }
-
-    // Rate limiting
-    const now = Date.now()
-    if (now - lastRequestTime < MIN_REQUEST_INTERVAL) {
-      console.log("Rate limit hit:", { now, lastRequestTime, diff: now - lastRequestTime })
-      toast({
-        title: "Please wait",
-        description: "Please wait a moment before sending another message.",
-        variant: "destructive"
-      })
-      return
-    }
-
-    // Duplicate prevention
-    const messageKey = `${inputMessage.trim()}_${Math.floor(now / 5000)}` // 5-second window
-    if (processedMessageIds.has(messageKey)) {
-      console.log("Duplicate message detected:", messageKey)
-      return
-    }
-
-    // Lock processing
-    setIsProcessing(true)
-    setLastRequestTime(now)
-
-    const messageId = generateMessageId("user")
-    const currentInput = inputMessage.trim()
-
-    // Extract information from user message
-    console.log('🔍 Starting information extraction from message:', currentInput)
-
+  const generateAssignment = async (isRevision = false) => {
+    const config = selectedClass!.semester === 1 ? semester1Config : semester2Config
     
-    const extractedTopic = extractTopicFromMessage(currentInput)
-    console.log('📝 Extracted topic:', extractedTopic)
+    let message: string
+    if (isRevision && currentAssignment && revisionRequest) {
+      // For revisions, include the current assignment and the revision request
+      message = `Based on this existing assignment:
 
-    const extractedDueDate = extractDueDateFromMessage(currentInput)
-    console.log('📅 Extracted due date:', extractedDueDate)
+${currentAssignment.content}
 
-  
-    if (extractedTopic) {
-      setCurrentTopic(extractedTopic)
-      console.log('✅ Set current topic:', extractedTopic)
-    }
-    if (extractedDueDate) {
-      setCurrentDueDate(extractedDueDate)
-      console.log('✅ Set current due date:', extractedDueDate)
+Please make the following changes: ${revisionRequest}
+
+Subtopic: ${selectedSubtopic}`
     } else {
-      console.log('⚠️ No due date extracted from message')
+      // For initial generation
+      message = `Create an assignment for the subtopic: ${selectedSubtopic}`
     }
 
-    const userMessage: Message = {
-      id: messageId,
-      type: "user",
-      content: currentInput,
-      timestamp: new Date(),
-    }
+    console.log("📝 Sending message to agent:", message)
 
-    // Update UI immediately
-    setMessages((prev) => [...prev, userMessage])
-    setInputMessage("")
-    setIsLoading(true)
+    const agentResponse = await callRelevanceAgent(message, config)
 
-    // Add to processed messages
-    setProcessedMessageIds(prev => new Set([...prev, messageKey]))
+    if (agentResponse.job_info) {
+      console.log("⏳ Job created, starting polling...")
+      const result = await pollAgentResponse(agentResponse.job_info, config)
 
-    try {
-      console.log("Sending message:", currentInput)
-      console.log("Current conversation ID:", conversationId)
+      if (result.success) {
+        const assignmentContent = result.content?.output?.answer || result.content?.answer || "No assignment content generated"
+        console.log("📋 Assignment Content:", assignmentContent)
 
-      const agentResponse = await callRelevanceAgent(currentInput, conversationId)
-      console.log("Agent response structure:", agentResponse)
-
-      if (agentResponse.job_info) {
-        const result = await pollAgentResponse(agentResponse.job_info)
-        console.log("Polling result:", result)
-
-        if (result.success) {
-          const messageContent = processAgentResponse(result.content)
-          console.log("📝 Processed content:", messageContent)
-
-          if (!messageContent || messageContent.trim().length === 0) {
-            throw new Error("Empty response received")
-          }
-
-          const agentMessage: Message = {
-            id: generateMessageId("agent"),
-            type: "agent",
-            content: messageContent,
-            timestamp: new Date(),
-            aiResponse: result.content
-          }
-
-          setMessages((prev) => [...prev, agentMessage])
-
-         
-          const topicToUse = extractedTopic || currentTopic
-          const dueDateToUse = extractedDueDate || currentDueDate
-
-          console.log('📊 Using values:', {
-           
-            topic: topicToUse,
-            dueDate: dueDateToUse
-          })
-
-          // Check if this is a complete assignment and save it
-          if (isCompleteAssignment(messageContent)) {
-            const assignmentData = parseAssignmentFromResponse(
-              messageContent,
-              
-              topicToUse,
-              dueDateToUse
-            )
-            console.log("📋 Complete assignment detected:", assignmentData)
-
-            // Only save if we have all required data
-           if (assignmentData.title && assignmentData.topic) {
-    console.log('💾 Attempting to save assignment with data:', assignmentData);
-    
-    try {
-      await saveAssignmentToDatabase(assignmentData);
-      console.log('✅ Assignment saved successfully');
-      
-      // Reset assignment creation state only on success
-      setCurrentTopic(null);
-      setCurrentDueDate(null);
-      setConversationId(null);
-      setInputMessage("");
-      
-    } catch (saveError) {
-      console.error('❌ Failed to save assignment:', saveError);
-      
-      // Add an error message to the chat
-      const errorMessage: Message = {
-        id: generateMessageId("agent"),
-        type: "agent",
-        content: `I created the assignment content, but there was an issue saving it: ${saveError instanceof Error ? saveError.message : 'Unknown error'}. Please select a class and try again.`,
-        timestamp: new Date(),
-        isError: true,
-      };
-      
-      setMessages((prev) => [...prev, errorMessage]);
-      
-      // Don't reset state so user can try again
-      return; // Exit early to prevent further processing
-    }
-  } else {
-    console.log('⚠️ Assignment data incomplete:', assignmentData);
-  }
-} else {
-  console.log('ℹ️ Not a complete assignment, checking for partial data');
-}
-
-          // Improved conversation ID handling
-          if (result.conversationId) {
-            const newConversationId = String(result.conversationId).trim()
-            if (newConversationId.length > 0) {
-              console.log("Setting conversation ID:", newConversationId)
-              setConversationId(newConversationId)
+        const newAssignment: GeneratedAssignment = {
+          title: selectedSubtopic,
+          topic: availableTopics[selectedTopic]?.topic || selectedTopic,
+          content: assignmentContent,
+          revisionHistory: currentAssignment ? [
+            ...currentAssignment.revisionHistory,
+            {
+              version: currentAssignment.revisionHistory.length + 1,
+              content: assignmentContent,
+              revisionRequest: isRevision ? revisionRequest : undefined,
+              timestamp: new Date()
             }
-          } else if (agentResponse.conversation_id) {
-            const fallbackConversationId = String(agentResponse.conversation_id).trim()
-            if (fallbackConversationId.length > 0) {
-              console.log("Using fallback conversation ID:", fallbackConversationId)
-              setConversationId(fallbackConversationId)
+          ] : [
+            {
+              version: 1,
+              content: assignmentContent,
+              timestamp: new Date()
             }
-          }
-        } else {
-          throw new Error(result.error || "Processing failed")
+          ]
         }
+
+        setCurrentAssignment(newAssignment)
+        setRevisionRequest("")
+        setWorkflowState('reviewing')
+
+        toast({
+          title: isRevision ? "Assignment Revised Successfully!" : "Assignment Generated Successfully!",
+          description: "Please review the assignment and decide if you want to make any changes.",
+        })
+
+        return true
       } else {
-        if (agentResponse.conversation_id) {
-          const directConversationId = String(agentResponse.conversation_id).trim()
-          if (directConversationId.length > 0) {
-            console.log("Setting direct conversation ID:", directConversationId)
-            setConversationId(directConversationId)
-          }
-        }
-        throw new Error("No job info received from agent")
+        throw new Error(result.error || "Assignment generation failed")
       }
-    } catch (error) {
-      console.error("Error in handleSendMessage:", error)
-      const errorMessage: Message = {
-        id: generateMessageId("agent"),
-        type: "agent",
-        content: `I'm sorry, but I encountered an error: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`,
-        timestamp: new Date(),
-        isError: true,
-      }
-      setMessages((prev) => [...prev, errorMessage])
-
-      toast({
-        title: "Error",
-        description: "Failed to send message. Please try again.",
-        variant: "destructive"
-      })
-    } finally {
-      setIsLoading(false)
-      setIsProcessing(false)
-
-      // Clean up old processed messages (keep only last 50)
-      setProcessedMessageIds(prev => {
-        const arr = Array.from(prev)
-        if (arr.length > 50) {
-          return new Set(arr.slice(-50))
-        }
-        return prev
-      })
+    } else {
+      throw new Error("No job info received from agent")
     }
-  }, [inputMessage, isLoading, isProcessing, conversationId, processedMessageIds, lastRequestTime, toast,  currentTopic, currentDueDate, profile])
+  }
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
-    const file = event.target.files?.[0]
-    if (!file) return
-
-    const allowedTypes = [
-      ".txt",
-      ".js",
-      ".ts",
-      ".py",
-      ".java",
-      ".cpp",
-      ".c",
-      ".php",
-      ".rb",
-      ".go",
-      ".rs",
-      ".md",
-      ".json",
-      ".csv",
-      ".xml",
-    ]
-    const fileExtension = "." + file.name.split(".").pop()?.toLowerCase()
-
-    if (!allowedTypes.includes(fileExtension)) {
+  const handleInitialGeneration = async () => {
+    // Validation
+    if (!selectedClass || !selectedSubtopic || !dueDate) {
       toast({
-        title: "Invalid File Type",
-        description: "Please upload a supported file type",
+        title: "Form Incomplete",
+        description: "Please fill in all required fields",
         variant: "destructive"
       })
       return
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      toast({
-        title: "File Too Large",
-        description: "File size should be less than 5MB",
-        variant: "destructive"
-      })
-      return
-    }
+    setWorkflowState('generating')
 
     try {
-      const text = await file.text()
-
-      const uploadMessage: Message = {
-        id: generateMessageId("user"),
-        type: "user",
-        content: `Uploaded file: ${file.name}\n\n${text}`,
-        timestamp: new Date(),
-        isFile: true,
-        fileName: file.name,
-        fileSize: file.size,
-      }
-
-      setMessages((prev) => [...prev, uploadMessage])
-
-      setTimeout(() => {
-        setInputMessage(`Please help me with this file: ${file.name}`)
-      }, 500)
+      await generateAssignment(false)
     } catch (error) {
+      console.error("❌ Assignment Generation Error:", error)
       toast({
-        title: "File Error",
-        description: "Error reading file. Please try again.",
+        title: "Generation Failed",
+        description: error instanceof Error ? error.message : "Unknown error occurred",
         variant: "destructive"
       })
-    }
-
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ""
+      setWorkflowState('form')
     }
   }
 
-  const handleKeyPress = (e: React.KeyboardEvent): void => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault()
-      handleSendMessage()
+  const handleRevisionRequest = async () => {
+    if (!revisionRequest.trim()) {
+      toast({
+        title: "Revision Request Required",
+        description: "Please describe what changes you'd like to make",
+        variant: "destructive"
+      })
+      return
+    }
+
+    setWorkflowState('regenerating')
+
+    try {
+      await generateAssignment(true)
+    } catch (error) {
+      console.error("❌ Assignment Revision Error:", error)
+      toast({
+        title: "Revision Failed",
+        description: error instanceof Error ? error.message : "Unknown error occurred",
+        variant: "destructive"
+      })
+      setWorkflowState('reviewing')
     }
   }
 
-  // Function to reset conversation
-  const resetConversation = () => {
-    setConversationId(null)
-    setProcessedMessageIds(new Set())
-    
-    setCurrentTopic(null)
-    setCurrentDueDate(null)
-    toast({
-      title: "Conversation Reset",
-      description: "Starting a new conversation with the AI Assistant.",
-    })
+  const saveAssignmentToDatabase = async (): Promise<string | null> => {
+    try {
+      console.log("💾 Saving assignment to database...")
+
+      const assignmentData = {
+        title: currentAssignment!.title,
+        topic: currentAssignment!.topic,
+        ai_generated_content: currentAssignment!.content,
+        description: `Assignment for ${selectedSubtopic} in ${availableTopics[selectedTopic]?.topic || selectedTopic}`,
+        teacher_id: (profile as Profile)?.id,
+        class_id: selectedClass?.id,
+        semester: selectedClass?.semester,
+        due_date: dueDate?.toISOString(),
+        status: 'published',
+        difficulty: 'medium',
+        total_points: 100,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }
+
+      console.log("📝 Assignment data to save:", assignmentData)
+
+      const { data, error } = await supabase
+        .from('assignments')
+        .insert([assignmentData])
+        .select()
+        .single()
+
+      if (error) {
+        console.error("❌ Database save error:", error)
+        throw error
+      }
+
+      console.log("✅ Assignment saved successfully:", data)
+      return data.id
+    } catch (error) {
+      console.error("❌ Error saving assignment:", error)
+      throw error
+    }
   }
 
-  
+  const enrollStudentsInAssignment = async (assignmentId: string): Promise<boolean> => {
+    try {
+      console.log("👥 Enrolling students in assignment...")
+
+      const { data: students, error: studentsError } = await supabase
+        .from('class_students')
+        .select('student_id')
+        .eq('class_id', selectedClass?.id)
+
+      if (studentsError) {
+        console.error("❌ Error fetching students:", studentsError)
+        throw studentsError
+      }
+
+      if (!students || students.length === 0) {
+        console.log("⚠️ No students found in class")
+        return false
+      }
+
+      console.log(`📋 Found ${students.length} students to enroll`)
+
+      const enrollmentData = students.map(student => ({
+        assignment_id: assignmentId,
+        student_id: student.student_id,
+        assigned_at: new Date().toISOString(),
+        status: 'assigned'
+      }))
+
+      console.log("👥 Enrollment data:", enrollmentData)
+
+      const { data: enrollments, error: enrollmentError } = await supabase
+        .from('assignment_enrollments')
+        .insert(enrollmentData)
+        .select()
+
+      if (enrollmentError) {
+        console.error("❌ Error enrolling students:", enrollmentError)
+        throw enrollmentError
+      }
+
+      console.log("✅ Students enrolled successfully:", enrollments)
+      return true
+    } catch (error) {
+      console.error("❌ Error enrolling students:", error)
+      throw error
+    }
+  }
+
+  const handleSaveAssignment = async () => {
+    setWorkflowState('saving')
+
+    try {
+      const assignmentId = await saveAssignmentToDatabase()
+      
+      if (assignmentId) {
+        setFinalAssignmentId(assignmentId)
+        setWorkflowState('enrolling')
+        
+        const enrollmentSuccess = await enrollStudentsInAssignment(assignmentId)
+        
+        if (enrollmentSuccess) {
+          setWorkflowState('complete')
+          toast({
+            title: "Assignment Created Successfully!",
+            description: `Assignment saved and assigned to ${selectedClass?.student_count || 0} students`,
+          })
+        } else {
+          toast({
+            title: "Assignment Saved",
+            description: "Assignment saved but no students were enrolled (no students in class)",
+          })
+          setWorkflowState('complete')
+        }
+      }
+    } catch (error) {
+      console.error("❌ Save Assignment Error:", error)
+      toast({
+        title: "Save Failed",
+        description: error instanceof Error ? error.message : "Failed to save assignment",
+        variant: "destructive"
+      })
+      setWorkflowState('reviewing')
+    }
+  }
+
+  const resetWorkflow = () => {
+    setWorkflowState('form')
+    setCurrentAssignment(null)
+    setRevisionRequest("")
+    setFinalAssignmentId(null)
+    setSelectedClass(null)
+    setSelectedTopic("")
+    setSelectedSubtopic("")
+    setDueDate(undefined)
+  }
+
+  const isFormValid = selectedClass && selectedSubtopic && dueDate
+  const progressSteps = [
+    { completed: !!selectedClass, label: "Class" },
+    { completed: !!selectedTopic, label: "Topic" },
+    { completed: !!selectedSubtopic, label: "Subtopic" },
+    { completed: !!dueDate, label: "Due Date" },
+  ]
+
+  if (loading) {
+    return (
+      <AuthGuard allowedRoles={["teacher"]}>
+        <ModernDashboardLayout>
+          <div className="flex items-center justify-center min-h-[400px]">
+            <div className="text-center">
+              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-purple-600" />
+              <p className="text-gray-600">Loading classes...</p>
+            </div>
+          </div>
+        </ModernDashboardLayout>
+      </AuthGuard>
+    )
+  }
 
   return (
     <AuthGuard allowedRoles={["teacher"]}>
       <ModernDashboardLayout>
-        <div className="space-y-2">
+        <div className="max-w-6xl mx-auto space-y-8">
+          {/* Header */}
+          <div className="text-center space-y-2">
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+              Create New Assignment
+            </h1>
+            <p className="text-gray-600 max-w-2xl mx-auto">
+              {workflowState === 'form' && "Follow the steps below to create a personalized assignment using our AI-powered system"}
+              {workflowState === 'generating' && "Please wait while we generate your assignment..."}
+              {workflowState === 'reviewing' && "Review your generated assignment and request changes if needed"}
+              {workflowState === 'requesting-changes' && "Describe the changes you'd like to make to the assignment"}
+              {workflowState === 'regenerating' && "Regenerating assignment with your requested changes..."}
+              {workflowState === 'saving' && "Saving assignment to database..."}
+              {workflowState === 'enrolling' && "Enrolling students in the assignment..."}
+              {workflowState === 'complete' && "Assignment created successfully and assigned to students!"}
+            </p>
+          </div>
 
-            <h1 className="font-bold text-pretty underline">Classes</h1>
-          
-
-          {classes.map((classItem) => (
-  <ClassSelectionCard
-    key={classItem.id}
-    classItem={classItem}
-    isSelected={selectedClass?.id === classItem.id}
-    onSelect={setSelectedClass}
-    studentCount={classItem.student_count}
-  />
-))}
-
-         
-          <h1 className="mb-2 font-sans font-bold underline">Slect the class before proceeding with the assignment creation</h1>
-
-          {/* AI Chat Interface */}
-          <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-gray-50">
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-purple-100 rounded-full">
-                  <Sparkles className="h-5 w-5 text-purple-600" />
-                </div>
-                <div>
-                  <CardTitle className="text-xl">AI Assignment Creator</CardTitle>
-                  <CardDescription className="text-base">
-                    Your intelligent teaching companion for creating assignments, running code, and managing educational
-                    content
-                  </CardDescription>
-                </div>
+          {/* Workflow Progress Indicator */}
+          <Card className="bg-gradient-to-r from-purple-50 to-blue-50 border-purple-200">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-gray-800">Workflow Progress</h3>
+                <Badge variant={workflowState === 'complete' ? 'default' : 'secondary'} className="bg-purple-600 text-white">
+                  {workflowState === 'form' && 'Form Configuration'}
+                  {workflowState === 'generating' && 'Generating Assignment'}
+                  {workflowState === 'reviewing' && 'Review & Approval'}
+                  {workflowState === 'requesting-changes' && 'Requesting Changes'}
+                  {workflowState === 'regenerating' && 'Regenerating Assignment'}
+                  {workflowState === 'saving' && 'Saving Assignment'}
+                  {workflowState === 'enrolling' && 'Enrolling Students'}
+                  {workflowState === 'complete' && 'Complete'}
+                </Badge>
               </div>
-            </CardHeader>
-            <CardContent>
-              <div className="bg-gradient-to-br from-purple-50 to-blue-50 rounded-xl border-2 border-dashed border-gray-200 overflow-hidden">
-                {/* Agent Info */}
-                <div className="p-4 bg-gradient-to-r from-purple-50 to-blue-50 border-b">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-blue-600 rounded-lg flex items-center justify-center">
-                      <Sparkles className="h-5 w-5 text-white" />
-                    </div>
-                    <div>
-                      <h2 className="font-medium">AI Assistant Manager</h2>
-                      <p className="text-sm text-gray-600">
-                        Creates assignments automatically and saves them to your dashboard when complete.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <ScrollArea className="h-[400px] p-4">
-                  <div className="max-w-3xl mx-auto space-y-4">
-                    {messages.map((message) => (
-                      <div
-                        key={message.id}
-                        className={cn(
-                          "flex gap-3",
-                          message.type === "user" ? "justify-end" : "justify-start"
-                        )}
-                      >
-                        {message.type === "agent" && (
-                          <div className="w-8 h-8 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
-                            <Sparkles className="h-4 w-4 text-white" />
-                          </div>
-                        )}
-                        <div
-                          className={cn(
-                            "max-w-[80%] rounded-lg p-3",
-                            message.type === "user"
-                              ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white ml-12"
-                              : message.isError
-                                ? "bg-red-50 border border-red-200"
-                                : "bg-white border"
-                          )}
-                        >
-                          <div className="whitespace-pre-wrap text-sm">
-                            {message.content}
-                          </div>
-                          {message.isFile && (
-                            <div className="flex items-center gap-1 mt-2 text-xs opacity-75">
-                              <FileText className="h-3 w-3" />
-                              {message.fileName} (
-                              {Math.round((message.fileSize || 0) / 1024)}KB)
-                            </div>
-                          )}
-                          {isCompleteAssignment(message.content) && (
-                            <div className="mt-2 p-2 bg-green-100 rounded text-xs text-green-800">
-                              ✅ Assignment will be saved automatically
-                            </div>
-                          )}
-                          <div className="text-xs opacity-60 mt-1">
-                            {message.timestamp.toLocaleTimeString()}
-                          </div>
-                        </div>
-                        {message.type === "user" && (
-                          <div className="w-8 h-8 bg-gray-400 rounded-full flex items-center justify-center flex-shrink-0">
-                            <User className="h-4 w-4 text-white" />
-                          </div>
+              
+              {workflowState === 'form' && (
+                <div className="flex items-center space-x-4">
+                  {progressSteps.map((step, index) => (
+                    <div key={step.label} className="flex items-center">
+                      <div className={cn(
+                        "w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-all",
+                        step.completed 
+                          ? "bg-purple-600 text-white" 
+                          : "bg-gray-200 text-gray-500"
+                      )}>
+                        {step.completed ? (
+                          <CheckCircle className="h-4 w-4" />
+                        ) : (
+                          index + 1
                         )}
                       </div>
-                    ))}
+                      <span className={cn(
+                        "ml-2 text-sm font-medium",
+                        step.completed ? "text-purple-600" : "text-gray-500"
+                      )}>
+                        {step.label}
+                      </span>
+                      {index < progressSteps.length - 1 && (
+                        <ArrowRight className="h-4 w-4 text-gray-400 mx-4" />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
 
-                    {isLoading && (
-                      <div className="flex gap-3">
-                        <div className="w-8 h-8 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
-                          <Sparkles className="h-4 w-4 text-white" />
+              {workflowState !== 'form' && (
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    {workflowState === 'generating' || workflowState === 'regenerating' ? (
+                      <Loader2 className="h-5 w-5 animate-spin text-purple-600" />
+                    ) : workflowState === 'reviewing' || workflowState === 'requesting-changes' ? (
+                      <Eye className="h-5 w-5 text-blue-600" />
+                    ) : workflowState === 'saving' || workflowState === 'enrolling' ? (
+                      <Save className="h-5 w-5 text-green-600" />
+                    ) : workflowState === 'complete' ? (
+                      <CheckCircle className="h-5 w-5 text-green-600" />
+                    ) : null}
+                    <span className="text-sm font-medium text-gray-700">
+                      {workflowState === 'generating' && 'AI is generating your assignment...'}
+                      {workflowState === 'reviewing' && 'Assignment ready for review'}
+                      {workflowState === 'requesting-changes' && 'Waiting for your feedback'}
+                      {workflowState === 'regenerating' && 'AI is revising the assignment...'}
+                      {workflowState === 'saving' && 'Saving to database...'}
+                      {workflowState === 'enrolling' && 'Enrolling students...'}
+                      {workflowState === 'complete' && 'Assignment successfully created!'}
+                    </span>
+                  </div>
+                  {currentAssignment && (
+                    <Badge variant="outline" className="ml-auto">
+                      Version {currentAssignment.revisionHistory.length}
+                    </Badge>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Form Configuration (Step 1-4) */}
+          {workflowState === 'form' && (
+            <>
+              {/* Step 1: Class Selection */}
+              <Card className="shadow-lg">
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-purple-100 rounded-lg">
+                      <GraduationCap className="h-6 w-6 text-purple-600" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-xl">Step 1: Select Class</CardTitle>
+                      <CardDescription>Choose the class for which you want to create an assignment</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {classes.map((classItem) => (
+                      <ClassCard
+                        key={classItem.id}
+                        classItem={classItem}
+                        isSelected={selectedClass?.id === classItem.id}
+                        onSelect={setSelectedClass}
+                        studentCount={classItem.student_count}
+                      />
+                    ))}
+                  </div>
+                  {classes.length === 0 && (
+                    <div className="text-center py-8 text-gray-500">
+                      <Users className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                      <p>No classes found. Please contact admin to assign classes.</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Steps 2-4: Assignment Configuration */}
+              {selectedClass && (
+                <Card className="shadow-lg">
+                  <CardHeader>
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-blue-100 rounded-lg">
+                        <Target className="h-6 w-6 text-blue-600" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-xl">Assignment Configuration</CardTitle>
+                        <CardDescription>
+                          Configure assignment details for {selectedClass.name} (Semester {selectedClass.semester})
+                        </CardDescription>
+                      </div>
+                      <Badge variant="outline" className="ml-auto">
+                        Semester {selectedClass.semester}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-8">
+                    <div className="grid gap-8 lg:grid-cols-2">
+                      {/* Step 2: Topic Selection */}
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                          <BookOpen className="h-5 w-5 text-blue-600" />
+                          <Label className="text-base font-semibold">Step 2: Select Topic</Label>
                         </div>
-                        <div className="bg-white border rounded-lg p-3">
-                          <div className="flex items-center gap-2 text-sm text-gray-600">
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            {isProcessing ? "Processing your request..." : "Thinking..."}
+                        <Select value={selectedTopic} onValueChange={setSelectedTopic}>
+                          <SelectTrigger className="h-12">
+                            <SelectValue placeholder="Choose a topic..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Object.entries(availableTopics).map(([key, value]) => (
+                              <SelectItem key={key} value={key} className="py-3">
+                                <div>
+                                  <div className="font-medium">{value.topic}</div>
+                                  <div className="text-xs text-gray-500 mt-1">
+                                    {value.subtopics.length} subtopics available
+                                  </div>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Step 3: Subtopic Selection */}
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-5 w-5 text-green-600" />
+                          <Label className="text-base font-semibold">Step 3: Select Subtopic</Label>
+                        </div>
+                        <Select 
+                          value={selectedSubtopic} 
+                          onValueChange={setSelectedSubtopic}
+                          disabled={!selectedTopic}
+                        >
+                          <SelectTrigger className="h-12">
+                            <SelectValue placeholder={selectedTopic ? "Choose a subtopic..." : "Select topic first"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {availableSubtopics.map((subtopic, index) => (
+                              <SelectItem key={index} value={subtopic} className="py-3">
+                                <div className="max-w-sm">
+                                  <div className="font-medium text-sm leading-relaxed">{subtopic}</div>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Step 4: Due Date */}
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-5 w-5 text-orange-600" />
+                          <Label className="text-base font-semibold">Step 4: Set Due Date</Label>
+                        </div>
+                        <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              className={cn(
+                                "h-12 w-full justify-start text-left font-normal",
+                                !dueDate && "text-muted-foreground"
+                              )}
+                            >
+                              <CalendarIcon className="mr-2 h-4 w-4" />
+                              {dueDate ? format(dueDate, "PPP") : "Pick a due date"}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={dueDate}
+                              onSelect={(date) => {
+                                setDueDate(date)
+                                setIsCalendarOpen(false)
+                              }}
+                              disabled={(date) => date < new Date()}
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+
+                      {/* Generate Button */}
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="h-5 w-5 text-purple-600" />
+                          <Label className="text-base font-semibold">Generate Assignment</Label>
+                        </div>
+                        <Button
+                          onClick={handleInitialGeneration}
+                          disabled={!isFormValid}
+                          className="h-12 w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold"
+                        >
+                          <Sparkles className="h-5 w-5 mr-2" />
+                          Generate Assignment 
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Assignment Summary */}
+                    {isFormValid && (
+                      <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-6">
+                        <h4 className="font-semibold text-green-800 mb-4 flex items-center gap-2">
+                          <CheckCircle className="h-5 w-5" />
+                          Assignment Summary
+                        </h4>
+                        <div className="grid gap-3 md:grid-cols-2 text-sm">
+                          <div>
+                            <span className="font-medium text-gray-700">Class:</span>
+                            <span className="ml-2 text-gray-900">{selectedClass.name}</span>
+                          </div>
+                          <div>
+                            <span className="font-medium text-gray-700">Semester:</span>
+                            <span className="ml-2 text-gray-900">{selectedClass.semester}</span>
+                          </div>
+                          <div>
+                            <span className="font-medium text-gray-700">Topic:</span>
+                            <span className="ml-2 text-gray-900">{availableTopics[selectedTopic]?.topic}</span>
+                          </div>
+                          <div>
+                            <span className="font-medium text-gray-700">Students:</span>
+                            <span className="ml-2 text-gray-900">{selectedClass.student_count || 0}</span>
+                          </div>
+                          <div className="md:col-span-2">
+                            <span className="font-medium text-gray-700">Subtopic:</span>
+                            <span className="ml-2 text-gray-900">{selectedSubtopic}</span>
+                          </div>
+                          <div>
+                            <span className="font-medium text-gray-700">Due Date:</span>
+                            <span className="ml-2 text-gray-900">{dueDate && format(dueDate, "PPP")}</span>
+                          </div>
+                          <div>
+                            <span className="font-medium text-gray-700">AI Agent:</span>
+                            <span className="ml-2 text-gray-900">Semester {selectedClass.semester} Specialist</span>
                           </div>
                         </div>
                       </div>
                     )}
+                  </CardContent>
+                </Card>
+              )}
+            </>
+          )}
 
-                    <div ref={messagesEndRef} />
+          {/* Generation State */}
+          {workflowState === 'generating' && (
+            <Card className="shadow-lg border-purple-200 bg-gradient-to-r from-purple-50 to-blue-50">
+              <CardContent className="pt-6">
+                <div className="flex flex-col items-center justify-center py-12">
+                  <div className="relative">
+                    <Loader2 className="h-16 w-16 animate-spin text-purple-600 mb-6" />
+                    <Sparkles className="h-6 w-6 text-purple-400 absolute -top-2 -right-2 animate-pulse" />
                   </div>
-                </ScrollArea>
-
-                <div className="border-t p-4 bg-white">
-                  <div className="max-w-3xl mx-auto">
-                    <div className="flex gap-2">
-                      <div className="flex-1 relative">
-                        <Textarea
-                          placeholder="Ask AI Assistant Manager to create assignments with semester, topic, and due date..."
-                          value={inputMessage}
-                          onChange={(e) => setInputMessage(e.target.value)}
-                          onKeyPress={handleKeyPress}
-                          className="resize-none border-gray-300 focus:border-purple-500 pr-12"
-                          rows={3}
-                          disabled={isLoading || isProcessing}
-                        />
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => fileInputRef.current?.click()}
-                          className="absolute right-2 bottom-2 h-8 w-8"
-                          disabled={isLoading || isProcessing}
-                        >
-                          <Paperclip className="h-4 w-4" />
-                        </Button>
+                  <h3 className="text-xl font-semibold text-purple-800 mb-2">Generating Your Assignment</h3>
+                  <p className="text-purple-600 text-center max-w-md">
+                    Our AI is creating a personalized assignment for <strong>{selectedSubtopic}</strong>. 
+                    This may take a few moments...
+                  </p>
+                  <div className="mt-6 bg-white rounded-lg p-4 shadow-sm border border-purple-200">
+                    <div className="text-sm text-gray-600">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
+                        <span>Using Semester {selectedClass?.semester} specialized AI agent</span>
                       </div>
-                      <Button
-                        onClick={handleSendMessage}
-                        disabled={!inputMessage.trim() || isLoading || isProcessing}
-                        className="h-12 w-12 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 disabled:opacity-50"
-                      >
-                        {isLoading || isProcessing ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <ArrowUp className="h-4 w-4" />
-                        )}
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
+                        <span>Analyzing curriculum and creating tailored content</span>
+                      </div>
                     </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept=".txt,.js,.ts,.py,.java,.cpp,.c,.php,.rb,.go,.rs,.md,.json,.csv,.xml"
-                      onChange={handleFileUpload}
-                      className="hidden"
-                    />
+          {/* Review Assignment */}
+          {workflowState === 'reviewing' && currentAssignment && (
+            <Card className="shadow-lg border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-blue-100 rounded-lg">
+                      <Eye className="h-6 w-6 text-blue-600" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-xl text-blue-800">Review Generated Assignment</CardTitle>
+                      <CardDescription className="text-blue-600">
+                        Review the assignment and decide if you want to make any changes
+                      </CardDescription>
+                    </div>
+                  </div>
+                  <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-300">
+                    Version {currentAssignment.revisionHistory.length}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Assignment Details */}
+                <div className="grid gap-4 md:grid-cols-3 mb-6">
+                  <div className="bg-white rounded-lg p-4 border border-blue-200">
+                    <div className="text-sm font-medium text-blue-700 mb-1">Assignment Title</div>
+                    <div className="text-gray-900 font-semibold">{currentAssignment.title}</div>
+                  </div>
+                  <div className="bg-white rounded-lg p-4 border border-blue-200">
+                    <div className="text-sm font-medium text-blue-700 mb-1">Topic</div>
+                    <div className="text-gray-900">{currentAssignment.topic}</div>
+                  </div>
+                  <div className="bg-white rounded-lg p-4 border border-blue-200">
+                    <div className="text-sm font-medium text-blue-700 mb-1">Due Date</div>
+                    <div className="text-gray-900">{format(dueDate!, "PPP")}</div>
+                  </div>
+                </div>
+                
+                {/* Assignment Content */}
+                <div className="bg-white rounded-lg p-6 border border-blue-200">
+                  <h4 className="font-semibold text-blue-800 mb-3 flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    Generated Assignment Content
+                  </h4>
+                  <div className="prose max-w-none text-gray-700 text-sm leading-relaxed whitespace-pre-wrap bg-gray-50 rounded-lg p-4">
+                    {currentAssignment.content}
+                  </div>
+                </div>
 
-                    <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
-                      <div className="flex items-center gap-2">
-                        <span>✨ AI will auto-save complete assignments</span>
-                        {conversationId && (
-                          <Badge variant="outline" className="text-xs">
-                            Chat Active: {conversationId.substring(0, 8)}...
-                          </Badge>
-                        )}
+                {/* Revision History */}
+                {currentAssignment.revisionHistory.length > 1 && (
+                  <div className="bg-white rounded-lg p-4 border border-blue-200">
+                    <h4 className="font-semibold text-blue-800 mb-3 flex items-center gap-2">
+                      <RotateCcw className="h-5 w-5" />
+                      Revision History
+                    </h4>
+                    <div className="space-y-2">
+                      {currentAssignment.revisionHistory.map((revision, index) => (
+                        <div key={index} className="flex items-center gap-3 text-sm">
+                          <Badge variant="outline" className="text-xs">v{revision.version}</Badge>
+                          <span className="text-gray-600">
+                            {format(revision.timestamp, "MMM dd, yyyy 'at' HH:mm")}
+                          </span>
+                          {revision.revisionRequest && (
+                            <span className="text-gray-500 italic">- {revision.revisionRequest}</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex flex-col sm:flex-row gap-4 pt-4">
+                  <Button
+                    onClick={() => setWorkflowState('requesting-changes')}
+                    variant="outline"
+                    className="flex-1 h-12 border-orange-300 text-orange-700 hover:bg-orange-50"
+                  >
+                    <Edit3 className="h-5 w-5 mr-2" />
+                    Request Changes
+                  </Button>
+                  <Button
+                    onClick={handleSaveAssignment}
+                    className="flex-1 h-12 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white"
+                  >
+                    <Save className="h-5 w-5 mr-2" />
+                    Save This Assignment
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Request Changes */}
+          {workflowState === 'requesting-changes' && (
+            <Card className="shadow-lg border-orange-200 bg-gradient-to-r from-orange-50 to-amber-50">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-orange-100 rounded-lg">
+                    <MessageSquare className="h-6 w-6 text-orange-600" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-xl text-orange-800">Request Assignment Changes</CardTitle>
+                    <CardDescription className="text-orange-600">
+                      Describe what changes you'd like to make to the assignment
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="bg-white rounded-lg p-4 border border-orange-200">
+                  <Label className="text-base font-semibold text-orange-800 mb-3 block">
+                    What would you like to change?
+                  </Label>
+                  <Textarea
+                    value={revisionRequest}
+                    onChange={(e) => setRevisionRequest(e.target.value)}
+                    placeholder="Describe the changes you want. For example:
+• Remove the section about film history
+• Add more practical exercises
+• Include examples from recent movies
+• Make the assignment shorter
+• Add specific grading criteria"
+                    className="min-h-[120px] resize-none border-orange-200 focus:border-orange-400 focus:ring-orange-400"
+                  />
+                </div>
+
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5" />
+                    <div className="text-sm text-amber-800">
+                      <p className="font-medium mb-1">Tips for effective revision requests:</p>
+                      <ul className="space-y-1 text-amber-700">
+                        <li>• Be specific about what to change</li>
+                        <li>• Mention if you want to add or remove content</li>
+                        <li>• Include any specific examples or requirements</li>
+                        <li>• The AI will revise based on your current assignment</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <Button
+                    onClick={() => setWorkflowState('reviewing')}
+                    variant="outline"
+                    className="flex-1 h-12"
+                  >
+                    <ArrowRight className="h-5 w-5 mr-2 rotate-180" />
+                    Back to Review
+                  </Button>
+                  <Button
+                    onClick={handleRevisionRequest}
+                    disabled={!revisionRequest.trim()}
+                    className="flex-1 h-12 bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700 text-white"
+                  >
+                    <RefreshCw className="h-5 w-5 mr-2" />
+                    Generate Revised Assignment
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Regenerating State */}
+          {workflowState === 'regenerating' && (
+            <Card className="shadow-lg border-orange-200 bg-gradient-to-r from-orange-50 to-amber-50">
+              <CardContent className="pt-6">
+                <div className="flex flex-col items-center justify-center py-12">
+                  <div className="relative">
+                    <Loader2 className="h-16 w-16 animate-spin text-orange-600 mb-6" />
+                    <RefreshCw className="h-6 w-6 text-orange-400 absolute -top-2 -right-2 animate-pulse" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-orange-800 mb-2">Revising Your Assignment</h3>
+                  <p className="text-orange-600 text-center max-w-md mb-4">
+                    Our AI is incorporating your feedback and generating a revised version...
+                  </p>
+                  <div className="bg-white rounded-lg p-4 shadow-sm border border-orange-200 max-w-md">
+                    <div className="text-sm text-gray-600">
+                      <div className="font-medium text-orange-800 mb-2">Your revision request:</div>
+                      <div className="italic text-gray-700 bg-gray-50 rounded p-2">
+                        "{revisionRequest}"
                       </div>
-                      <div className="flex items-center gap-2">
-                        {isProcessing && (
-                          <Badge variant="secondary" className="text-xs">
-                            Processing...
-                          </Badge>
-                        )}
-                        {conversationId && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={resetConversation}
-                            className="text-xs h-6 px-2"
-                          >
-                            Reset Chat
-                          </Button>
-                        )}
-                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Saving/Enrolling States */}
+          {(workflowState === 'saving' || workflowState === 'enrolling') && (
+            <Card className="shadow-lg border-green-200 bg-gradient-to-r from-green-50 to-emerald-50">
+              <CardContent className="pt-6">
+                <div className="flex flex-col items-center justify-center py-12">
+                  <div className="relative">
+                    <Loader2 className="h-16 w-16 animate-spin text-green-600 mb-6" />
+                    {workflowState === 'saving' ? (
+                      <Save className="h-6 w-6 text-green-400 absolute -top-2 -right-2 animate-pulse" />
+                    ) : (
+                      <UserPlus className="h-6 w-6 text-green-400 absolute -top-2 -right-2 animate-pulse" />
+                    )}
+                  </div>
+                  <h3 className="text-xl font-semibold text-green-800 mb-2">
+                    {workflowState === 'saving' ? 'Saving Assignment' : 'Enrolling Students'}
+                  </h3>
+                  <p className="text-green-600 text-center max-w-md">
+                    {workflowState === 'saving' 
+                      ? 'Saving your assignment to the database...'
+                      : `Enrolling ${selectedClass?.student_count || 0} students in the assignment...`
+                    }
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Success State */}
+          {workflowState === 'complete' && currentAssignment && (
+            <Card className="shadow-lg border-green-200 bg-gradient-to-r from-green-50 to-emerald-50">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-green-100 rounded-lg">
+                    <CheckCircle className="h-6 w-6 text-green-600" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-xl text-green-800">Assignment Created Successfully! 🎉</CardTitle>
+                    <CardDescription className="text-green-600">
+                      Your assignment has been saved and assigned to all students in the class
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                  <div className="bg-white rounded-lg p-4 border border-green-200">
+                    <div className="text-sm font-medium text-green-700 mb-1">Assignment</div>
+                    <div className="text-gray-900 font-semibold">{currentAssignment.title}</div>
+                  </div>
+                  <div className="bg-white rounded-lg p-4 border border-green-200">
+                    <div className="text-sm font-medium text-green-700 mb-1">Class</div>
+                    <div className="text-gray-900">{selectedClass?.name}</div>
+                  </div>
+                  <div className="bg-white rounded-lg p-4 border border-green-200">
+                    <div className="text-sm font-medium text-green-700 mb-1">Students Enrolled</div>
+                    <div className="text-gray-900 font-semibold">{selectedClass?.student_count || 0}</div>
+                  </div>
+                  <div className="bg-white rounded-lg p-4 border border-green-200">
+                    <div className="text-sm font-medium text-green-700 mb-1">Due Date</div>
+                    <div className="text-gray-900">{format(dueDate!, "MMM dd, yyyy")}</div>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-lg p-6 border border-green-200">
+                  <h4 className="font-semibold text-green-800 mb-3 flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    Final Assignment Content
+                  </h4>
+                  <div className="prose max-w-none text-gray-700 text-sm leading-relaxed whitespace-pre-wrap bg-gray-50 rounded-lg p-4 max-h-60 overflow-y-auto">
+                    {currentAssignment.content}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between bg-white rounded-lg p-4 border border-green-200">
+                  <div className="flex items-center gap-6">
+                    <div className="flex items-center gap-2 text-sm text-green-700">
+                      <UserPlus className="h-4 w-4" />
+                      <span>Students enrolled</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-green-700">
+                      <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300">
+                        Version {currentAssignment.revisionHistory.length}
+                      </Badge>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={resetWorkflow}
+                    variant="outline"
+                    className="border-green-300 text-green-700 hover:bg-green-50"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create Another Assignment
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Instructions Card */}
+          <Card className="bg-blue-50 border-blue-200">
+            <CardContent className="pt-6">
+              <div className="flex items-start gap-4">
+                <div className="p-3 bg-blue-100 rounded-full">
+                  <Sparkles className="h-6 w-6 text-blue-600" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-blue-900 mb-3">Assignment Creation Workflow</h3>
+                  <div className="space-y-2 text-sm text-blue-800">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                      <span><strong>Step 1-4:</strong> Configure class, topic, subtopic, and due date</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                      <span><strong>Generate:</strong> AI creates initial assignment based on curriculum</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                      <span><strong>Review:</strong> Examine the generated content and decide on changes</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                      <span><strong>Revise (Optional):</strong> Request changes and regenerate with feedback</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                      <span><strong>Save & Enroll:</strong> Finalize assignment and auto-enroll students in that class</span>
                     </div>
                   </div>
                 </div>
               </div>
             </CardContent>
           </Card>
+
+          
         </div>
       </ModernDashboardLayout>
     </AuthGuard>
   )
-}
-
-
-
-
+} 

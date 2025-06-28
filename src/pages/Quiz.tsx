@@ -400,8 +400,44 @@ const createFallbackQuestions = (content: string): QuizQuestion[] => {
       }
     });
   } 
-  // Method 2: Handle format "### Question X:" with ** question **
+  // Method 2: Handle format "**Question X:**" with question text on next line
   else {
+    const questionHeaderBlocks = content.split(/\*\*Question\s+\d+:\*\*/i).filter(block => block.trim());
+    
+    if (questionHeaderBlocks.length > 1) {
+      // Remove the first block (usually empty or topic info)
+      questionHeaderBlocks.shift();
+      
+      questionHeaderBlocks.forEach((block, index) => {
+        if (block.trim()) {
+          // Extract the actual question text (first meaningful line)
+          const lines = block.trim().split('\n').filter(line => line.trim());
+          const questionText = lines[0]?.trim();
+          
+          if (questionText) {
+            // Extract options - look for lines starting with - A), - B), etc.
+            const optionMatches = block.match(/[-\s]*[A-D]\)\s*[^\n\r]+/g);
+            
+            if (optionMatches && optionMatches.length >= 4) {
+              const options = optionMatches.slice(0, 4).map(opt => {
+                // Clean up the option text - remove leading dashes and spaces
+                return opt.trim().replace(/^[-\s]*/, '');
+              });
+              
+              questions.push({
+                id: index + 1,
+                question: questionText,
+                options: options
+              });
+            }
+          }
+        }
+      });
+    }
+  }
+  
+  // Method 3: Handle format "### Question X:" with ** question ** (fallback)
+  if (questions.length === 0) {
     const newFormatBlocks = content.split(/###\s*Question\s+\d+:\s*/i).filter(block => block.trim());
     
     if (newFormatBlocks.length > 1) {
@@ -431,7 +467,10 @@ const createFallbackQuestions = (content: string): QuizQuestion[] => {
         }
       });
     }
-    // Method 2: Handle old format "1. **" with "- a)" options
+  }
+  
+  // Method 4: Handle old format "1. **" with "- a)" options (final fallback)
+  if (questions.length === 0) {
     const questionBlocks = content.split(/\d+\.\s*\*\*/).filter(block => block.trim());
     
     questionBlocks.forEach((block, index) => {
@@ -1124,7 +1163,7 @@ After providing this comprehensive explanation, end with this exact prompt:
                 </Link>
                 <div className="flex-1">
                   <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-                    AI Mentor Agent
+                    AI Mentor
                   </h1>
                   <p className="text-gray-600">
                     Learn with detailed explanations and test your knowledge

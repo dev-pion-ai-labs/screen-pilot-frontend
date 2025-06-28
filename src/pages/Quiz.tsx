@@ -89,10 +89,18 @@ type WorkflowStage =
 // AI Mentor Agent Configuration
 const AI_MENTOR_AGENT_CONFIG = {
   mentor: {
-    endpoint: "https://api-d7b62b.stack.tryrelevance.com/latest/agents/trigger",
-    authorization:
-      "5cc7752400a6-4648-b47b-04fc92b47cae:sk-M2ZhMjg2ZjUtOTVlMS00YjNhLTgzZWUtM2RiODRhZTU5M2Q5",
-    agent_id: "da1cdcf3-0091-48d3-b6a3-f6abb69ae449",
+    "Semester 1": {
+      endpoint: "https://api-d7b62b.stack.tryrelevance.com/latest/agents/trigger",
+      authorization:
+        "5cc7752400a6-4648-b47b-04fc92b47cae:sk-M2ZhMjg2ZjUtOTVlMS00YjNhLTgzZWUtM2RiODRhZTU5M2Q5",
+      agent_id: "da1cdcf3-0091-48d3-b6a3-f6abb69ae449",
+    },
+    "Semester 2": {
+      endpoint: "https://api-d7b62b.stack.tryrelevance.com/latest/agents/trigger",
+      authorization:
+        "5cc7752400a6-4648-b47b-04fc92b47cae:sk-YmVhZTc5MjAtNzBjYy00ZWMzLTgwMGUtMDU5YThiYTlhOWI5",
+      agent_id: "9febbea9-510f-44ad-af56-05d36fd03bfb",
+    },
   },
   quiz: {
     "Semester 1": {
@@ -359,25 +367,28 @@ const createFallbackQuestions = (content: string): QuizQuestion[] => {
   // Try to parse questions from the content string
   const questions: QuizQuestion[] = [];
   
-  // Method 1: Handle new format "### Question X:" with ** question **
-  const newFormatBlocks = content.split(/###\s*Question\s+\d+:\s*/i).filter(block => block.trim());
+  // Method 1: Handle numbered format "1. **Question 1:**" with actual question text
+  const numberedQuestionBlocks = content.split(/\d+\.\s*\*\*Question\s+\d+:\*\*/i).filter(block => block.trim());
   
-  if (newFormatBlocks.length > 1) {
-    // Remove the first empty block
-    newFormatBlocks.shift();
+  if (numberedQuestionBlocks.length > 1) {
+    // Remove the first block (usually topic info)
+    numberedQuestionBlocks.shift();
     
-    newFormatBlocks.forEach((block, index) => {
+    numberedQuestionBlocks.forEach((block, index) => {
       if (block.trim()) {
-        // Extract question text (between ** and **)
-        const questionMatch = block.match(/\*\*([^*]+)\*\*/);
-        if (questionMatch) {
-          const questionText = questionMatch[1].trim();
-          
-          // Extract options (A), B), C), D))
-          const optionMatches = block.match(/[A-D]\)\s*[^\n\r]+/g);
+        // Extract the actual question text (first meaningful line after the question header)
+        const lines = block.trim().split('\n').filter(line => line.trim());
+        const questionText = lines[0]?.trim();
+        
+        if (questionText) {
+          // Extract options - look for lines starting with - A), - B), etc.
+          const optionMatches = block.match(/[-\s]*[A-D]\)\s*[^\n\r]+/g);
           
           if (optionMatches && optionMatches.length >= 4) {
-            const options = optionMatches.slice(0, 4).map(opt => opt.trim());
+            const options = optionMatches.slice(0, 4).map(opt => {
+              // Clean up the option text - remove leading dashes and spaces
+              return opt.trim().replace(/^[-\s]*/, '');
+            });
             
             questions.push({
               id: index + 1,
@@ -388,7 +399,38 @@ const createFallbackQuestions = (content: string): QuizQuestion[] => {
         }
       }
     });
-  } else {
+  } 
+  // Method 2: Handle format "### Question X:" with ** question **
+  else {
+    const newFormatBlocks = content.split(/###\s*Question\s+\d+:\s*/i).filter(block => block.trim());
+    
+    if (newFormatBlocks.length > 1) {
+      // Remove the first empty block
+      newFormatBlocks.shift();
+      
+      newFormatBlocks.forEach((block, index) => {
+        if (block.trim()) {
+          // Extract question text (between ** and **)
+          const questionMatch = block.match(/\*\*([^*]+)\*\*/);
+          if (questionMatch) {
+            const questionText = questionMatch[1].trim();
+            
+            // Extract options (A), B), C), D))
+            const optionMatches = block.match(/[A-D]\)\s*[^\n\r]+/g);
+            
+            if (optionMatches && optionMatches.length >= 4) {
+              const options = optionMatches.slice(0, 4).map(opt => opt.trim());
+              
+              questions.push({
+                id: index + 1,
+                question: questionText,
+                options: options
+              });
+            }
+          }
+        }
+      });
+    }
     // Method 2: Handle old format "1. **" with "- a)" options
     const questionBlocks = content.split(/\d+\.\s*\*\*/).filter(block => block.trim());
     
@@ -508,20 +550,27 @@ export default function AIMentorAgent(): JSX.Element {
 
   // API Functions
   const callMentorAgent = async (message: string): Promise<any> => {
+    // Get the appropriate mentor config based on selected semester
+    const mentorConfig = AI_MENTOR_AGENT_CONFIG.mentor[topicSelection.semester as keyof typeof AI_MENTOR_AGENT_CONFIG.mentor];
+    
+    if (!mentorConfig) {
+      throw new Error(`No mentor configuration found for ${topicSelection.semester}`);
+    }
+
     const payload: any = {
       message: { role: "user", content: message },
-      agent_id: AI_MENTOR_AGENT_CONFIG.mentor.agent_id,
+      agent_id: mentorConfig.agent_id,
     };
 
     if (conversationId) {
       payload.conversation_id = conversationId;
     }
 
-    const response = await fetch(AI_MENTOR_AGENT_CONFIG.mentor.endpoint, {
+    const response = await fetch(mentorConfig.endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: AI_MENTOR_AGENT_CONFIG.mentor.authorization,
+        Authorization: mentorConfig.authorization,
       },
       body: JSON.stringify(payload),
     });
@@ -645,6 +694,13 @@ export default function AIMentorAgent(): JSX.Element {
   const pollAgentResponse = async (jobInfo: any): Promise<any> => {
     const maxAttempts = 20;
     let attempts = 0;
+    
+    // Get the appropriate mentor config based on selected semester
+    const mentorConfig = AI_MENTOR_AGENT_CONFIG.mentor[topicSelection.semester as keyof typeof AI_MENTOR_AGENT_CONFIG.mentor];
+    
+    if (!mentorConfig) {
+      throw new Error(`No mentor configuration found for ${topicSelection.semester}`);
+    }
 
     while (attempts < maxAttempts) {
       try {
@@ -652,7 +708,7 @@ export default function AIMentorAgent(): JSX.Element {
           `https://api-${AI_MENTOR_AGENT_CONFIG.region}.stack.tryrelevance.com/latest/studios/${jobInfo.studio_id}/async_poll/${jobInfo.job_id}`,
           {
             headers: {
-              Authorization: AI_MENTOR_AGENT_CONFIG.mentor.authorization,
+              Authorization: mentorConfig.authorization,
             },
           }
         );

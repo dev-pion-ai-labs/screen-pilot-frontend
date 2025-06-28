@@ -359,38 +359,68 @@ const createFallbackQuestions = (content: string): QuizQuestion[] => {
   // Try to parse questions from the content string
   const questions: QuizQuestion[] = [];
   
-  // Split content by question numbers (1., 2., 3., etc.)
-  const questionBlocks = content.split(/\d+\.\s*\*\*/).filter(block => block.trim());
+  // Method 1: Handle new format "### Question X:" with ** question **
+  const newFormatBlocks = content.split(/###\s*Question\s+\d+:\s*/i).filter(block => block.trim());
   
-  questionBlocks.forEach((block, index) => {
-    if (block.trim()) {
-      // Extract question text (between ** and **)
-      const questionMatch = block.match(/^([^*]+)\*\*/);
-      if (questionMatch) {
-        const questionText = questionMatch[1].trim();
-        
-        // Extract options - handle both formats: "- a)" and "A)"
-        const optionMatches = block.match(/[-\s]*[a-dA-D]\)\s*[^\n-]+/g);
-        
-        if (optionMatches && optionMatches.length >= 4) {
-          const options = optionMatches.slice(0, 4).map(opt => {
-            // Clean up the option text and format consistently
-            const cleanOpt = opt.trim().replace(/^[-\s]*/, '');
-            // Convert lowercase to uppercase for consistency
-            return cleanOpt.replace(/^([a-d])\)/, (match, letter) => `${letter.toUpperCase()})`);
-          });
+  if (newFormatBlocks.length > 1) {
+    // Remove the first empty block
+    newFormatBlocks.shift();
+    
+    newFormatBlocks.forEach((block, index) => {
+      if (block.trim()) {
+        // Extract question text (between ** and **)
+        const questionMatch = block.match(/\*\*([^*]+)\*\*/);
+        if (questionMatch) {
+          const questionText = questionMatch[1].trim();
           
-          questions.push({
-            id: index + 1,
-            question: questionText,
-            options: options
-          });
+          // Extract options (A), B), C), D))
+          const optionMatches = block.match(/[A-D]\)\s*[^\n\r]+/g);
+          
+          if (optionMatches && optionMatches.length >= 4) {
+            const options = optionMatches.slice(0, 4).map(opt => opt.trim());
+            
+            questions.push({
+              id: index + 1,
+              question: questionText,
+              options: options
+            });
+          }
         }
       }
-    }
-  });
+    });
+  } else {
+    // Method 2: Handle old format "1. **" with "- a)" options
+    const questionBlocks = content.split(/\d+\.\s*\*\*/).filter(block => block.trim());
+    
+    questionBlocks.forEach((block, index) => {
+      if (block.trim()) {
+        // Extract question text (between ** and **)
+        const questionMatch = block.match(/^([^*]+)\*\*/);
+        if (questionMatch) {
+          const questionText = questionMatch[1].trim();
+          
+          // Extract options - handle both formats: "- a)" and "A)"
+          const optionMatches = block.match(/[-\s]*[a-dA-D]\)\s*[^\n-]+/g);
+          
+          if (optionMatches && optionMatches.length >= 4) {
+            const options = optionMatches.slice(0, 4).map(opt => {
+              // Clean up the option text and format consistently
+              const cleanOpt = opt.trim().replace(/^[-\s]*/, '');
+              // Convert lowercase to uppercase for consistency
+              return cleanOpt.replace(/^([a-d])\)/, (match, letter) => `${letter.toUpperCase()})`);
+            });
+            
+            questions.push({
+              id: index + 1,
+              question: questionText,
+              options: options
+            });
+          }
+        }
+      }
+    });
+  }
 
-  
   console.log("Parsed questions from content:", questions);
   return questions;
 };

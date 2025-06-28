@@ -676,6 +676,7 @@ export default function StudentAssignments() {
             topic,
             difficulty,
             created_at,
+            ai_generated_content,
             submissions (
               id,
               status,
@@ -691,6 +692,9 @@ export default function StudentAssignments() {
         `
         )
         .eq("student_id", user?.id);
+
+      console.log("Full response:", { data: enrollments, error });
+      console.log("Enrollments count:", enrollments?.length);
 
       if (error) throw error;
 

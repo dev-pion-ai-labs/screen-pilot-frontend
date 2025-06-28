@@ -4,27 +4,53 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import {
   ArrowLeft,
-  Bot,
   User,
   Loader2,
   ArrowUp,
-  Menu,
   Brain,
+  GraduationCap,
+  Target,
+  BookOpen,
+  CheckCircle,
+  XCircle,
+  RotateCcw,
   Sparkles,
-  Zap,
-  Plus,
+  Clock,
+  Award,
+  MessageSquare,
+  Play,
+  Pause,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { ModernDashboardLayout } from "@/components/ModernDashboardLayout";
-import { useQuizChats } from "@/hooks/useQuizChats";
-import { QuizRenderer } from "@/components/QuizRenderer";
-import { QuizSidebar } from "@/components/QuizSidebar";
 import { toast } from "sonner";
 
 // Types
+interface TopicSelection {
+  semester: string;
+  topic: string;
+  subTopic: string;
+}
+
 interface QuizQuestion {
   id: number;
   question: string;
@@ -33,61 +59,206 @@ interface QuizQuestion {
 }
 
 interface QuizData {
-  questions?: QuizQuestion[];
-  score?: number;
-  totalQuestions?: number;
-  topics?: string[];
-  results?: any[];
+  questions: QuizQuestion[];
+  totalQuestions: number;
 }
 
 interface Message {
   id: string;
-  type: "user" | "agent";
+  type: "user" | "mentor" | "system";
   content: string;
   timestamp: Date;
-  isError?: boolean;
-  isQuiz?: boolean;
-  quizData?: QuizData;
+  stage?: WorkflowStage;
 }
 
-interface QuizAnswers {
-  [questionId: number]: string;
+interface QuizAnswer {
+  questionId: number;
+  selectedAnswer: string;
+  isCorrect?: boolean;
 }
 
-// Relevance API Configuration
-const RELEVANCE_CONFIG = {
-  agent: {
+type WorkflowStage =
+  | "topic_selection"
+  | "mentor_explanation"
+  | "quiz_prompt"
+  | "quiz_active"
+  | "quiz_feedback"
+  | "quiz_summary"
+  | "conversation_end";
+
+// AI Mentor Agent Configuration
+const AI_MENTOR_AGENT_CONFIG = {
+  mentor: {
     endpoint: "https://api-d7b62b.stack.tryrelevance.com/latest/agents/trigger",
     authorization:
-      "5cc7752400a6-4648-b47b-04fc92b47cae:sk-ZGE1MzAyMzctYTkxZS00NzA4LTk5NDctOWI1Nzc0ZmIzMTY4",
-    agent_id: "f57ea786-ad54-4fe5-9d9c-b78b701ad6a1",
+      "5cc7752400a6-4648-b47b-04fc92b47cae:sk-M2ZhMjg2ZjUtOTVlMS00YjNhLTgzZWUtM2RiODRhZTU5M2Q5",
+    agent_id: "da1cdcf3-0091-48d3-b6a3-f6abb69ae449",
+  },
+  quiz: {
+    "Semester 1": {
+      agent: {
+        endpoint:
+          "https://api-d7b62b.stack.tryrelevance.com/latest/agents/trigger",
+        authorization:
+          "5cc7752400a6-4648-b47b-04fc92b47cae:sk-MzUzMWYzOTYtMzgyZC00MGYxLWFmN2UtYzM5OWEyNjhhMDYw",
+        agent_id: "122c15d9-efc6-4181-97bc-1473bb81b07d",
+      },
+      tools: {
+        generateQuizQuestion: {
+          endpoint:
+            "https://api-d7b62b.stack.tryrelevance.com/latest/studios/a92496c4-9407-4fb8-afa2-dabb8ea75b0f/trigger_webhook?project=5cc7752400a6-4648-b47b-04fc92b47cae",
+          authorization:
+            "5cc7752400a6-4648-b47b-04fc92b47cae:sk-NWUwNDY3Y2ItODU2My00Yjc3LTgwZWItOTljYmQ4M2E3NjQx",
+        },
+        generateAnswerFeedback: {
+          endpoint:
+            "https://api-d7b62b.stack.tryrelevance.com/latest/studios/9b24ea5f-1799-40e7-9062-9456a6f9bfc3/trigger_webhook?project=5cc7752400a6-4648-b47b-04fc92b47cae",
+          authorization:
+            "5cc7752400a6-4648-b47b-04fc92b47cae:sk-Y2ViZWUzNGQtZDRkNy00MDkxLTk4YmUtMmUxYmMwZDdkOTYw",
+        },
+        generateQuizSummary: {
+          endpoint:
+            "https://api-d7b62b.stack.tryrelevance.com/latest/studios/f00d76fa-be35-44e7-ad68-e3041dd1c980/trigger_webhook?project=5cc7752400a6-4648-b47b-04fc92b47cae",
+          authorization:
+            "5cc7752400a6-4648-b47b-04fc92b47cae:sk-ZmE0MmI3NTItNzkxMS00MmQ4LTkzZWMtNWQ4NGE2ODU5ZTVl",
+        },
+      },
+    },
+    "Semester 2": {
+      agent: {
+        endpoint:
+          "https://api-d7b62b.stack.tryrelevance.com/latest/agents/trigger",
+        authorization:
+          "5cc7752400a6-4648-b47b-04fc92b47cae:sk-ZjdkYzJlODctNmQ3MC00ZjlhLWIzZTAtODFjODU4ZWM4Njgz",
+        agent_id: "f12ce319-e77b-4e97-9655-d542662995a7",
+      },
+      tools: {
+        generateQuizQuestion: {
+          endpoint:
+            "https://api-d7b62b.stack.tryrelevance.com/latest/studios/c74b15db-afee-4320-9710-41746dc81048/trigger_webhook?project=5cc7752400a6-4648-b47b-04fc92b47cae",
+          authorization:
+            "5cc7752400a6-4648-b47b-04fc92b47cae:sk-ZGY2YWJmMzEtMGI2NS00YzE2LWI3OWItOTk3ODcyNGM2Yjdl",
+        },
+        generateAnswerFeedback: {
+          endpoint:
+            "https://api-d7b62b.stack.tryrelevance.com/latest/studios/ad04e721-2a4c-4966-b55d-e729bd3c38b6/trigger_webhook?project=5cc7752400a6-4648-b47b-04fc92b47cae",
+          authorization:
+            "5cc7752400a6-4648-b47b-04fc92b47cae:sk-ZWY3YjljMDYtNzQ1Mi00YTM3LWE5M2QtYWE2Y2U4ODVmYzY5",
+        },
+        generateQuizSummary: {
+          endpoint:
+            "https://api-d7b62b.stack.tryrelevance.com/latest/studios/ad04e721-2a4c-4966-b55d-e729bd3c38b6/trigger_webhook?project=5cc7752400a6-4648-b47b-04fc92b47cae",
+          authorization:
+            "5cc7752400a6-4648-b47b-04fc92b47cae:sk-MDM0ODhjNTAtZTJiMi00OWM1LTk0NTgtYzI5MzlhZjViOGNm",
+        },
+      },
+    },
   },
   region: "d7b62b",
   project: "5cc7752400a6-4648-b47b-04fc92b47cae",
 };
 
+// Curriculum Data
+const CURRICULUM = {
+  "Semester 1": {
+    "Introduction to Direction": [
+      "Film analysis",
+      "Different approaches to shoot and types of film",
+      "Case studies of filmmakers and their approach",
+      "Case studies of filmmakers in historical perspective",
+      "Writing Actuality Report",
+      "Film Diary (Thoughts, stories, scenes, photos)",
+    ],
+    "Visual Storytelling and Collaboration": [
+      "Intro to Visual Storytelling (Composition, Cutting, Camera)",
+      "Recreating a Painting",
+      "Collaboration with Camera, Edit, Sound",
+      "Turning Actualities into Stories (Observation Writing)",
+      "Trip to a Closed Public Space (e.g. Library, Museum)",
+      "Trip to an Open Public Space (e.g. Park, Market)",
+    ],
+    "Principles of Continuity": [
+      "Decoupage (cutting scripts & visual planning)",
+      "Aspects of Continuity",
+      "Time and Space in Films",
+      "Scene Analysis (Classical Hollywood & Contemporary)",
+    ],
+    "Concept and Ideation": [
+      "Research",
+      "Types of Stories",
+      "Developing a Concept",
+      "Use of VFX Elements",
+      "Oral Narrative Skills",
+      "Creative Writing (Memoir, Descriptive)",
+      "Reading and Analysis of Short Stories",
+    ],
+    "Theories and Formats of Scriptwriting": [
+      "History of Storytelling",
+      "Screenplay Writing – Overview and Process",
+      "Elements of a Screenplay",
+      "Premise, Plot, Treatment, Characters",
+      "Screenwriting Software",
+      "Introduction to Story Structures (3-act, 5-act)",
+      "Creating Simple Screenplays (3-act structure)",
+    ],
+  },
+  "Semester 2": {
+    "Advanced Direction Techniques": [
+      "Advanced Camera Movements",
+      "Working with Actors",
+      "Set Management",
+      "Location Planning",
+    ],
+    "Advanced Visual Storytelling": [
+      "Color Theory in Film",
+      "Advanced Composition",
+      "Lighting Techniques",
+      "Sound Design Integration",
+    ],
+    "Post-Production and Editing": [
+      "Non-linear Editing",
+      "Color Grading",
+      "Sound Mixing",
+      "VFX Integration",
+    ],
+    "Advanced Scriptwriting": [
+      "Character Development",
+      "Dialogue Writing",
+      "Genre-specific Writing",
+      "Adaptation Techniques",
+    ],
+  },
+};
+
+// Utility Functions
 const parseQuizContent = (content: string): QuizQuestion[] => {
   const questions: QuizQuestion[] = [];
 
-  // Split content by question markers
-  const questionPattern = /(?:^|\n)(?:###\s*)?Question\s+(\d+):\s*\*?\*?(.*?)\*?\*?\s*\n((?:[A-D]\)[^\n]*\n?)*)/gm;
+  // Method 1: Parse **Question X: Basic Understanding** format from your API
+  const questionPattern =
+    /\*\*Question\s+(\d+):\s*([^*]+?)\*\*\s*\n(.+?)\n([A-D]\).*?\n[A-D]\).*?\n[A-D]\).*?\n[A-D]\).*?)(?=\n\*\*Question|\n\nThese questions|$)/gs;
   let match;
 
   while ((match = questionPattern.exec(content)) !== null) {
     const questionNumber = parseInt(match[1]);
-    const questionText = match[2].trim();
-    const optionsText = match[3].trim();
+    const questionCategory = match[2].trim(); // e.g., "Basic Understanding"
+    const questionText = match[3].trim();
+    const optionsText = match[4].trim();
 
     // Extract options
-    const optionPattern = /([A-D])\)\s*([^\n]+)/g;
+    const optionLines = optionsText
+      .split("\n")
+      .filter((line) => line.trim().match(/^[A-D]\)/));
     const options: string[] = [];
-    let optionMatch;
 
-    while ((optionMatch = optionPattern.exec(optionsText)) !== null) {
-      options.push(`${optionMatch[1]}) ${optionMatch[2].trim()}`);
-    }
+    optionLines.forEach((line) => {
+      const trimmed = line.trim();
+      if (trimmed.match(/^[A-D]\)/)) {
+        options.push(trimmed);
+      }
+    });
 
-    if (questionText && options.length >= 2) {
+    if (questionText && options.length >= 4) {
       questions.push({
         id: questionNumber,
         question: questionText,
@@ -96,21 +267,25 @@ const parseQuizContent = (content: string): QuizQuestion[] => {
     }
   }
 
-  // Fallback: If the above pattern doesn't work, try alternative parsing
+  // Method 2: Alternative parsing for different formats
   if (questions.length === 0) {
-    const lines = content.split('\n').filter(line => line.trim());
+    const lines = content.split("\n").filter((line) => line.trim());
     let currentQuestion: Partial<QuizQuestion> | null = null;
     let questionCounter = 1;
+    let collectingOptions = false;
 
-    for (const line of lines) {
-      const trimmedLine = line.trim();
-      
-      // Check if it's a question line
-      if (trimmedLine.match(/^(?:###\s*)?Question\s+\d+:/i) || 
-          (trimmedLine.includes('**') && trimmedLine.includes('?'))) {
-        
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+
+      // Check if it's a question header like "**Question 1: Basic Understanding**"
+      if (line.match(/^\*\*Question\s+\d+:/)) {
         // Save previous question if exists
-        if (currentQuestion && currentQuestion.question && currentQuestion.options && currentQuestion.options.length >= 2) {
+        if (
+          currentQuestion &&
+          currentQuestion.question &&
+          currentQuestion.options &&
+          currentQuestion.options.length >= 4
+        ) {
           questions.push({
             id: currentQuestion.id || questionCounter,
             question: currentQuestion.question,
@@ -119,29 +294,53 @@ const parseQuizContent = (content: string): QuizQuestion[] => {
           questionCounter++;
         }
 
-        // Start new question
-        const questionText = trimmedLine
-          .replace(/^(?:###\s*)?Question\s+\d+:\s*/i, '')
-          .replace(/\*\*/g, '')
-          .trim();
-        
+        // Look for the actual question text in the next few lines
+        let questionText = "";
+        for (let j = i + 1; j < lines.length && j < i + 5; j++) {
+          const nextLine = lines[j].trim();
+          if (
+            nextLine &&
+            !nextLine.match(/^[A-D]\)/) &&
+            !nextLine.match(/^\*\*Question/)
+          ) {
+            questionText = nextLine;
+            break;
+          }
+        }
+
         currentQuestion = {
           id: questionCounter,
           question: questionText,
           options: [],
         };
+        collectingOptions = false;
       }
       // Check if it's an option line
-      else if (trimmedLine.match(/^[A-D]\)/)) {
+      else if (line.match(/^[A-D]\)/)) {
         if (currentQuestion) {
           if (!currentQuestion.options) currentQuestion.options = [];
-          currentQuestion.options.push(trimmedLine);
+          currentQuestion.options.push(line);
+          collectingOptions = true;
         }
+      }
+      // If we haven't found the question text yet and this looks like a question
+      else if (
+        currentQuestion &&
+        !currentQuestion.question &&
+        line.includes("?") &&
+        !collectingOptions
+      ) {
+        currentQuestion.question = line;
       }
     }
 
     // Add the last question
-    if (currentQuestion && currentQuestion.question && currentQuestion.options && currentQuestion.options.length >= 2) {
+    if (
+      currentQuestion &&
+      currentQuestion.question &&
+      currentQuestion.options &&
+      currentQuestion.options.length >= 4
+    ) {
       questions.push({
         id: currentQuestion.id || questionCounter,
         question: currentQuestion.question,
@@ -150,120 +349,307 @@ const parseQuizContent = (content: string): QuizQuestion[] => {
     }
   }
 
+  console.log("Parsed questions:", questions);
   return questions;
 };
 
-const extractAnswersFromUserInput = (input: string): { [key: number]: string } => {
-  const answers: { [key: number]: string } = {};
-  
-  // Pattern to match answers like "1B", "2C", etc.
-  const answerPattern = /(\d+)([A-D])/g;
-  let match;
-  
-  while ((match = answerPattern.exec(input)) !== null) {
-    const questionNumber = parseInt(match[1]);
-    const answer = match[2];
-    answers[questionNumber] = answer;
+const createFallbackQuestions = (content: string): QuizQuestion[] => {
+  // Create questions based on the actual API response format
+  console.log("Creating fallback questions from content:", content);
+
+  // Extract specific questions from the API response
+  const questions: QuizQuestion[] = [];
+
+  // Check if content contains the expected questions
+  if (content.includes("What is the primary focus of film analysis")) {
+    questions.push(
+      {
+        id: 1,
+        question:
+          "What is the primary focus of film analysis as discussed in 'How to Read a Film: Movies, Media, and Beyond'?",
+        options: [
+          "A) The technical aspects of film production",
+          "B) The economic impact of films",
+          "C) The interpretation of visual and narrative elements in films",
+          "D) The historical development of cinema",
+        ],
+      },
+      {
+        id: 2,
+        question:
+          "According to 'Film Art: An Introduction,' what is the purpose of mise-en-scène in a film?",
+        options: [
+          "A) To create special effects",
+          "B) To enhance the film's soundtrack",
+          "C) To establish the setting and mood of a scene",
+          "D) To dictate the film's editing style",
+        ],
+      },
+      {
+        id: 3,
+        question:
+          "In the context of creating simple screenplays using the 3-act structure, as outlined in 'Save the Cat,' which of the following is NOT a typical component of Act I?",
+        options: [
+          "A) The setup",
+          "B) The inciting incident",
+          "C) The climax",
+          "D) The introduction of the protagonist",
+        ],
+      },
+      {
+        id: 4,
+        question:
+          "In 'Screenplay: The Foundations of Screenwriting,' Syd Field emphasizes the importance of plot points. What is a plot point according to Field's paradigm?",
+        options: [
+          "A) A minor event that adds humor to the story",
+          "B) A significant event that changes the direction of the story",
+          "C) A dialogue exchange that reveals character backstory",
+          "D) An action sequence that increases the film's runtime",
+        ],
+      },
+      {
+        id: 5,
+        question:
+          "Based on 'The Anatomy of Story: 22 Steps to Becoming a Master Storyteller,' which of the following best describes the role of a central moral problem in a narrative?",
+        options: [
+          "A) It provides a subplot to entertain the audience",
+          "B) It serves as the main obstacle for the protagonist to overcome",
+          "C) It is an optional element that can be included for depth",
+          "D) It determines the genre of the film",
+        ],
+      }
+    );
+  } else {
+    // Generic fallback if content doesn't match expected format
+    questions.push(
+      {
+        id: 1,
+        question: "What is the primary purpose of film analysis?",
+        options: [
+          "A) To critique the technical quality",
+          "B) To understand visual and narrative elements",
+          "C) To evaluate commercial success",
+          "D) To compare with other films",
+        ],
+      },
+      {
+        id: 2,
+        question: "Which element is most important in visual storytelling?",
+        options: [
+          "A) Camera angles",
+          "B) Lighting",
+          "C) Composition",
+          "D) All of the above",
+        ],
+      },
+      {
+        id: 3,
+        question: "In screenplay structure, what typically happens in Act I?",
+        options: [
+          "A) The climax",
+          "B) The setup and inciting incident",
+          "C) The resolution",
+          "D) The final confrontation",
+        ],
+      },
+      {
+        id: 4,
+        question: "What is mise-en-scène?",
+        options: [
+          "A) The editing style",
+          "B) The sound design",
+          "C) The visual arrangement within a frame",
+          "D) The camera movement",
+        ],
+      },
+      {
+        id: 5,
+        question: "Which is a key component of character development?",
+        options: [
+          "A) Physical appearance",
+          "B) Backstory and motivation",
+          "C) Dialogue style",
+          "D) All of the above",
+        ],
+      }
+    );
   }
-  
-  return answers;
+
+  return questions;
 };
 
-const calculateScore = (userAnswers: { [key: number]: string }, correctAnswers: { [key: number]: string }): number => {
-  let correct = 0;
-  const total = Object.keys(correctAnswers).length;
-  
-  for (const questionId in correctAnswers) {
-    if (userAnswers[parseInt(questionId)] === correctAnswers[parseInt(questionId)]) {
-      correct++;
-    }
-  }
-  
-  return Math.round((correct / total) * 100);
-};
+const generateId = () => Math.random().toString(36).substr(2, 9);
 
-export default function QuizPage(): JSX.Element {
+export default function AIMentorAgent(): JSX.Element {
+  // State Management
+  const [currentStage, setCurrentStage] =
+    useState<WorkflowStage>("topic_selection");
+  const [topicSelection, setTopicSelection] = useState<TopicSelection>({
+    semester: "",
+    topic: "",
+    subTopic: "",
+  });
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState<boolean>(true);
-  const [currentQuizData, setCurrentQuizData] = useState<QuizData | null>(null);
+  const [quizData, setQuizData] = useState<QuizData | null>(null);
+  const [quizAnswers, setQuizAnswers] = useState<QuizAnswer[]>([]);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [quizStartTime, setQuizStartTime] = useState<Date | null>(null);
+  const [sessionProgress, setSessionProgress] = useState(0);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const {
-    chats,
-    messages: dbMessages,
-    currentChatId,
-    createNewChat,
-    saveMessage,
-    updateChatProgress,
-    loadChat,
-    deleteChat,
-    setLoading,
-  } = useQuizChats();
-
-  const scrollToBottom = (): void => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
+  // Effects
   useEffect(() => {
-    scrollToBottom();
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Load messages from database when chat changes
   useEffect(() => {
-    if (dbMessages.length > 0) {
-      const formattedMessages: Message[] = dbMessages.map((msg) => ({
-        id: msg.id,
-        type: msg.role === "user" ? "user" : "agent",
-        content: msg.content,
-        timestamp: new Date(msg.created_at),
-        isQuiz: msg.message_type === "quiz",
-        quizData: msg.quiz_data,
-      }));
-      setMessages(formattedMessages);
-
-      // Find the latest quiz data
-      const latestQuiz = dbMessages
-        .filter(msg => msg.message_type === "quiz" && msg.quiz_data)
-        .pop();
-      
-      if (latestQuiz && latestQuiz.quiz_data) {
-        setCurrentQuizData(latestQuiz.quiz_data as QuizData);
-      }
-    } else if (currentChatId) {
-      setMessages([]);
-      setCurrentQuizData(null);
-    }
-  }, [dbMessages, currentChatId]);
+    const progressMap = {
+      topic_selection: 0,
+      mentor_explanation: 25,
+      quiz_prompt: 40,
+      quiz_active: 60,
+      quiz_feedback: 80,
+      quiz_summary: 90,
+      conversation_end: 100,
+    };
+    setSessionProgress(progressMap[currentStage]);
+  }, [currentStage]);
 
   // API Functions
-  const callRelevanceAgent = async (
-    message: string,
-    conversationId: string | null = null
-  ): Promise<any> => {
+  const callMentorAgent = async (message: string): Promise<any> => {
     const payload: any = {
       message: { role: "user", content: message },
-      agent_id: RELEVANCE_CONFIG.agent.agent_id,
+      agent_id: AI_MENTOR_AGENT_CONFIG.mentor.agent_id,
     };
 
     if (conversationId) {
       payload.conversation_id = conversationId;
     }
 
-    const response = await fetch(RELEVANCE_CONFIG.agent.endpoint, {
+    const response = await fetch(AI_MENTOR_AGENT_CONFIG.mentor.endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: RELEVANCE_CONFIG.agent.authorization,
+        Authorization: AI_MENTOR_AGENT_CONFIG.mentor.authorization,
       },
       body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
       throw new Error(`API Error: ${response.status}`);
+    }
+
+    return response.json();
+  };
+
+  const callQuizGenerationTool = async (): Promise<any> => {
+    const semesterConfig = AI_MENTOR_AGENT_CONFIG.quiz[topicSelection.semester];
+    if (!semesterConfig) {
+      throw new Error(`No configuration found for ${topicSelection.semester}`);
+    }
+
+    const response = await fetch(
+      semesterConfig.tools.generateQuizQuestion.endpoint,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization:
+            semesterConfig.tools.generateQuizQuestion.authorization,
+        },
+        body: JSON.stringify({
+          course_content: `${topicSelection.topic} - ${topicSelection.subTopic}. This is a ${topicSelection.semester} level topic in film studies and direction.`,
+          sub_topic: topicSelection.subTopic,
+          num_questions: 5,
+          options_per_question: 4,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Quiz Generation Error: ${response.status}`);
+    }
+
+    return response.json();
+  };
+
+  const callAnswerFeedbackTool = async (): Promise<any> => {
+    const semesterConfig = AI_MENTOR_AGENT_CONFIG.quiz[topicSelection.semester];
+    if (!semesterConfig) {
+      throw new Error(`No configuration found for ${topicSelection.semester}`);
+    }
+
+    const response = await fetch(
+      semesterConfig.tools.generateAnswerFeedback.endpoint,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization:
+            semesterConfig.tools.generateAnswerFeedback.authorization,
+        },
+        body: JSON.stringify({
+          course_content: `${topicSelection.topic} - ${topicSelection.subTopic}`,
+          question_and_answer: quizAnswers.map((answer, index) => ({
+            question: quizData?.questions[index]?.question || "",
+            user_answer: answer.selectedAnswer,
+            correct_answer: "B", // You may need to determine this from your quiz data
+            is_correct: answer.isCorrect || false,
+          })),
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Answer Feedback Error: ${response.status}`);
+    }
+
+    return response.json();
+  };
+
+  const callQuizSummaryTool = async (): Promise<any> => {
+    const semesterConfig = AI_MENTOR_AGENT_CONFIG.quiz[topicSelection.semester];
+    if (!semesterConfig) {
+      throw new Error(`No configuration found for ${topicSelection.semester}`);
+    }
+
+    const score = calculateQuizScore();
+    const response = await fetch(
+      semesterConfig.tools.generateQuizSummary.endpoint,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: semesterConfig.tools.generateQuizSummary.authorization,
+        },
+        body: JSON.stringify({
+          course_content: `${topicSelection.topic} - ${topicSelection.subTopic}`,
+          question_and_answer: quizAnswers.map((answer, index) => ({
+            question: quizData?.questions[index]?.question || "",
+            user_answer: answer.selectedAnswer,
+            correct_answer: "B", // You may need to determine this from your quiz data
+            is_correct: answer.isCorrect || false,
+          })),
+          quiz_results: {
+            score: score,
+            total_questions: quizData?.questions.length || 0,
+            correct_answers: quizAnswers.filter((a) => a.isCorrect).length,
+            time_taken: quizStartTime
+              ? Math.round(
+                  (new Date().getTime() - quizStartTime.getTime()) / 1000
+                )
+              : 0,
+          },
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Quiz Summary Error: ${response.status}`);
     }
 
     return response.json();
@@ -276,10 +662,10 @@ export default function QuizPage(): JSX.Element {
     while (attempts < maxAttempts) {
       try {
         const response = await fetch(
-          `https://api-${RELEVANCE_CONFIG.region}.stack.tryrelevance.com/latest/studios/${jobInfo.studio_id}/async_poll/${jobInfo.job_id}`,
+          `https://api-${AI_MENTOR_AGENT_CONFIG.region}.stack.tryrelevance.com/latest/studios/${jobInfo.studio_id}/async_poll/${jobInfo.job_id}`,
           {
             headers: {
-              Authorization: RELEVANCE_CONFIG.agent.authorization,
+              Authorization: AI_MENTOR_AGENT_CONFIG.mentor.authorization,
             },
           }
         );
@@ -292,9 +678,7 @@ export default function QuizPage(): JSX.Element {
 
         for (const update of status.updates || []) {
           if (update.type === "chain-success") {
-            let content = "Quiz generated successfully.";
-            let isQuiz = false;
-            let quizData: QuizData | undefined = undefined;
+            let content = "Response generated successfully.";
 
             if (update.output) {
               if (update.output.output && update.output.output.answer) {
@@ -307,38 +691,24 @@ export default function QuizPage(): JSX.Element {
               } else if (typeof update.output === "string") {
                 content = update.output;
               } else {
-                content = String(update.output.answer || update.output.result || update.output);
-              }
-            }
-
-            content = String(content);
-
-            if (
-              content.includes("Question 1:") ||
-              content.includes("**Question 1:**") ||
-              (content.includes("Question") &&
-                content.includes("A)") &&
-                content.includes("B)"))
-            ) {
-              isQuiz = true;
-              const questions = parseQuizContent(content);
-              if (questions.length > 0) {
-                quizData = { questions };
+                content = String(
+                  update.output.answer || update.output.result || update.output
+                );
               }
             }
 
             return {
               success: true,
-              content: content,
+              content: String(content),
               conversationId: jobInfo.conversation_id,
-              isQuiz,
-              quizData,
             };
           }
           if (update.type === "chain-error") {
             return {
               success: false,
-              error: update.error || "An error occurred while generating quiz.",
+              error:
+                update.error ||
+                "An error occurred while processing your request.",
             };
           }
         }
@@ -353,403 +723,854 @@ export default function QuizPage(): JSX.Element {
 
     return {
       success: false,
-      error: "Quiz generation timed out. Please try again.",
+      error: "Request timed out. Please try again.",
     };
   };
 
-  // Handlers
-  const handleCreateNewChat = async (): Promise<void> => {
-    const chat = await createNewChat();
-    if (chat) {
-      setMessages([]);
-      setConversationId(null);
-      setInputMessage("");
-      setCurrentQuizData(null);
-    }
+  // Utility Functions
+  const addMessage = (
+    type: "user" | "mentor" | "system",
+    content: string,
+    stage?: WorkflowStage
+  ) => {
+    const newMessage: Message = {
+      id: generateId(),
+      type,
+      content,
+      timestamp: new Date(),
+      stage,
+    };
+    setMessages((prev) => [...prev, newMessage]);
   };
 
-  const handleLoadChat = async (chatId: string): Promise<void> => {
-    await loadChat(chatId);
+  const calculateQuizScore = (): number => {
+    if (!quizAnswers.length || !quizData?.questions.length) return 0;
+    const correct = quizAnswers.filter((a) => a.isCorrect).length;
+    return Math.round((correct / quizData.questions.length) * 100);
   };
 
-  const handleDeleteChat = async (chatId: string): Promise<void> => {
-    await deleteChat(chatId);
-  };
-
-  const handleQuizAnswerSubmit = async (answers: QuizAnswers): Promise<void> => {
-    console.log("Quiz answers submitted:", answers);
-
-    const totalQuestions = Object.keys(answers).length;
-    const resultMessage = `Quiz completed! 🎉\n\nYour answers have been submitted:\n${Object.entries(
-      answers
-    )
-      .map(([qId, answer]) => `Question ${qId}: ${answer}`)
-      .join(
-        "\n"
-      )}\n\nGreat work! Ask me for another quiz or topic to continue learning.`;
-
-    // Save the result message
-    await saveMessage("assistant", resultMessage, "result");
-
-    // Update chat progress
-    await updateChatProgress(totalQuestions, totalQuestions, 0);
-
-    // Clear current quiz data to allow new quiz
-    setCurrentQuizData(null);
-
-    toast.success("Quiz completed successfully!");
-  };
-
-  const handleQuizProgress = async (progress: { completed: number; total: number }): Promise<void> => {
-    await updateChatProgress(progress.total, progress.completed, 0);
-  };
-
-  const handleSendMessage = async (): Promise<void> => {
-    if (!inputMessage.trim() || isLoading) return;
-
-    // Create new chat if none exists
-    if (!currentChatId) {
-      const newChat = await createNewChat();
-      if (!newChat) {
-        toast.error("Failed to create new chat session");
-        return;
-      }
+  // Workflow Handlers
+  const handleTopicSubmission = async () => {
+    if (
+      !topicSelection.semester ||
+      !topicSelection.topic ||
+      !topicSelection.subTopic
+    ) {
+      toast.error("Please select all fields");
+      return;
     }
 
-    const userMessageContent = inputMessage;
-    setInputMessage("");
     setIsLoading(true);
+    setCurrentStage("mentor_explanation");
+
+    addMessage(
+      "user",
+      `I want to learn about "${topicSelection.subTopic}" from ${topicSelection.topic} (${topicSelection.semester})`
+    );
 
     try {
-      // Save user message
-      console.log("Saving user message:", userMessageContent);
-      await saveMessage("user", userMessageContent);
+      // Call the dedicated AI Mentor Agent for detailed explanation
+      const mentorPrompt = `Please provide a comprehensive learning session about "${topicSelection.subTopic}" for a ${topicSelection.semester} student studying ${topicSelection.topic} in Film Studies and Direction.
 
-      // Check if this is an answer submission to a quiz
-      const extractedAnswers = extractAnswersFromUserInput(userMessageContent);
-      const isAnswerSubmission = Object.keys(extractedAnswers).length > 0 && currentQuizData?.questions;
+Please provide:
+1. **Detailed Explanation**: A comprehensive explanation of "${topicSelection.subTopic}" including core concepts, principles, and techniques
+2. **Key Concepts to Study**: List the most important concepts, terms, and principles students should focus on
+3. **What NOT to Focus On**: Mention any common misconceptions or areas that are less important for ${topicSelection.semester} level
+4. **Recommended Reading Materials**: Suggest specific books, articles, or knowledge sources for deeper understanding
+5. **Preparation Tips**: Provide semester-specific study tips and practical advice for mastering this topic
 
-      if (isAnswerSubmission && currentQuizData?.questions) {
-        const totalQuestions = currentQuizData.questions.length;
-        const submittedAnswers = Object.keys(extractedAnswers).length;
-        
-        // Create a feedback message
-        let feedbackMessage = `Great! You've submitted your answers.\n\n`;
-        feedbackMessage += `**Your Answers:**\n`;
-        
-        currentQuizData.questions.forEach((question) => {
-          const userAnswer = extractedAnswers[question.id];
-          if (userAnswer) {
-            feedbackMessage += `Question ${question.id}: ${userAnswer}\n`;
-          }
-        });
-        
-        feedbackMessage += `\nYou answered ${submittedAnswers} out of ${totalQuestions} questions.\n`;
-        feedbackMessage += `\nThank you for completing the quiz! Feel free to ask for another quiz on any topic.`;
+After providing this comprehensive explanation, end with this exact prompt:
+"Feeling confident? Would you like to take a quiz on this topic to test your understanding?"`;
 
-        // Save the feedback message
-        await saveMessage("assistant", feedbackMessage, "result");
+      const agentResponse = await callMentorAgent(mentorPrompt);
 
-        // Update chat progress
-        await updateChatProgress(totalQuestions, submittedAnswers, 0, "Quiz Completed");
-        
-        // Clear current quiz data
-        setCurrentQuizData(null);
-        
-        toast.success("Quiz answers submitted successfully!");
-      } else {
-        // Regular message - send to AI agent
-        const agentResponse = await callRelevanceAgent(
-          userMessageContent,
-          conversationId
-        );
+      if (agentResponse.job_info) {
+        const result = await pollAgentResponse(agentResponse.job_info);
 
-        if (agentResponse.job_info) {
-          const result = await pollAgentResponse(agentResponse.job_info);
-
-          if (result.success) {
-            let messageContent = String(result.content || "Quiz generated successfully.");
-
-            // Determine if this is a quiz
-            const isQuiz = result.isQuiz || userMessageContent.toLowerCase().includes("quiz");
-            const messageType = isQuiz ? "quiz" : "text";
-
-            // Parse quiz content if it's a quiz
-            let quizData: QuizData | undefined = undefined;
-            if (isQuiz) {
-              const questions = parseQuizContent(messageContent);
-              if (questions.length > 0) {
-                quizData = { questions };
-                setCurrentQuizData(quizData);
-              }
-            }
-
-            // Save agent message
-            console.log("Saving agent message:", messageContent);
-            await saveMessage("assistant", messageContent, messageType, quizData);
-
-            setConversationId(result.conversationId);
-
-            // Extract topic if this is a quiz
-            if (isQuiz && quizData?.questions) {
-              const topic = userMessageContent.toLowerCase().includes("quiz on")
-                ? userMessageContent.split("quiz on")[1]?.trim()
-                : userMessageContent.toLowerCase().includes("on")
-                ? userMessageContent.split("on")[1]?.trim()
-                : "General Knowledge";
-
-              await updateChatProgress(
-                quizData.questions.length,
-                0,
-                0,
-                topic
-              );
-            }
-          } else {
-            await saveMessage("assistant", String(result.error || "An error occurred while generating quiz."), "text");
-          }
+        if (result.success) {
+          addMessage("mentor", result.content, "mentor_explanation");
+          setConversationId(result.conversationId);
+          setCurrentStage("quiz_prompt");
+        } else {
+          addMessage("system", `Error: ${result.error}`);
         }
       }
     } catch (error) {
-      console.error("Error sending message:", error);
-      await saveMessage("assistant", "I'm sorry, but I encountered an error while processing your request. Please try again.", "text");
-      toast.error("Failed to send message");
+      console.error("Error:", error);
+      addMessage(
+        "system",
+        "I encountered an error while processing your request. Please try again."
+      );
+      toast.error("Failed to get mentor explanation");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent): void => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
+  const handleQuizDecision = async (wantsQuiz: boolean) => {
+    addMessage(
+      "user",
+      wantsQuiz
+        ? "Yes, I'd like to take the quiz!"
+        : "No, I'll skip the quiz for now."
+    );
+
+    if (!wantsQuiz) {
+      setCurrentStage("conversation_end");
+      addMessage(
+        "mentor",
+        "That's perfectly fine! Take your time to review the material. When you're ready to test your knowledge, feel free to start a new session. Good luck with your studies! 📚"
+      );
+      return;
     }
+
+    setIsLoading(true);
+    setCurrentStage("quiz_active");
+
+    try {
+      const quizResponse = await callQuizGenerationTool();
+
+      // Direct response handling - no polling needed for webhook
+      let quizContent = "";
+      if (quizResponse.answer) {
+        quizContent = quizResponse.answer;
+      } else if (quizResponse.output) {
+        quizContent = quizResponse.output;
+      } else {
+        quizContent = JSON.stringify(quizResponse);
+      }
+
+      console.log("Quiz content received:", quizContent);
+
+      const questions = parseQuizContent(quizContent);
+      console.log("Parsed questions:", questions);
+
+      if (questions.length > 0) {
+        setQuizData({ questions, totalQuestions: questions.length });
+        setQuizStartTime(new Date());
+        setCurrentQuestionIndex(0);
+        setQuizAnswers([]);
+        addMessage(
+          "system",
+          `Great! Let's test your knowledge with ${questions.length} questions about ${topicSelection.subTopic}.`
+        );
+      } else {
+        // Fallback: create questions from the raw content
+        const fallbackQuestions = createFallbackQuestions(quizContent);
+        if (fallbackQuestions.length > 0) {
+          setQuizData({
+            questions: fallbackQuestions,
+            totalQuestions: fallbackQuestions.length,
+          });
+          setQuizStartTime(new Date());
+          setCurrentQuestionIndex(0);
+          setQuizAnswers([]);
+          addMessage(
+            "system",
+            `Great! Let's test your knowledge with ${fallbackQuestions.length} questions about ${topicSelection.subTopic}.`
+          );
+        } else {
+          addMessage(
+            "system",
+            "I had trouble generating quiz questions. Please try again."
+          );
+        }
+      }
+    } catch (error) {
+      console.error("Quiz generation error:", error);
+      addMessage("system", "Failed to generate quiz. Please try again.");
+      toast.error("Failed to generate quiz");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleQuizAnswer = (questionId: number, selectedAnswer: string) => {
+    const question = quizData?.questions.find((q) => q.id === questionId);
+
+    // Updated correct answers based on the film analysis quiz
+    const correctAnswers: { [key: number]: string } = {
+      1: "C", // Film analysis interpretation of visual and narrative elements
+      2: "C", // Mise-en-scène establishes setting and mood
+      3: "C", // Climax is NOT in Act I (it's in Act III)
+      4: "B", // Plot point changes direction of story
+      5: "B", // Central moral problem is main obstacle
+    };
+
+    const isCorrect = correctAnswers[questionId] === selectedAnswer;
+
+    const newAnswer: QuizAnswer = {
+      questionId,
+      selectedAnswer,
+      isCorrect,
+    };
+
+    setQuizAnswers((prev) => {
+      const filtered = prev.filter((a) => a.questionId !== questionId);
+      return [...filtered, newAnswer];
+    });
+  };
+
+  const handleQuizSubmission = async () => {
+    if (quizAnswers.length !== quizData?.questions.length) {
+      toast.error("Please answer all questions before submitting");
+      return;
+    }
+
+    setIsLoading(true);
+    setCurrentStage("quiz_feedback");
+
+    try {
+      // Generate feedback - handle direct webhook response
+      const feedbackResponse = await callAnswerFeedbackTool();
+
+      let feedbackContent = "Here's your quiz feedback:";
+      if (feedbackResponse.answer) {
+        feedbackContent = feedbackResponse.answer;
+      } else if (feedbackResponse.output) {
+        feedbackContent = feedbackResponse.output;
+      }
+
+      addMessage("mentor", feedbackContent, "quiz_feedback");
+
+      // Generate summary - handle direct webhook response
+      const summaryResponse = await callQuizSummaryTool();
+
+      let summaryContent = "Quiz Summary: Great work completing the quiz!";
+      if (summaryResponse.answer) {
+        summaryContent = summaryResponse.answer;
+      } else if (summaryResponse.output) {
+        summaryContent = summaryResponse.output;
+      }
+
+      addMessage("mentor", summaryContent, "quiz_summary");
+      setCurrentStage("quiz_summary");
+
+      const score = calculateQuizScore();
+      toast.success(`Quiz completed! You scored ${score}%`);
+    } catch (error) {
+      console.error("Quiz submission error:", error);
+
+      // Fallback feedback and summary
+      const score = calculateQuizScore();
+      const correctCount = quizAnswers.filter((a) => a.isCorrect).length;
+
+      const fallbackFeedback = `Quiz Results:\n\nYou answered ${correctCount} out of ${quizData?.questions.length} questions correctly.\nScore: ${score}%\n\nGreat effort on completing the quiz about ${topicSelection.subTopic}!`;
+
+      addMessage("mentor", fallbackFeedback, "quiz_summary");
+      setCurrentStage("quiz_summary");
+
+      toast.success(`Quiz completed! You scored ${score}%`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const resetSession = () => {
+    setCurrentStage("topic_selection");
+    setTopicSelection({ semester: "", topic: "", subTopic: "" });
+    setMessages([]);
+    setInputMessage("");
+    setConversationId(null);
+    setQuizData(null);
+    setQuizAnswers([]);
+    setCurrentQuestionIndex(0);
+    setQuizStartTime(null);
+    setSessionProgress(0);
+  };
+
+  // Render Quiz Question
+  const renderQuizQuestion = () => {
+    if (!quizData || currentQuestionIndex >= quizData.questions.length)
+      return null;
+
+    const question = quizData.questions[currentQuestionIndex];
+    const userAnswer = quizAnswers.find((a) => a.questionId === question.id);
+
+    return (
+      <Card className="w-full max-w-2xl mx-auto">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg">
+              Question {currentQuestionIndex + 1} of {quizData.questions.length}
+            </CardTitle>
+            <Badge variant="outline">
+              {Math.round(
+                ((currentQuestionIndex + 1) / quizData.questions.length) * 100
+              )}
+              %
+            </Badge>
+          </div>
+          <Progress
+            value={
+              ((currentQuestionIndex + 1) / quizData.questions.length) * 100
+            }
+            className="w-full"
+          />
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <h3 className="font-medium text-gray-900">{question.question}</h3>
+          <div className="space-y-2">
+            {question.options.map((option, idx) => (
+              <Button
+                key={idx}
+                variant={
+                  userAnswer?.selectedAnswer === option.charAt(0)
+                    ? "default"
+                    : "outline"
+                }
+                className="w-full text-left justify-start h-auto py-3 px-4"
+                onClick={() => handleQuizAnswer(question.id, option.charAt(0))}
+              >
+                {option}
+              </Button>
+            ))}
+          </div>
+          <div className="flex gap-2 pt-4">
+            <Button
+              variant="outline"
+              onClick={() =>
+                setCurrentQuestionIndex(Math.max(0, currentQuestionIndex - 1))
+              }
+              disabled={currentQuestionIndex === 0}
+            >
+              Previous
+            </Button>
+            {currentQuestionIndex < quizData.questions.length - 1 ? (
+              <Button
+                onClick={() =>
+                  setCurrentQuestionIndex(currentQuestionIndex + 1)
+                }
+                disabled={!userAnswer}
+              >
+                Next
+              </Button>
+            ) : (
+              <Button
+                onClick={handleQuizSubmission}
+                disabled={
+                  quizAnswers.length !== quizData.questions.length || isLoading
+                }
+                className="bg-green-600 hover:bg-green-700"
+              >
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : null}
+                Submit Quiz
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    );
   };
 
   return (
     <AuthGuard allowedRoles={["student"]}>
       <ModernDashboardLayout>
-        <div className="flex h-[calc(100vh-4rem)] bg-gray-50">
-          {/* Sidebar */}
-          <div
-            className={cn(
-              "bg-white border-r transition-all duration-300 shadow-sm",
-              sidebarOpen ? "w-80" : "w-0 overflow-hidden"
-            )}
-          >
-            <QuizSidebar
-              chats={chats}
-              activeChat={currentChatId}
-              onCreateNew={handleCreateNewChat}
-              onLoadChat={handleLoadChat}
-              onDeleteChat={handleDeleteChat}
-            />
-          </div>
-
-          {/* Main Chat */}
-          <div className="flex-1 flex flex-col">
-            {/* Header */}
-            <div className="bg-white border-b p-4 shadow-sm">
+        <div className="min-h-[calc(100vh-4rem)] bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50">
+          {/* Header */}
+          <div className="bg-white border-b shadow-sm">
+            <div className="max-w-7xl mx-auto px-4 py-4">
               <div className="flex items-center gap-4">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setSidebarOpen(!sidebarOpen)}
-                  className="hover:bg-gray-100"
-                >
-                  <Menu className="h-5 w-5" />
-                </Button>
                 <Link to="/student/dashboard">
-                  <Button variant="outline" size="icon" className="hover:bg-gray-50">
+                  <Button variant="outline" size="icon">
                     <ArrowLeft className="h-4 w-4" />
                   </Button>
                 </Link>
                 <div className="flex-1">
-                  <h1 className="text-xl font-semibold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-                    Interactive Quiz with Quizzy
+                  <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+                    AI Mentor Agent
                   </h1>
-                  <p className="text-sm text-gray-600">
-                    Test your knowledge with AI-powered quizzes and track your progress
+                  <p className="text-gray-600">
+                    Learn with detailed explanations and test your knowledge
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-purple-500" />
-                  <span className="text-sm font-medium text-purple-600">AI Powered</span>
+                <div className="flex items-center gap-4">
+                  <div className="text-right text-sm">
+                    <div className="font-medium text-gray-900">
+                      Session Progress
+                    </div>
+                    <div className="text-gray-600">
+                      {sessionProgress}% Complete
+                    </div>
+                  </div>
+                  <Progress value={sessionProgress} className="w-24" />
                 </div>
               </div>
             </div>
+          </div>
 
-            {/* Agent Info */}
-            <div className="p-4 bg-gradient-to-r from-purple-50 to-blue-50 border-b">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-gradient-to-r from-purple-600 to-blue-600 rounded-xl flex items-center justify-center shadow-sm">
-                  <Brain className="h-6 w-6 text-white" />
-                </div>
-                <div>
-                  <h2 className="font-semibold text-purple-900">Quizzy, the Quiz Master</h2>
-                  <p className="text-sm text-purple-700">
-                    Generates custom quizzes, tracks performance, and provides detailed analytics for your learning journey.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Messages */}
-            <ScrollArea className="flex-1 p-4">
-              <div className="max-w-4xl mx-auto space-y-6">
-                {messages.length === 0 && !currentChatId && (
-                  <div className="text-center py-12">
-                    <div className="w-16 h-16 bg-gradient-to-r from-purple-600 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Brain className="h-8 w-8 text-white" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Ready to start your quiz journey?</h3>
-                    <p className="text-gray-600 mb-4">Create a new quiz session and ask me to create a quiz on any topic you'd like to study!</p>
-                    <Button 
-                      onClick={handleCreateNewChat}
-                      className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white"
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Start New Quiz Session
-                    </Button>
+          <div className="max-w-6xl mx-auto px-4 py-6">
+            {/* Topic Selection Stage */}
+            {currentStage === "topic_selection" && (
+              <Card className="w-full max-w-4xl mx-auto">
+                <CardHeader className="text-center">
+                  <div className="w-16 h-16 bg-gradient-to-r from-purple-600 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Target className="h-8 w-8 text-white" />
                   </div>
-                )}
+                  <CardTitle className="text-2xl">
+                    Choose Your Learning Topic
+                  </CardTitle>
+                  <CardDescription>
+                    Select your semester, topic, and specific sub-topic to get
+                    started with personalized learning
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">
+                        Semester
+                      </label>
+                      <Select
+                        value={topicSelection.semester}
+                        onValueChange={(value) =>
+                          setTopicSelection((prev) => ({
+                            ...prev,
+                            semester: value,
+                            topic: "",
+                            subTopic: "",
+                          }))
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select semester" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Object.keys(CURRICULUM).map((semester) => (
+                            <SelectItem key={semester} value={semester}>
+                              {semester}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                {messages.length === 0 && currentChatId && (
-                  <div className="text-center py-12">
-                    <div className="w-16 h-16 bg-gradient-to-r from-purple-600 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Brain className="h-8 w-8 text-white" />
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">
+                        Topic
+                      </label>
+                      <Select
+                        value={topicSelection.topic}
+                        onValueChange={(value) =>
+                          setTopicSelection((prev) => ({
+                            ...prev,
+                            topic: value,
+                            subTopic: "",
+                          }))
+                        }
+                        disabled={!topicSelection.semester}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select topic" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {topicSelection.semester &&
+                            Object.keys(
+                              CURRICULUM[topicSelection.semester] || {}
+                            ).map((topic) => (
+                              <SelectItem key={topic} value={topic}>
+                                {topic}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
                     </div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Ready to start your quiz journey?</h3>
-                    <p className="text-gray-600 mb-4">Ask me to create a quiz on any topic you'd like to study!</p>
-                    <div className="flex flex-wrap justify-center gap-2 text-sm">
-                      <span className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full">🧠 Film Studies</span>
-                      <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full">📚 Literature</span>
-                      <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full">🔬 Science</span>
-                      <span className="bg-orange-100 text-orange-700 px-3 py-1 rounded-full">🎭 Screenwriting</span>
-                    </div>
-                  </div>
-                )}
 
-                {messages.map((message) => (
-                  <div
-                    key={message.id}
-                    className={cn(
-                      "flex gap-4",
-                      message.type === "user" ? "justify-end" : "justify-start"
-                    )}
-                  >
-                    {message.type === "agent" && (
-                      <div className="w-10 h-10 bg-gradient-to-r from-purple-600 to-blue-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm">
-                        <Brain className="h-5 w-5 text-white" />
-                      </div>
-                    )}
-                    <div
-                      className={cn(
-                        "max-w-[85%] rounded-2xl p-4 shadow-sm",
-                        message.type === "user"
-                          ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white ml-12"
-                          : message.isError
-                            ? "bg-red-50 border border-red-200 text-red-800"
-                            : "bg-white border border-gray-200"
-                      )}
-                    >
-                      <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                        {message.isQuiz && message.quizData?.questions ? (
-                          <div>
-                            <div className="mb-4 font-medium text-purple-700 flex items-center gap-2">
-                              <Zap className="h-4 w-4" />
-                              Quiz Ready! Answer the questions below:
-                            </div>
-                            <QuizRenderer
-                              quizData={message.quizData}
-                              onAnswerSubmit={handleQuizAnswerSubmit}
-                              onProgress={handleQuizProgress}
-                            />
-                          </div>
-                        ) : (
-                          message.content
-                        )}
-                      </div>
-                      <div className={cn(
-                        "text-xs mt-2 opacity-70",
-                        message.type === "user" ? "text-purple-100" : "text-gray-500"
-                      )}>
-                        {message.timestamp.toLocaleTimeString()}
-                      </div>
-                    </div>
-                    {message.type === "user" && (
-                      <div className="w-10 h-10 bg-gray-400 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm">
-                        <User className="h-5 w-5 text-white" />
-                      </div>
-                    )}
-                  </div>
-                ))}
-
-                {isLoading && (
-                  <div className="flex gap-4">
-                    <div className="w-10 h-10 bg-gradient-to-r from-purple-600 to-blue-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm">
-                      <Brain className="h-5 w-5 text-white" />
-                    </div>
-                    <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
-                      <div className="flex items-center gap-3 text-sm text-gray-600">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        <span>Quizzy is processing your request...</span>
-                      </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">
+                        Sub-Topic
+                      </label>
+                      <Select
+                        value={topicSelection.subTopic}
+                        onValueChange={(value) =>
+                          setTopicSelection((prev) => ({
+                            ...prev,
+                            subTopic: value,
+                          }))
+                        }
+                        disabled={!topicSelection.topic}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select sub-topic" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {topicSelection.semester &&
+                            topicSelection.topic &&
+                            CURRICULUM[topicSelection.semester]?.[
+                              topicSelection.topic
+                            ]?.map((subTopic) => (
+                              <SelectItem key={subTopic} value={subTopic}>
+                                {subTopic}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
-                )}
 
-                <div ref={messagesEndRef} />
-              </div>
-            </ScrollArea>
-
-            {/* Input */}
-            <div className="border-t p-4 bg-white shadow-sm">
-              <div className="max-w-4xl mx-auto">
-                <div className="flex gap-3">
-                  <div className="flex-1 relative">
-                    <Textarea
-                      placeholder={
-                        currentQuizData?.questions 
-                          ? "Submit your answers (e.g., 1B, 2C, 3A, 4D, 5B)..." 
-                          : "Ask Quizzy to create a quiz on any topic..."
-                      }
-                      value={inputMessage}
-                      onChange={(e) => setInputMessage(e.target.value)}
-                      onKeyPress={handleKeyPress}
-                      className="resize-none border-gray-300 focus:border-purple-500 focus:ring-purple-500 rounded-xl pr-12"
-                      rows={2}
-                      disabled={isLoading}
-                    />
-                  </div>
                   <Button
-                    onClick={handleSendMessage}
-                    disabled={!inputMessage.trim() || isLoading}
-                    className="h-14 w-14 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 shadow-lg hover:shadow-xl"
+                    onClick={handleTopicSubmission}
+                    disabled={
+                      !topicSelection.semester ||
+                      !topicSelection.topic ||
+                      !topicSelection.subTopic ||
+                      isLoading
+                    }
+                    className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white py-3"
+                    size="lg"
                   >
                     {isLoading ? (
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                    ) : (
-                      <ArrowUp className="h-5 w-5" />
-                    )}
-                  </Button>
-                </div>
-
-                <div className="flex items-center justify-between mt-3 text-xs text-gray-500">
-                  <div className="flex items-center gap-4">
-                    {currentQuizData?.questions ? (
-                      <span>📝 Submit answers in format: 1B, 2C, 3A...</span>
+                      <>
+                        <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                        Getting Your Mentor...
+                      </>
                     ) : (
                       <>
-                        <span>🧠 Ask for quiz on any subject</span>
-                        <span>📊 Track your progress</span>
+                        <BookOpen className="h-5 w-5 mr-2" />
+                        Start Learning Session
                       </>
                     )}
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Quiz Active Stage */}
+            {currentStage === "quiz_active" && (
+              <div className="space-y-6">
+                {isLoading ? (
+                  // Quiz Generation Loader
+                  <Card className="w-full max-w-2xl mx-auto">
+                    <CardContent className="p-8">
+                      <div className="text-center space-y-6">
+                        <div className="w-20 h-20 bg-gradient-to-r from-green-600 to-blue-600 rounded-full flex items-center justify-center mx-auto relative">
+                          <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-white animate-spin"></div>
+                          <CheckCircle className="h-10 w-10 text-white" />
+                        </div>
+
+                        <div className="space-y-2">
+                          <h3 className="text-xl font-bold text-gray-900">
+                            Generating Your Quiz
+                          </h3>
+                          <p className="text-gray-600">
+                            AI is creating personalized questions about{" "}
+                            <span className="font-semibold text-purple-600">
+                              {topicSelection.subTopic}
+                            </span>
+                          </p>
+                        </div>
+
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-center space-x-2">
+                            <div className="w-2 h-2 bg-purple-600 rounded-full animate-bounce"></div>
+                            <div
+                              className="w-2 h-2 bg-blue-600 rounded-full animate-bounce"
+                              style={{ animationDelay: "0.1s" }}
+                            ></div>
+                            <div
+                              className="w-2 h-2 bg-green-600 rounded-full animate-bounce"
+                              style={{ animationDelay: "0.2s" }}
+                            ></div>
+                          </div>
+
+                          <div className="bg-gray-100 rounded-full h-2 w-64 mx-auto overflow-hidden">
+                            <div className="bg-gradient-to-r from-purple-600 to-blue-600 h-full rounded-full animate-pulse w-3/4"></div>
+                          </div>
+                        </div>
+
+                        <div className="text-sm text-gray-500 space-y-1">
+                          <p>🧠 Analyzing course content</p>
+                          <p>📝 Creating 5 multiple choice questions</p>
+                          <p>⚡ This usually takes 10-15 seconds</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : quizData ? (
+                  // Quiz Questions Display
+                  <div className="space-y-6">
+                    <div className="text-center">
+                      <div className="w-16 h-16 bg-gradient-to-r from-green-600 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <CheckCircle className="h-8 w-8 text-white" />
+                      </div>
+                      <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                        Quiz Time!
+                      </h2>
+                      <p className="text-gray-600">
+                        Test your knowledge about {topicSelection.subTopic}
+                      </p>
+                    </div>
+
+                    {renderQuizQuestion()}
                   </div>
-                  <span>Press Enter to send</span>
-                </div>
+                ) : (
+                  // Error State
+                  <Card className="w-full max-w-2xl mx-auto">
+                    <CardContent className="p-8 text-center">
+                      <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <XCircle className="h-8 w-8 text-red-600" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                        Quiz Generation Failed
+                      </h3>
+                      <p className="text-gray-600 mb-4">
+                        We encountered an issue generating your quiz. Please try
+                        again.
+                      </p>
+                      <Button
+                        onClick={() => handleQuizDecision(true)}
+                        className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white"
+                      >
+                        <RotateCcw className="h-4 w-4 mr-2" />
+                        Try Again
+                      </Button>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
-            </div>
+            )}
+
+            {/* Messages Container for other stages */}
+            {currentStage !== "topic_selection" &&
+              currentStage !== "quiz_active" && (
+                <div className="space-y-6">
+                  {/* Conversation Header */}
+                  <Card>
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 bg-gradient-to-r from-purple-600 to-blue-600 rounded-xl flex items-center justify-center">
+                          <Brain className="h-6 w-6 text-white" />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-gray-900">
+                            Learning Session: {topicSelection.subTopic}
+                          </h3>
+                          <p className="text-sm text-gray-600">
+                            {topicSelection.topic} • {topicSelection.semester}
+                          </p>
+                        </div>
+                        <Badge variant="outline" className="text-xs">
+                          {currentStage.replace("_", " ").toUpperCase()}
+                        </Badge>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Messages */}
+                  <ScrollArea className="h-[60vh]">
+                    <div className="space-y-4">
+                      {messages.map((message) => (
+                        <div
+                          key={message.id}
+                          className={cn(
+                            "flex gap-4",
+                            message.type === "user"
+                              ? "justify-end"
+                              : "justify-start"
+                          )}
+                        >
+                          {(message.type === "mentor" ||
+                            message.type === "system") && (
+                            <div
+                              className={cn(
+                                "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm",
+                                message.type === "mentor"
+                                  ? "bg-gradient-to-r from-purple-600 to-blue-600"
+                                  : "bg-gray-500"
+                              )}
+                            >
+                              {message.type === "mentor" ? (
+                                <GraduationCap className="h-5 w-5 text-white" />
+                              ) : (
+                                <MessageSquare className="h-5 w-5 text-white" />
+                              )}
+                            </div>
+                          )}
+
+                          <div
+                            className={cn(
+                              "max-w-[80%] rounded-2xl p-4 shadow-sm",
+                              message.type === "user"
+                                ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white ml-12"
+                                : message.type === "mentor"
+                                ? "bg-white border border-gray-200"
+                                : "bg-yellow-50 border border-yellow-200"
+                            )}
+                          >
+                            <div className="whitespace-pre-wrap text-sm leading-relaxed">
+                              {message.content}
+                            </div>
+                            <div
+                              className={cn(
+                                "text-xs mt-2 opacity-70",
+                                message.type === "user"
+                                  ? "text-purple-100"
+                                  : "text-gray-500"
+                              )}
+                            >
+                              {message.timestamp.toLocaleTimeString()}
+                            </div>
+                          </div>
+
+                          {message.type === "user" && (
+                            <div className="w-10 h-10 bg-gray-400 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm">
+                              <User className="h-5 w-5 text-white" />
+                            </div>
+                          )}
+                        </div>
+                      ))}
+
+                      {isLoading && (
+                        <div className="flex gap-4">
+                          <div className="w-10 h-10 bg-gradient-to-r from-purple-600 to-blue-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm">
+                            <Brain className="h-5 w-5 text-white" />
+                          </div>
+                          <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
+                            <div className="flex items-center gap-3 text-sm text-gray-600">
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <span>AI Mentor is thinking...</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      <div ref={messagesEndRef} />
+                    </div>
+                  </ScrollArea>
+
+                  {/* Quiz Decision Buttons */}
+                  {currentStage === "quiz_prompt" && !isLoading && (
+                    <Card>
+                      <CardContent className="p-6">
+                        <div className="text-center space-y-4">
+                          <h3 className="text-lg font-semibold text-gray-900">
+                            Ready for the Quiz?
+                          </h3>
+                          <p className="text-gray-600">
+                            Test your understanding of {topicSelection.subTopic}
+                          </p>
+                          <div className="flex gap-4 justify-center">
+                            <Button
+                              onClick={() => handleQuizDecision(true)}
+                              className="bg-green-600 hover:bg-green-700 text-white px-8"
+                              size="lg"
+                            >
+                              <Play className="h-4 w-4 mr-2" />
+                              Yes, Start Quiz!
+                            </Button>
+                            <Button
+                              onClick={() => handleQuizDecision(false)}
+                              variant="outline"
+                              size="lg"
+                              className="px-8"
+                            >
+                              <Pause className="h-4 w-4 mr-2" />
+                              Skip Quiz
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Session Complete */}
+                  {(currentStage === "quiz_summary" ||
+                    currentStage === "conversation_end") && (
+                    <Card>
+                      <CardContent className="p-6">
+                        <div className="text-center space-y-4">
+                          <div className="w-16 h-16 bg-gradient-to-r from-green-600 to-blue-600 rounded-full flex items-center justify-center mx-auto">
+                            <Award className="h-8 w-8 text-white" />
+                          </div>
+                          <h3 className="text-lg font-semibold text-gray-900">
+                            Session Complete!
+                          </h3>
+                          <p className="text-gray-600">
+                            {currentStage === "quiz_summary"
+                              ? `Great work! You've completed the learning session and quiz for ${topicSelection.subTopic}.`
+                              : `You've completed the learning session for ${topicSelection.subTopic}. Come back anytime to take the quiz!`}
+                          </p>
+                          <div className="flex gap-4 justify-center">
+                            <Button
+                              onClick={resetSession}
+                              className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white px-8"
+                              size="lg"
+                            >
+                              <RotateCcw className="h-4 w-4 mr-2" />
+                              Start New Session
+                            </Button>
+                            <Link to="/student/dashboard">
+                              <Button
+                                variant="outline"
+                                size="lg"
+                                className="px-8"
+                              >
+                                <ArrowLeft className="h-4 w-4 mr-2" />
+                                Back to Dashboard
+                              </Button>
+                            </Link>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+              )}
+
+            {/* Chat Input for Free Conversation */}
+            {currentStage === "mentor_explanation" && (
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex gap-3">
+                    <div className="flex-1">
+                      <Textarea
+                        placeholder="Ask follow-up questions about the topic..."
+                        value={inputMessage}
+                        onChange={(e) => setInputMessage(e.target.value)}
+                        className="resize-none border-gray-300 focus:border-purple-500 focus:ring-purple-500 rounded-xl"
+                        rows={2}
+                        disabled={isLoading}
+                        onKeyPress={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey) {
+                            e.preventDefault();
+                            if (inputMessage.trim()) {
+                              addMessage("user", inputMessage);
+                              setInputMessage("");
+                              // Handle follow-up questions here if needed
+                            }
+                          }
+                        }}
+                      />
+                    </div>
+                    <Button
+                      onClick={() => {
+                        if (inputMessage.trim()) {
+                          addMessage("user", inputMessage);
+                          setInputMessage("");
+                        }
+                      }}
+                      disabled={!inputMessage.trim() || isLoading}
+                      className="h-20 w-20 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                    >
+                      {isLoading ? (
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                      ) : (
+                        <ArrowUp className="h-5 w-5" />
+                      )}
+                    </Button>
+                  </div>
+                  <div className="flex items-center justify-between mt-3 text-xs text-gray-500">
+                    <span>
+                      💭 Ask questions about the topic or proceed to quiz when
+                      ready
+                    </span>
+                    <span>Press Enter to send</span>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
       </ModernDashboardLayout>

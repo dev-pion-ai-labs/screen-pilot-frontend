@@ -242,7 +242,94 @@ const CURRICULUM = {
 const parseQuizContent = (content: string): QuizQuestion[] => {
   const questions: QuizQuestion[] = [];
 
-  // Method -1: Handle format "1. **Topic: [Topic Name]**" with question and options - NEWEST FORMAT
+  // Method -3: Handle format "### Question X (Level)" with **question text** - CURRENT FORMAT
+  const headerQuestionSections = content.split(/###\s*Question\s+\d+\s*\([^)]+\)/).filter(section => section.trim());
+  
+  if (headerQuestionSections.length > 1) {
+    // Remove the first section (usually intro text)
+    headerQuestionSections.shift();
+    
+    headerQuestionSections.forEach((section, index) => {
+      // Find the actual question text (text between ** that ends with "?")
+      const lines = section.split('\n').map(line => line.trim()).filter(line => line);
+      
+      // Look for question text between ** markers
+      const questionMatch = section.match(/\*\*([^*]+\?)\*\*/);
+      
+      if (questionMatch) {
+        const questionText = questionMatch[1].trim();
+        
+        // Find option lines (start with "A)", "B)", etc.)
+        const optionLines = lines.filter(line => 
+          line.match(/^[A-D]\)/) && !line.includes('Answer:')
+        );
+        
+        if (optionLines.length >= 4) {
+          const options = optionLines.slice(0, 4).map(opt => opt.trim());
+          
+          questions.push({
+            id: index + 1,
+            question: questionText,
+            options: options
+          });
+        }
+      }
+    });
+    
+    if (questions.length > 0) {
+      console.log("Parsed questions using header question format in parseQuizContent:", questions);
+      return questions;
+    }
+  }
+
+  // Method -2: Handle format "1. **Question X: [Title]**" with actual question text - PREVIOUS FORMAT
+  const questionSections = content.split(/\d+\.\s*\*\*Question\s+\d+:/).filter(section => section.trim());
+  
+  if (questionSections.length > 1) {
+    // Remove the first section (usually intro text)
+    questionSections.shift();
+    
+    questionSections.forEach((section, index) => {
+      // Find the actual question text (line that ends with "?")
+      const lines = section.split('\n').map(line => line.trim()).filter(line => line);
+      
+      // Skip the title line and find the actual question
+      const questionLine = lines.find(line => 
+        line.includes('?') && 
+        !line.includes('Answer:') && 
+        !line.includes('**')
+      );
+      
+      if (questionLine) {
+        // Clean the question text
+        const questionText = questionLine.replace(/^-\s*/, '').trim();
+        
+        // Find option lines (start with "- A)", "- B)", etc.)
+        const optionLines = lines.filter(line => 
+          line.match(/^\s*-?\s*[A-D]\)/) && !line.includes('Answer:')
+        );
+        
+        if (optionLines.length >= 4) {
+          const options = optionLines.slice(0, 4).map(opt => 
+            opt.replace(/^\s*-?\s*/, '').trim()
+          );
+          
+          questions.push({
+            id: index + 1,
+            question: questionText,
+            options: options
+          });
+        }
+      }
+    });
+    
+    if (questions.length > 0) {
+      console.log("Parsed questions using numbered question format in parseQuizContent:", questions);
+      return questions;
+    }
+  }
+
+  // Method -1: Handle format "1. **Topic: [Topic Name]**" with question and options - PREVIOUS FORMAT
   // Split content by numbered topics and parse each section
   const topicSections = content.split(/\d+\.\s*\*\*Topic:/).filter(section => section.trim());
   
@@ -476,7 +563,94 @@ const createFallbackQuestions = (content: string): QuizQuestion[] => {
   // Try to parse questions from the content string
   const questions: QuizQuestion[] = [];
   
-  // Method -1: Handle format "1. **Topic: [Topic Name]**" with question and options - NEWEST FORMAT
+  // Method -3: Handle format "### Question X (Level)" with **question text** - CURRENT FORMAT
+  const headerQuestionSections = content.split(/###\s*Question\s+\d+\s*\([^)]+\)/).filter(section => section.trim());
+  
+  if (headerQuestionSections.length > 1) {
+    // Remove the first section (usually intro text)
+    headerQuestionSections.shift();
+    
+    headerQuestionSections.forEach((section, index) => {
+      // Find the actual question text (text between ** that ends with "?")
+      const lines = section.split('\n').map(line => line.trim()).filter(line => line);
+      
+      // Look for question text between ** markers
+      const questionMatch = section.match(/\*\*([^*]+\?)\*\*/);
+      
+      if (questionMatch) {
+        const questionText = questionMatch[1].trim();
+        
+        // Find option lines (start with "A)", "B)", etc.)
+        const optionLines = lines.filter(line => 
+          line.match(/^[A-D]\)/) && !line.includes('Answer:')
+        );
+        
+        if (optionLines.length >= 4) {
+          const options = optionLines.slice(0, 4).map(opt => opt.trim());
+          
+          questions.push({
+            id: index + 1,
+            question: questionText,
+            options: options
+          });
+        }
+      }
+    });
+    
+    if (questions.length > 0) {
+      console.log("Parsed questions using header question format in fallback:", questions);
+      return questions;
+    }
+  }
+  
+  // Method -2: Handle format "1. **Question X: [Title]**" with actual question text - PREVIOUS FORMAT
+  const questionSections = content.split(/\d+\.\s*\*\*Question\s+\d+:/).filter(section => section.trim());
+  
+  if (questionSections.length > 1) {
+    // Remove the first section (usually intro text)
+    questionSections.shift();
+    
+    questionSections.forEach((section, index) => {
+      // Find the actual question text (line that ends with "?")
+      const lines = section.split('\n').map(line => line.trim()).filter(line => line);
+      
+      // Skip the title line and find the actual question
+      const questionLine = lines.find(line => 
+        line.includes('?') && 
+        !line.includes('Answer:') && 
+        !line.includes('**')
+      );
+      
+      if (questionLine) {
+        // Clean the question text
+        const questionText = questionLine.replace(/^-\s*/, '').trim();
+        
+        // Find option lines (start with "- A)", "- B)", etc.)
+        const optionLines = lines.filter(line => 
+          line.match(/^\s*-?\s*[A-D]\)/) && !line.includes('Answer:')
+        );
+        
+        if (optionLines.length >= 4) {
+          const options = optionLines.slice(0, 4).map(opt => 
+            opt.replace(/^\s*-?\s*/, '').trim()
+          );
+          
+          questions.push({
+            id: index + 1,
+            question: questionText,
+            options: options
+          });
+        }
+      }
+    });
+    
+    if (questions.length > 0) {
+      console.log("Parsed questions using numbered question format in fallback:", questions);
+      return questions;
+    }
+  }
+  
+  // Method -1: Handle format "1. **Topic: [Topic Name]**" with question and options - PREVIOUS FORMAT
   // Split content by numbered topics and parse each section
   const topicSections = content.split(/\d+\.\s*\*\*Topic:/).filter(section => section.trim());
   

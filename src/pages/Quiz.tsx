@@ -95,7 +95,6 @@ interface AgentResponse {
     studio_id?: string;
     conversation_id?: string;
   };
-  conversation_id?: string;
 }
 
 interface AgentResult {
@@ -267,46 +266,6 @@ const CURRICULUM = {
 // Utility Functions
 const parseQuizContent = (content: string): QuizQuestion[] => {
   const questions: QuizQuestion[] = [];
-
-  // Method -4: Handle NEW format "### Question X" with **question text** and **Answer:** - NEWEST FORMAT
-  const newQuestionSections = content.split(/###\s*Question\s+\d+/).filter((section) => section.trim());
-
-  if (newQuestionSections.length > 1) {
-    // Remove the first section (usually intro text)
-    newQuestionSections.shift();
-
-    newQuestionSections.forEach((section, index) => {
-      // Extract question text (text between **What is...** pattern)
-      const questionMatch = section.match(/\*\*([^*]+\?)\*\*/);
-      
-      if (questionMatch) {
-        const questionText = questionMatch[1].trim();
-
-        // Extract options (A) through D) with their text)
-        const optionMatches = section.match(/([A-D]\)\s*[^A-D\n]+)/g);
-        
-        if (optionMatches && optionMatches.length >= 4) {
-          const options = optionMatches.slice(0, 4).map(opt => opt.trim());
-
-          // Extract the correct answer (text after **Answer:** pattern)
-          const answerMatch = section.match(/\*\*Answer:\*\*\s*([A-D]\))/);
-          const correctAnswer = answerMatch ? answerMatch[1].charAt(0) : 'A';
-
-          questions.push({
-            id: index + 1,
-            text: questionText,
-            options: options,
-            correctAnswer: correctAnswer,
-          });
-        }
-      }
-    });
-
-    if (questions.length > 0) {
-      console.log("Parsed questions using NEW format (### Question X):", questions);
-      return questions;
-    }
-  }
 
   // Method -3: Handle format "### Question X (Level)" with **question text** - CURRENT FORMAT
   const headerQuestionSections = content
@@ -671,51 +630,6 @@ const createFallbackQuestions = (content: string): QuizQuestion[] => {
 
   // Try to parse questions from the content string
   const questions: QuizQuestion[] = [];
-
-  // Method -4: Handle NEW format "### Question X" with **question text** and **Answer:** - NEWEST FORMAT
-  const newQuestionSections = content.split(/###\s*Question\s+\d+/).filter((section) => section.trim());
-  
-  if (newQuestionSections.length > 1) {
-    // Remove the first section (usually intro text)
-    newQuestionSections.shift();
-
-    newQuestionSections.forEach((section, index) => {
-      const lines = section
-        .split("\n")
-        .map((line) => line.trim())
-        .filter((line) => line);
-
-      // Look for question text between ** markers that ends with "?"
-      const questionMatch = section.match(/\*\*([^*]+\?)\*\*/);
-
-      if (questionMatch) {
-        const questionText = questionMatch[1].trim();
-
-        // Find option lines (start with "A)", "B)", etc. but not "**Answer:**")
-        const optionLines = lines.filter(
-          (line) => line.match(/^[A-D]\)/) && !line.includes("**Answer:**")
-        );
-
-        if (optionLines.length >= 4) {
-          const options = optionLines.slice(0, 4).map((opt) => opt.trim());
-
-          questions.push({
-            id: index + 1,
-            question: questionText,
-            options: options,
-          });
-        }
-      }
-    });
-
-    if (questions.length > 0) {
-      console.log(
-        "Parsed questions using newest format (### Question X) in fallback:",
-        questions
-      );
-      return questions;
-    }
-  }
 
   // Method -3: Handle format "### Question X (Level)" with **question text** - CURRENT FORMAT
   const headerQuestionSections = content
@@ -1224,129 +1138,20 @@ const formatMentorResponse = (content: string): string => {
 };
 
 // Function to parse and format quiz feedback
-const formatQuizFeedback = (content: string, quizData?: QuizData | null, quizAnswers?: QuizAnswer[]): string => {
+const formatQuizFeedback = (content: string): string => {
   if (!content || content.trim() === "") {
     return '<div class="text-gray-500">No feedback available.</div>';
   }
 
   const formattedContent = content;
 
-  // Add main header with beautiful styling
-  let result = `
-    <div class="mb-8 text-center">
-      <div class="inline-flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 rounded-full text-white mb-4 shadow-lg">
-        <span class="text-2xl">📊</span>
-        <h2 class="text-2xl font-bold">Quiz Feedback</h2>
-      </div>
-      <div class="h-1 bg-gradient-to-r from-purple-600 via-blue-600 to-green-600 rounded-full mx-auto w-32"></div>
-    </div>
-  `;
+  // Add main header
+  let result =
+    '<div class="mb-6"><h2 class="text-2xl font-bold text-purple-800 mb-2">📊 Quiz Feedback</h2><div class="h-1 bg-gradient-to-r from-purple-600 to-blue-600 rounded-full"></div></div>';
 
-  // Debug: log the content to see what we're working with
-  console.log("🔍 Feedback content:", formattedContent);
-
-  // Multiple patterns to try - the feedback format might vary
-  const patterns = [
-    // Pattern 1: Current actual format with line breaks
-    /\*\*Question\s+(\d+):\s*([^*]+?)\*\*\s*-\s*\*\*Your Answer:\*\*\s*([A-D])\s*-\s*\*\*Correct Answer:\*\*\s*([A-D])\s*\*\*Feedback:\*\*\s*(.*?)(?=---\s*\*\*Question|\*\*Question\s+\d+:|---\s*Keep|$)/gs,
-    
-    // Pattern 2: Alternative with "User Answer"
-    /\*\*Question\s+(\d+):\s*([^*]+?)\*\*\s*-\s*\*\*User Answer:\*\*\s*([A-D])\s*-\s*\*\*Correct Answer:\*\*\s*([A-D])\s*\*\*Feedback:\*\*\s*(.*?)(?=---\s*\*\*Question|\*\*Question\s+\d+:|---\s*Keep|$)/gs,
-    
-    // Pattern 3: Simple format without markdown
-    /Question\s+(\d+):\s*([^\n]+?)\s*.*?Your Answer:\s*([A-D])\s*.*?Correct Answer:\s*([A-D])\s*.*?Feedback:\s*(.*?)(?=Question\s+\d+:|Keep going|$)/gis
-  ];
-
-  let questionPattern = patterns[0];
-  let tempMatch: RegExpExecArray | null;
-  let totalQuestions = 0;
-  let correctAnswers = 0;
-
-  // Use actual quiz data if available, otherwise try to parse from feedback
-  if (quizData && quizAnswers) {
-    totalQuestions = quizData.questions.length;
-    correctAnswers = quizAnswers.filter(answer => answer.isCorrect).length;
-    console.log(`🔍 Using quiz data: ${totalQuestions} questions, ${correctAnswers} correct`);
-  } else {
-    // Try each pattern until we find one that works
-    for (let i = 0; i < patterns.length; i++) {
-      const testPattern = new RegExp(patterns[i].source, patterns[i].flags);
-      let testMatches = 0;
-      
-      while ((tempMatch = testPattern.exec(formattedContent)) !== null) {
-        testMatches++;
-      }
-      
-      console.log(`🔍 Pattern ${i + 1} found ${testMatches} matches`);
-      
-      if (testMatches > 0) {
-        questionPattern = patterns[i];
-        break;
-      }
-    }
-
-    // Now count with the selected pattern
-    const tempPattern = new RegExp(questionPattern.source, questionPattern.flags);
-    
-    while ((tempMatch = tempPattern.exec(formattedContent)) !== null) {
-      totalQuestions++;
-      const userAnswer = tempMatch[3];
-      const correctAnswer = tempMatch[4];
-      console.log(`🔍 Question ${totalQuestions}: User=${userAnswer}, Correct=${correctAnswer}`);
-      if (userAnswer === correctAnswer) {
-        correctAnswers++;
-      }
-    }
-    
-    console.log(`🔍 Final count: ${totalQuestions} questions, ${correctAnswers} correct`);
-  }
-
-  // Add performance summary if we have questions
-  if (totalQuestions > 0) {
-    const percentage = Math.round((correctAnswers / totalQuestions) * 100);
-    const performanceColor = percentage >= 80 ? 'from-green-500 to-emerald-500' : 
-                            percentage >= 60 ? 'from-yellow-500 to-orange-500' : 
-                            'from-red-500 to-pink-500';
-    const performanceIcon = percentage >= 80 ? '🏆' : percentage >= 60 ? '📈' : '💪';
-    const performanceText = percentage >= 80 ? 'Excellent!' : percentage >= 60 ? 'Good Job!' : 'Keep Learning!';
-
-    result += `
-      <div class="mb-8 p-6 bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-2xl shadow-lg">
-        <div class="flex items-center gap-4 mb-4">
-          <div class="w-16 h-16 bg-gradient-to-r ${performanceColor} rounded-full flex items-center justify-center text-3xl shadow-lg">
-            ${performanceIcon}
-          </div>
-          <div class="flex-1">
-            <h3 class="text-2xl font-bold text-gray-800 mb-1">${performanceText}</h3>
-            <p class="text-gray-600">Your Quiz Performance Summary</p>
-          </div>
-          <div class="text-right">
-            <div class="text-3xl font-bold bg-gradient-to-r ${performanceColor} bg-clip-text text-transparent">${percentage}%</div>
-            <div class="text-sm text-gray-600">${correctAnswers}/${totalQuestions} Correct</div>
-          </div>
-        </div>
-        
-        <div class="w-full bg-gray-200 rounded-full h-3 mb-2">
-          <div class="bg-gradient-to-r ${performanceColor} h-3 rounded-full transition-all duration-1000 ease-out" style="width: ${percentage}%"></div>
-        </div>
-        
-        <div class="grid grid-cols-3 gap-4 mt-4">
-          <div class="text-center p-3 bg-white/50 rounded-lg">
-            <div class="text-2xl font-bold text-green-600">${correctAnswers}</div>
-            <div class="text-sm text-gray-600">Correct</div>
-          </div>
-          <div class="text-center p-3 bg-white/50 rounded-lg">
-            <div class="text-2xl font-bold text-red-600">${totalQuestions - correctAnswers}</div>
-            <div class="text-sm text-gray-600">Incorrect</div>
-          </div>
-          <div class="text-center p-3 bg-white/50 rounded-lg">
-            <div class="text-2xl font-bold text-blue-600">${totalQuestions}</div>
-            <div class="text-sm text-gray-600">Total</div>
-          </div>
-        </div>
-      </div>
-    `;
-  }
+  // Handle the new format with bold markdown: **Question X: [title]** followed by structured feedback
+  const questionPattern =
+    /\*\*Question\s+(\d+):\s*([^*]+?)\*\*\s*-\s*\*\*Your Answer:\*\*\s*([A-D])\s*-\s*\*\*Correct Answer:\*\*\s*([A-D])\s*(.*?)(?=\*\*Question\s+\d+:|---\s*Remember|$)/gs;
 
   let match: RegExpExecArray | null;
   let hasMatches = false;
@@ -1367,17 +1172,17 @@ const formatQuizFeedback = (content: string, quizData?: QuizData | null, quizAns
     // Parse the feedback text to extract different sections
     const cleanFeedbackText = feedbackText.trim();
 
-    // Extract the main explanation (everything before course material references)
+    // Extract the main explanation/feedback (everything before any specific references)
     const explanationMatch = cleanFeedbackText.match(
-      /^(.*?)(?:To gain more insight|For a deeper understanding|To further understand|You might find it helpful|I recommend)/s
+      /^(.*?)(?:To further understand|You can learn more|For more insights|For further insights)/s
     );
     const explanation = explanationMatch
       ? explanationMatch[1].trim()
-      : cleanFeedbackText.split(/(?:To gain more insight|For a deeper understanding|To further understand|You might find it helpful|I recommend)/)[0].trim();
+      : cleanFeedbackText;
 
     // Extract course material references
     const courseMaterialMatch = cleanFeedbackText.match(
-      /(?:To gain more insight|For a deeper understanding|To further understand|You might find it helpful|I recommend)(.*?)(?:Keep up|Keep practicing|Keep challenging|Keep exploring|Keep pushing)/s
+      /(?:To further understand|You can learn more|For more insights|For further insights)(.*?)(?:Keep up|Keep practicing|Keep challenging|Keep exploring)/s
     );
     const courseMaterial = courseMaterialMatch
       ? courseMaterialMatch[1].trim()
@@ -1385,57 +1190,44 @@ const formatQuizFeedback = (content: string, quizData?: QuizData | null, quizAns
 
     // Extract encouragement
     const encouragementMatch = cleanFeedbackText.match(
-      /(Keep up.*?|Keep practicing.*?|Keep challenging.*?|Keep exploring.*?|Keep pushing.*?)!?$/s
+      /(Keep up.*?|Keep practicing.*?|Keep challenging.*?|Keep exploring.*?)$/s
     );
     const encouragement = encouragementMatch
       ? encouragementMatch[1].trim()
       : "";
 
-    const icon = isAnswerCorrect ? "🎉" : "💡";
-    const bgGradient = isAnswerCorrect 
-      ? "bg-gradient-to-br from-green-50 to-emerald-50" 
-      : "bg-gradient-to-br from-red-50 to-pink-50";
-    const borderColor = isAnswerCorrect ? "border-green-300" : "border-red-300";
-    const statusGradient = isAnswerCorrect
-      ? "bg-gradient-to-r from-green-500 to-emerald-500 text-white"
-      : "bg-gradient-to-r from-red-500 to-pink-500 text-white";
-    const status = isAnswerCorrect ? "Correct" : "Needs Review";
+    const icon = isAnswerCorrect ? "✅" : "❌";
+    const bgColor = isAnswerCorrect ? "bg-green-50" : "bg-red-50";
+    const borderColor = isAnswerCorrect ? "border-green-200" : "border-red-200";
+    const statusColor = isAnswerCorrect
+      ? "bg-green-100 text-green-800"
+      : "bg-red-100 text-red-800";
+    const status = isAnswerCorrect ? "Correct" : "Incorrect";
 
     result += `
-      <div class="mb-8 ${bgGradient} border-2 ${borderColor} rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300">
-        <div class="flex items-center gap-3 mb-6">
-          <div class="w-12 h-12 ${statusGradient} rounded-full flex items-center justify-center text-2xl shadow-lg">
-            ${icon}
-          </div>
-          <div class="flex-1">
-            <h3 class="text-xl font-bold text-gray-800">Question ${questionNum}</h3>
-            <p class="text-gray-600 text-sm mt-1">Click to expand details</p>
-          </div>
-          <span class="px-4 py-2 rounded-full text-sm font-bold ${statusGradient} shadow-md">${status}</span>
+      <div class="mb-6 ${bgColor} border ${borderColor} rounded-xl p-6 shadow-sm">
+        <div class="flex items-center gap-3 mb-4">
+          <span class="text-2xl">${icon}</span>
+          <h3 class="text-xl font-bold text-gray-800">Question ${questionNum}</h3>
+          <span class="ml-auto px-3 py-1 rounded-full text-sm font-medium ${statusColor}">${status}</span>
         </div>
         
-        <div class="mb-6 p-4 bg-white/70 backdrop-blur-sm rounded-xl border border-white/50">
-          <div class="text-lg font-medium text-gray-900 leading-relaxed">${questionTitle.trim()}</div>
+        <div class="mb-4">
+          <div class="text-lg font-medium text-gray-900 mb-3">${questionTitle.trim()}</div>
         </div>
         
-        <div class="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div class="p-4 bg-gradient-to-r from-blue-100 to-indigo-100 border-2 border-blue-200 rounded-xl shadow-sm">
-            <div class="flex items-center gap-3">
-              <span class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold text-sm">👤</span>
-              <div>
-                <div class="text-blue-700 font-medium text-sm">Your Answer</div>
-                <span class="text-blue-900 font-bold text-2xl">${userAnswer}</span>
-              </div>
+        <div class="mb-4 grid grid-cols-2 gap-4">
+          <div class="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <div class="flex items-center gap-2">
+              <span class="text-blue-600 font-medium">👤 Your Answer:</span>
+              <span class="text-blue-800 font-bold text-lg">${userAnswer}</span>
             </div>
           </div>
           
-          <div class="p-4 bg-gradient-to-r from-green-100 to-emerald-100 border-2 border-green-200 rounded-xl shadow-sm">
-            <div class="flex items-center gap-3">
-              <span class="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-white font-bold text-sm">🎯</span>
-              <div>
-                <div class="text-green-700 font-medium text-sm">Correct Answer</div>
-                <span class="text-green-900 font-bold text-2xl">${correctAnswer}</span>
-              </div>
+          <div class="p-3 bg-green-50 border border-green-200 rounded-lg">
+            <div class="flex items-center gap-2">
+              <span class="text-green-600 font-medium">🎯 Correct Answer:</span>
+              <span class="text-green-800 font-bold text-lg">${correctAnswer}</span>
             </div>
           </div>
         </div>
@@ -1443,13 +1235,10 @@ const formatQuizFeedback = (content: string, quizData?: QuizData | null, quizAns
         ${
           explanation
             ? `
-          <div class="mb-4 p-5 bg-gradient-to-r from-purple-100 to-violet-100 border-2 border-purple-200 rounded-xl shadow-sm">
-            <div class="flex items-start gap-3">
-              <span class="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center text-white font-bold text-sm">💡</span>
-              <div class="flex-1">
-                <div class="text-purple-700 font-semibold mb-2">Explanation</div>
-                <div class="text-purple-900 leading-relaxed">${explanation}</div>
-              </div>
+          <div class="mb-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+            <div class="flex items-start gap-2">
+              <span class="text-purple-600 font-medium">💡 Explanation:</span>
+              <div class="text-purple-800 leading-relaxed">${explanation}</div>
             </div>
           </div>
         `
@@ -1459,13 +1248,10 @@ const formatQuizFeedback = (content: string, quizData?: QuizData | null, quizAns
         ${
           courseMaterial
             ? `
-          <div class="mb-4 p-5 bg-gradient-to-r from-orange-100 to-amber-100 border-2 border-orange-200 rounded-xl shadow-sm">
-            <div class="flex items-start gap-3">
-              <span class="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center text-white font-bold text-sm">📚</span>
-              <div class="flex-1">
-                <div class="text-orange-700 font-semibold mb-2">Study Resources</div>
-                <div class="text-orange-900 leading-relaxed">${courseMaterial}</div>
-              </div>
+          <div class="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <div class="flex items-start gap-2">
+              <span class="text-blue-600 font-medium">📚 Course Material:</span>
+              <div class="text-blue-800 leading-relaxed">${courseMaterial}</div>
             </div>
           </div>
         `
@@ -1475,13 +1261,10 @@ const formatQuizFeedback = (content: string, quizData?: QuizData | null, quizAns
         ${
           encouragement
             ? `
-          <div class="p-5 bg-gradient-to-r from-yellow-100 to-amber-100 border-2 border-yellow-200 rounded-xl shadow-sm">
-            <div class="flex items-start gap-3">
-              <span class="w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center text-white font-bold text-sm">🌟</span>
-              <div class="flex-1">
-                <div class="text-yellow-700 font-semibold mb-2">Keep Going!</div>
-                <div class="text-yellow-900 leading-relaxed font-medium">${encouragement}</div>
-              </div>
+          <div class="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <div class="flex items-start gap-2">
+              <span class="text-yellow-600 font-medium">🌟 Encouragement:</span>
+              <div class="text-yellow-800 leading-relaxed">${encouragement}</div>
             </div>
           </div>
         `
@@ -1491,48 +1274,62 @@ const formatQuizFeedback = (content: string, quizData?: QuizData | null, quizAns
     `;
   }
 
-  // Add final encouragement section at the end
-  const finalEncouragementMatch = formattedContent.match(
-    /(Remember,\s*making mistakes.*$|Remember,\s*every attempt.*$)/s
-  );
-  
-  if (finalEncouragementMatch) {
-    const cleanEncouragement = finalEncouragementMatch[0].trim();
-    result += `
-      <div class="mt-8 p-6 bg-gradient-to-br from-indigo-100 via-purple-100 to-pink-100 border-2 border-purple-300 rounded-2xl shadow-lg">
-        <div class="flex items-start gap-4">
-          <div class="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-2xl shadow-lg">
-            🎯
-          </div>
-          <div class="flex-1">
-            <h3 class="text-xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent mb-3">Final Words of Encouragement</h3>
-            <p class="text-gray-800 leading-relaxed text-lg font-medium">${cleanEncouragement}</p>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
   // If no matches found with the main pattern, try to handle it as a general feedback block
   if (!hasMatches) {
-    // Process the entire content as fallback
-    let processedContent = formattedContent
-      .replace(/\*\*(.*?)\*\*/g, "<strong class='font-bold text-gray-900'>$1</strong>")
-      .replace(/\*(.*?)\*/g, "<em class='italic text-gray-700'>$1</em>")
-      .replace(/\n\n/g, '</p><p class="mb-4 text-gray-800 leading-relaxed">')
-      .replace(/\n/g, "<br>");
-
-    processedContent = '<p class="mb-4 text-gray-800 leading-relaxed">' + processedContent + "</p>";
-    
-    result += `
-      <div class="p-6 bg-gradient-to-br from-gray-50 to-blue-50 border-2 border-gray-200 rounded-2xl shadow-lg">
-        <div class="flex items-start gap-3 mb-4">
-          <span class="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold">📝</span>
-          <h3 class="text-xl font-bold text-gray-800">Feedback Details</h3>
+    // Handle final encouragement section
+    const finalEncouragementMatch = formattedContent.match(
+      /Remember,\s*every attempt.*$/s
+    );
+    if (finalEncouragementMatch) {
+      result += `
+        <div class="mt-8 p-6 bg-gradient-to-r from-purple-100 to-blue-100 border border-purple-200 rounded-xl">
+          <div class="flex items-start gap-3">
+            <span class="text-3xl">🎉</span>
+            <div>
+              <h3 class="text-xl font-bold text-purple-800 mb-2">Keep Learning!</h3>
+              <p class="text-purple-700 leading-relaxed">${finalEncouragementMatch[0].trim()}</p>
+            </div>
+          </div>
         </div>
-        ${processedContent}
-      </div>
-    `;
+      `;
+    }
+
+    // If still no proper formatting, return the content with basic markdown processing
+    if (
+      result.trim() ===
+      '<div class="mb-6"><h2 class="text-2xl font-bold text-purple-800 mb-2">📊 Quiz Feedback</h2><div class="h-1 bg-gradient-to-r from-purple-600 to-blue-600 rounded-full"></div></div>'
+    ) {
+      // Process basic markdown and return formatted content
+      let processedContent = formattedContent
+        .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+        .replace(/\*(.*?)\*/g, "<em>$1</em>")
+        .replace(/\n\n/g, '</p><p class="mb-3">')
+        .replace(/\n/g, "<br>");
+
+      processedContent = '<p class="mb-3">' + processedContent + "</p>";
+      result += `<div class="p-4 bg-gray-50 border border-gray-200 rounded-lg">${processedContent}</div>`;
+    }
+  } else {
+    // Add final encouragement if it exists and we had matches
+    const finalEncouragementMatch = formattedContent.match(
+      /---\s*Remember,\s*every attempt.*$/s
+    );
+    if (finalEncouragementMatch) {
+      const cleanEncouragement = finalEncouragementMatch[0]
+        .replace(/^---\s*/, "")
+        .trim();
+      result += `
+        <div class="mt-8 p-6 bg-gradient-to-r from-purple-100 to-blue-100 border border-purple-200 rounded-xl">
+          <div class="flex items-start gap-3">
+            <span class="text-3xl">🎉</span>
+            <div>
+              <h3 class="text-xl font-bold text-purple-800 mb-2">Keep Learning!</h3>
+              <p class="text-purple-700 leading-relaxed">${cleanEncouragement}</p>
+            </div>
+          </div>
+        </div>
+      `;
+    }
   }
 
   return result;
@@ -1601,7 +1398,6 @@ export default function AIMentorAgent(): JSX.Element {
     if (conversationId) {
       payload.conversation_id = conversationId;
     }
-
 
     const response = await fetch(mentorConfig.endpoint, {
       method: "POST",
@@ -1834,8 +1630,6 @@ export default function AIMentorAgent(): JSX.Element {
 
   const pollAgentResponse = async (jobInfo: {
     job_id: string;
-    studio_id?: string;
-    conversation_id?: string;
   }): Promise<{
     success: boolean;
     content?: string;
@@ -1895,17 +1689,10 @@ export default function AIMentorAgent(): JSX.Element {
               }
             }
 
-            // Try to get conversation ID from various possible locations in the response
-            const conversationId = 
-              status.conversation_id || 
-              update.conversation_id || 
-              update.output?.conversation_id ||
-              jobInfo.conversation_id;
-
             return {
               success: true,
               content: String(content),
-              conversationId: conversationId,
+              conversationId: jobInfo.conversation_id,
             };
           }
           if (update.type === "chain-error") {
@@ -1979,13 +1766,7 @@ export default function AIMentorAgent(): JSX.Element {
       const response = agentResponse as AgentResponse;
 
       if (response.job_info) {
-        // Pass the conversation_id along with job_info
-        const jobInfoWithConversation = {
-          ...response.job_info,
-          conversation_id: response.job_info.conversation_id || response.conversation_id || conversationId,
-        };
-        
-        const result = await pollAgentResponse(jobInfoWithConversation);
+        const result = await pollAgentResponse(response.job_info);
 
         if (result.success) {
           const formattedContent = formatMentorResponse(result.content);
@@ -2046,22 +1827,11 @@ export default function AIMentorAgent(): JSX.Element {
       const response = agentResponse as AgentResponse;
 
       if (response.job_info) {
-        // Pass the conversation_id along with job_info
-        const jobInfoWithConversation = {
-          ...response.job_info,
-          conversation_id: response.job_info.conversation_id || response.conversation_id || conversationId,
-        };
-        
-        const result = await pollAgentResponse(jobInfoWithConversation);
+        const result = await pollAgentResponse(response.job_info);
 
         if (result.success) {
           const formattedContent = formatMentorResponse(result.content);
           addMessage("mentor", formattedContent, "chat_mode");
-          
-          // Update conversation ID if we got a new one
-          if (result.conversationId && result.conversationId !== conversationId) {
-            setConversationId(result.conversationId);
-          }
         } else {
           addMessage("system", `Error: ${result.error}`);
         }
@@ -2240,7 +2010,7 @@ export default function AIMentorAgent(): JSX.Element {
       }
 
       // Format the feedback for better UI display
-      const formattedFeedback = formatQuizFeedback(feedbackContent, quizData, quizAnswers);
+      const formattedFeedback = formatQuizFeedback(feedbackContent);
       addMessage("mentor", formattedFeedback, "quiz_feedback");
 
       // Generate summary - handle direct webhook response
@@ -2255,7 +2025,7 @@ export default function AIMentorAgent(): JSX.Element {
       }
 
       // Format the summary for better UI display
-      const formattedSummary = formatQuizFeedback(summaryContent, quizData, quizAnswers);
+      const formattedSummary = formatQuizFeedback(summaryContent);
       addMessage("mentor", formattedSummary, "quiz_summary");
       setCurrentStage("quiz_summary");
 

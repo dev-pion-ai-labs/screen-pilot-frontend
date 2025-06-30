@@ -458,7 +458,7 @@ const formatAssignmentDescription = (description: string) => {
 
       const headerLevel = trimmedLine.match(/^(#{1,6})/)?.[1].length || 1;
       const headerText = trimmedLine.replace(/^#{1,6}\s*/, "");
-      
+
       // Create different header styles based on level
       if (headerLevel === 1) {
         elements.push(
@@ -757,7 +757,6 @@ export default function StudentAssignments() {
         )
         .eq("student_id", user?.id);
 
-
       if (error) throw error;
 
       const assignmentsData =
@@ -946,7 +945,7 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
 
       const submissionId = uuidv4();
       const now = new Date().toISOString();
-      
+
       const submissionPayload = {
         id: submissionId,
         assignment_id: selectedAssignment.id,
@@ -971,12 +970,20 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
         created_at: now,
         updated_at: now,
       };
-      
-      console.log("SUBMISSION PAYLOAD:", JSON.stringify(submissionPayload, null, 2));
-      console.log("Assignment ai_generated_content:", selectedAssignment.ai_generated_content);
+
+      console.log(
+        "SUBMISSION PAYLOAD:",
+        JSON.stringify(submissionPayload, null, 2)
+      );
+      console.log(
+        "Assignment ai_generated_content:",
+        selectedAssignment.ai_generated_content
+      );
       console.log("Additional notes from student:", additionalNotes);
-      
-      const { error: insertErr } = await supabase.from("submissions").insert([submissionPayload]);
+
+      const { error: insertErr } = await supabase
+        .from("submissions")
+        .insert([submissionPayload]);
       if (insertErr) throw insertErr;
       toast({
         title: "Assignment submitted! 🎉",
@@ -1120,13 +1127,12 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
       ? Math.round((submittedCount / assignments.length) * 100)
       : 0;
 
+  const [dots, setDots] = useState("");
 
-      const [dots, setDots] = useState('');
-
-      // Animated dots effect
+  // Animated dots effect
   useEffect(() => {
     const dotsInterval = setInterval(() => {
-      setDots(prev => prev.length >= 3 ? '' : prev + '.');
+      setDots((prev) => (prev.length >= 3 ? "" : prev + "."));
     }, 500);
 
     return () => clearInterval(dotsInterval);
@@ -1142,11 +1148,6 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
       </AuthGuard>
     );
   }
-
-
-  
-
-
 
   return (
     <AuthGuard allowedRoles={["student"]}>
@@ -1342,7 +1343,8 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
                                   {getDifficultyBadge(assignment.difficulty)}
                                 </div>
                                 <p className="text-gray-600 mb-4 line-clamp-2">
-                                  {assignment.description || assignment.ai_generated_content}
+                                  {assignment.description ||
+                                    assignment.ai_generated_content}
                                 </p>
                                 <div className="flex items-center gap-6 text-sm">
                                   <div className="flex items-center gap-2">
@@ -1384,9 +1386,10 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
                               <div className="flex gap-3 ml-6">
                                 <Button
                                   variant="outline"
-                                  onClick={() =>
-                                    setSelectedAssignment(assignment)
-                                  }
+                                  onClick={() => {
+                                    console.log("VIEW DETAILS - Assignment Data:", assignment);
+                                    setSelectedAssignment(assignment);
+                                  }}
                                   className="hover:bg-blue-50 border-blue-200"
                                 >
                                   <Eye className="h-4 w-4 mr-2" />
@@ -1476,16 +1479,24 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
                     {/* Basic Description */}
                     {selectedAssignment?.description && (
                       <div className="bg-gray-50/50 rounded-xl p-6 border border-gray-100 mb-4">
-                        <h3 className="text-lg font-semibold text-gray-800 mb-3">Assignment Overview</h3>
-                        {formatAssignmentDescription(selectedAssignment.description)}
+                        <h3 className="text-lg font-semibold text-gray-800 mb-3">
+                          Assignment Overview
+                        </h3>
+                        {formatAssignmentDescription(
+                          selectedAssignment.description
+                        )}
                       </div>
                     )}
-                    
+
                     {/* AI Generated Content - Detailed Assignment Brief */}
                     {selectedAssignment?.ai_generated_content && (
                       <div className="bg-blue-50/50 rounded-xl p-6 border border-blue-100">
-                        <h3 className="text-lg font-semibold text-blue-800 mb-3">Detailed Assignment Brief</h3>
-                        {formatAssignmentDescription(selectedAssignment.ai_generated_content)}
+                        <h3 className="text-lg font-semibold text-blue-800 mb-3">
+                          Detailed Assignment Brief
+                        </h3>
+                        {formatAssignmentDescription(
+                          selectedAssignment.ai_generated_content
+                        )}
                       </div>
                     )}
 
@@ -1643,78 +1654,71 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
 
                               {/* Rubric Breakdown */}
                               {(() => {
-                                const parseRubricFromSubmission = (submission: any) => {
-                                  let feedbackData = null;
-                                  let rawText = '';
-                                  
-                                  // Parse ai_feedback JSON
-                                  if (submission.ai_feedback) {
+                                const parseRubricFromSubmission = (
+                                  submission: any
+                                ) => {
+                                  let rawText = "";
+
+                                  // Get rawText from ai_evaluation first, then ai_feedback
+                                  if (submission.ai_evaluation?.rawText) {
+                                    rawText = submission.ai_evaluation.rawText;
+                                  } else if (submission.ai_feedback) {
                                     try {
-                                      feedbackData = JSON.parse(submission.ai_feedback);
-                                      rawText = feedbackData.rawText || '';
+                                      const feedbackData = JSON.parse(submission.ai_feedback);
+                                      rawText = feedbackData.rawText || "";
                                     } catch (e) {
-                                      console.warn('❌ Failed to parse ai_feedback JSON:', e);
+                                      console.warn("❌ Failed to parse ai_feedback JSON:", e);
                                     }
                                   }
-                                  
-                                  // Fallback to ai_evaluation.rawText
-                                  if (!rawText && submission.ai_evaluation?.rawText) {
-                                    rawText = submission.ai_evaluation.rawText;
-                                  }
-                                  
+
                                   if (!rawText) {
                                     return null;
                                   }
-                                  
+
+                                  console.log("Parsing rubric from rawText:", rawText);
+
                                   // Parse rubric breakdown from rawText
                                   const rubricItems = [];
+
+                                  // First, extract all criterion blocks
+                                  const criterionBlocks = rawText.match(/\* \*\*Criterion \d+:[^*]+?\*\*:[\s\S]*?(?=\n\* \*\*Criterion|\n## |$)/g) || [];
                                   
-                                  // Pattern: * **Name (percentage%)**: score/maxScore - assessment
-                                  const rubricPattern = /\* \*\*([^(]+)\s*\((\d+)%\)\*\*:\s*(\d+)\/(\d+)\s*-\s*([^*]+?)(?=\n\*|$)/g;
-                                  
-                                  let match;
-                                  while ((match = rubricPattern.exec(rawText)) !== null) {
-                                    const criterion = match[1].trim();
-                                    const percentage = match[2];
-                                    const score = parseInt(match[3]);
-                                    const maxScore = parseInt(match[4]);
-                                    const assessment = match[5].trim();
+                                  console.log("Found criterion blocks:", criterionBlocks);
+
+                                  criterionBlocks.forEach((block, index) => {
+                                    // Extract criterion name
+                                    const nameMatch = block.match(/\* \*\*(Criterion \d+:[^*]+?)\*\*:/);
                                     
-                                    rubricItems.push({
-                                      criterion,
-                                      percentage: percentage + "%",
-                                      score,
-                                      maxScore,
-                                      assessment
-                                    });
-                                  }
-                                  
-                                  // Fallback pattern without leading *
-                                  if (rubricItems.length === 0) {
-                                    const altPattern = /\*\*([^(]+)\s*\((\d+)%\)\*\*:\s*(\d+)\/(\d+)\s*-\s*([^*]+?)(?=\n\*|$)/g;
+                                    // Extract score
+                                    const scoreMatch = block.match(/Score:\s*(\d+)\/(\d+)/);
                                     
-                                    while ((match = altPattern.exec(rawText)) !== null) {
-                                      const criterion = match[1].trim();
-                                      const percentage = match[2];
-                                      const score = parseInt(match[3]);
-                                      const maxScore = parseInt(match[4]);
-                                      const assessment = match[5].trim();
-                                      
+                                    // Extract assessment
+                                    const assessmentMatch = block.match(/Assessment:\s*(.+?)(?=\n\n|$)/s);
+                                    
+                                    if (nameMatch && scoreMatch) {
+                                      const criterion = nameMatch[1].trim();
+                                      const score = parseInt(scoreMatch[1]);
+                                      const maxScore = parseInt(scoreMatch[2]);
+                                      const assessment = assessmentMatch ? assessmentMatch[1].trim() : "";
+
                                       rubricItems.push({
                                         criterion,
-                                        percentage: percentage + "%",
+                                        percentage: "N/A",
                                         score,
                                         maxScore,
-                                        assessment
+                                        assessment,
                                       });
                                     }
-                                  }
+                                  });
+
+                                  console.log("Parsed rubric items:", rubricItems);
                                   
                                   return rubricItems.length > 0 ? rubricItems : null;
                                 };
 
-                                const rubricItems = parseRubricFromSubmission(submission);
-                                
+                                const rubricItems =
+                                  parseRubricFromSubmission(submission);
+
                                 return rubricItems ? (
                                   <div className="mb-4">
                                     <h5 className="font-semibold text-cyan-700 mb-3 flex items-center gap-2">
@@ -1723,27 +1727,39 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
                                     </h5>
                                     <div className="space-y-3">
                                       {rubricItems.map((item, index) => (
-                                        <div key={index} className="bg-white/60 rounded-lg p-3">
+                                        <div
+                                          key={index}
+                                          className="bg-white/60 rounded-lg p-3"
+                                        >
                                           <div className="flex items-center justify-between mb-2">
                                             <div className="flex items-center gap-2">
                                               <span className="font-medium text-gray-800 text-sm">
                                                 {item.criterion}
                                               </span>
-                                              <Badge className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white border-0 text-xs">
-                                                {item.percentage}
-                                              </Badge>
+                                              {item.percentage !== "N/A" && (
+                                                <Badge className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white border-0 text-xs">
+                                                  {item.percentage}
+                                                </Badge>
+                                              )}
                                             </div>
                                             <div className="flex items-center gap-2">
-                                              <span className={`text-sm font-bold ${getGradeColor(
-                                                (item.score / item.maxScore) * 100
-                                              )}`}>
+                                              <span
+                                                className={`text-sm font-bold ${getGradeColor(
+                                                  (item.score / item.maxScore) *
+                                                    100
+                                                )}`}
+                                              >
                                                 {item.score}
                                               </span>
-                                              <span className="text-gray-500 text-sm">/ {item.maxScore}</span>
+                                              <span className="text-gray-500 text-sm">
+                                                / {item.maxScore}
+                                              </span>
                                             </div>
                                           </div>
                                           <Progress
-                                            value={(item.score / item.maxScore) * 100}
+                                            value={
+                                              (item.score / item.maxScore) * 100
+                                            }
                                             className="mb-2 h-2"
                                           />
                                           <p className="text-xs text-gray-700">
@@ -1763,79 +1779,135 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
                                   let strengths = "";
                                   let areasForImprovement = "";
                                   let recommendations = "";
-                                  
+
                                   // Parse ai_feedback JSON first
                                   if (submission.ai_feedback) {
                                     try {
-                                      feedbackData = JSON.parse(submission.ai_feedback);
-                                      
-                                      if (feedbackData["Constructive Feedback"]) {
-                                        const feedback = feedbackData["Constructive Feedback"];
-                                        
+                                      feedbackData = JSON.parse(
+                                        submission.ai_feedback
+                                      );
+
+                                      if (
+                                        feedbackData["Constructive Feedback"]
+                                      ) {
+                                        const feedback =
+                                          feedbackData["Constructive Feedback"];
+
                                         // Extract clean feedback sections
                                         if (feedback.Strengths) {
-                                          const strengthsText = feedback.Strengths;
+                                          const strengthsText =
+                                            feedback.Strengths;
                                           // Remove any areas for improvement or recommendations that got mixed in
-                                          const strengthsMatch = strengthsText.match(/^([^*]+?)(?=\n\s*\*\s*\*\*Areas for Improvement\*\*|\n\s*\*\s*\*\*Recommendations\*\*|$)/s);
-                                          strengths = strengthsMatch ? strengthsMatch[1].trim() : strengthsText.split('\n\n')[0].trim();
+                                          const strengthsMatch =
+                                            strengthsText.match(
+                                              /^([^*]+?)(?=\n\s*\*\s*\*\*Areas for Improvement\*\*|\n\s*\*\s*\*\*Recommendations\*\*|$)/s
+                                            );
+                                          strengths = strengthsMatch
+                                            ? strengthsMatch[1].trim()
+                                            : strengthsText
+                                                .split("\n\n")[0]
+                                                .trim();
                                         }
-                                        
+
                                         if (feedback["Areas for Improvement"]) {
-                                          const areas = feedback["Areas for Improvement"];
+                                          const areas =
+                                            feedback["Areas for Improvement"];
                                           // Remove any recommendations that got mixed in
-                                          const areasMatch = areas.match(/^([^*]+?)(?=\n\s*\*\s*\*\*Recommendations\*\*|$)/s);
-                                          areasForImprovement = areasMatch ? areasMatch[1].trim() : areas.split('\n\n')[0].trim();
+                                          const areasMatch = areas.match(
+                                            /^([^*]+?)(?=\n\s*\*\s*\*\*Recommendations\*\*|$)/s
+                                          );
+                                          areasForImprovement = areasMatch
+                                            ? areasMatch[1].trim()
+                                            : areas.split("\n\n")[0].trim();
                                         }
-                                        
+
                                         if (feedback.Recommendations) {
-                                          recommendations = feedback.Recommendations;
+                                          recommendations =
+                                            feedback.Recommendations;
                                         }
                                       } else if (feedbackData.rawText) {
                                         // Parse from rawText if structured data not available
                                         const rawText = feedbackData.rawText;
-                                        
-                                        const strengthsMatch = rawText.match(/\*\*Strengths\*\*: ([^*]+?)(?=\n\*\*|$)/);
-                                        const areasMatch = rawText.match(/\*\*Areas for Improvement\*\*: ([^*]+?)(?=\n\*\*|$)/);
-                                        const recommendationsMatch = rawText.match(/\*\*Recommendations\*\*: ([^*]+?)(?=\n\*\*|$)/);
-                                        
-                                        strengths = strengthsMatch ? strengthsMatch[1].trim() : "";
-                                        areasForImprovement = areasMatch ? areasMatch[1].trim() : "";
-                                        recommendations = recommendationsMatch ? recommendationsMatch[1].trim() : "";
+
+                                        const strengthsMatch = rawText.match(
+                                          /\*\*Strengths\*\*: ([^*]+?)(?=\n\*\*|$)/
+                                        );
+                                        const areasMatch = rawText.match(
+                                          /\*\*Areas for Improvement\*\*: ([^*]+?)(?=\n\*\*|$)/
+                                        );
+                                        const recommendationsMatch =
+                                          rawText.match(
+                                            /\*\*Recommendations\*\*: ([^*]+?)(?=\n\*\*|$)/
+                                          );
+
+                                        strengths = strengthsMatch
+                                          ? strengthsMatch[1].trim()
+                                          : "";
+                                        areasForImprovement = areasMatch
+                                          ? areasMatch[1].trim()
+                                          : "";
+                                        recommendations = recommendationsMatch
+                                          ? recommendationsMatch[1].trim()
+                                          : "";
                                       }
                                     } catch (e) {
-                                      console.warn('❌ Failed to parse ai_feedback JSON:', e);
+                                      console.warn(
+                                        "❌ Failed to parse ai_feedback JSON:",
+                                        e
+                                      );
                                     }
                                   }
-                                  
+
                                   // Fallback to individual fields
                                   if (!strengths && submission.ai_strengths) {
-                                    const strengthsText = submission.ai_strengths;
+                                    const strengthsText =
+                                      submission.ai_strengths;
                                     // Remove any areas for improvement or recommendations that got mixed in
-                                    const strengthsMatch = strengthsText.match(/^([^*]+?)(?=\n\s*\*\s*\*\*Areas for Improvement\*\*|\n\s*\*\s*\*\*Recommendations\*\*|$)/s);
-                                    strengths = strengthsMatch ? strengthsMatch[1].trim() : strengthsText.split('\n\n')[0].trim();
+                                    const strengthsMatch = strengthsText.match(
+                                      /^([^*]+?)(?=\n\s*\*\s*\*\*Areas for Improvement\*\*|\n\s*\*\s*\*\*Recommendations\*\*|$)/s
+                                    );
+                                    strengths = strengthsMatch
+                                      ? strengthsMatch[1].trim()
+                                      : strengthsText.split("\n\n")[0].trim();
                                   }
-                                  
-                                  if (!areasForImprovement && submission.ai_areas_for_improvement) {
-                                    const areasText = submission.ai_areas_for_improvement;
+
+                                  if (
+                                    !areasForImprovement &&
+                                    submission.ai_areas_for_improvement
+                                  ) {
+                                    const areasText =
+                                      submission.ai_areas_for_improvement;
                                     // Remove any recommendations that got mixed in
-                                    const areasMatch = areasText.match(/^([^*]+?)(?=\n\s*\*\s*\*\*Recommendations\*\*|$)/s);
-                                    areasForImprovement = areasMatch ? areasMatch[1].trim() : areasText.split('\n\n')[0].trim();
+                                    const areasMatch = areasText.match(
+                                      /^([^*]+?)(?=\n\s*\*\s*\*\*Recommendations\*\*|$)/s
+                                    );
+                                    areasForImprovement = areasMatch
+                                      ? areasMatch[1].trim()
+                                      : areasText.split("\n\n")[0].trim();
                                   }
-                                  
-                                  if (!recommendations && submission.ai_recommendations) {
-                                    recommendations = submission.ai_recommendations;
+
+                                  if (
+                                    !recommendations &&
+                                    submission.ai_recommendations
+                                  ) {
+                                    recommendations =
+                                      submission.ai_recommendations;
                                   }
-                                  
+
                                   return {
                                     strengths: strengths || "",
-                                    areasForImprovement: areasForImprovement || "",
-                                    recommendations: recommendations || ""
+                                    areasForImprovement:
+                                      areasForImprovement || "",
+                                    recommendations: recommendations || "",
                                   };
                                 };
 
-                                const feedbackData = getFeedbackData(submission);
-                                
-                                return (feedbackData.strengths || feedbackData.areasForImprovement || feedbackData.recommendations) ? (
+                                const feedbackData =
+                                  getFeedbackData(submission);
+
+                                return feedbackData.strengths ||
+                                  feedbackData.areasForImprovement ||
+                                  feedbackData.recommendations ? (
                                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                     {feedbackData.strengths && (
                                       <div className="bg-white/60 rounded-lg p-3">
@@ -1948,52 +2020,55 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
                 </div>
 
                 <>
-  {/* Loading state above footer */}
-  {submissionStep === "submitting" && (
-    <div className="px-6 py-4 bg-blue-50 border-t border-blue-100">
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2">
-          <Loader2 className="animate-spin h-4 w-4 text-blue-600" />
-          <Brain className="animate-pulse h-4 w-4 text-indigo-600" />
-        </div>
-        <div>
-          <p className="font-medium text-blue-900 text-sm">
-            Processing Your Submission
-          </p>
-          <p className="text-xs text-blue-700">
-            Our AI agent is analyzing your work • Expected time: 30-90 seconds
-          </p>
-        </div>
-      </div>
-    </div>
-  )}
-  
-  {/* DialogFooter with consistent button sizes */}
-  <DialogFooter className="flex justify-between items-center gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
-    <Button
-      variant="outline"
-      onClick={() => {
-        setSubmitDialogOpen(false);
-        setSelectedAssignment(null);
-        resetSubmission();
-      }}
-      disabled={submissionStep === "submitting"}
-      className="px-4 py-2 h-auto text-sm" // Consistent small size
-    >
-      Close
-    </Button>
+                  {/* Loading state above footer */}
+                  {submissionStep === "submitting" && (
+                    <div className="px-6 py-4 bg-blue-50 border-t border-blue-100">
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
+                          <Loader2 className="animate-spin h-4 w-4 text-blue-600" />
+                          <Brain className="animate-pulse h-4 w-4 text-indigo-600" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-blue-900 text-sm">
+                            Processing Your Submission
+                          </p>
+                          <p className="text-xs text-blue-700">
+                            Our AI agent is analyzing your work • Expected time:
+                            30-90 seconds
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
-    {submissionStep === "upload" && selectedFile && submitDialogOpen && (
-      <Button
-        onClick={handleSubmitAssignment}
-        className="flex items-center gap-2 px-4 py-2 h-auto text-sm bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 border-0"
-      >
-        <Send className="h-4 w-4" />
-        Submit Assignment
-      </Button>
-    )}
-  </DialogFooter>
-</>
+                  {/* DialogFooter with consistent button sizes */}
+                  <DialogFooter className="flex justify-between items-center gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setSubmitDialogOpen(false);
+                        setSelectedAssignment(null);
+                        resetSubmission();
+                      }}
+                      disabled={submissionStep === "submitting"}
+                      className="px-4 py-2 h-auto text-sm" // Consistent small size
+                    >
+                      Close
+                    </Button>
+
+                    {submissionStep === "upload" &&
+                      selectedFile &&
+                      submitDialogOpen && (
+                        <Button
+                          onClick={handleSubmitAssignment}
+                          className="flex items-center gap-2 px-4 py-2 h-auto text-sm bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 border-0"
+                        >
+                          <Send className="h-4 w-4" />
+                          Submit Assignment
+                        </Button>
+                      )}
+                  </DialogFooter>
+                </>
               </DialogContent>
             </Dialog>
           </div>

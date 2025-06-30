@@ -242,6 +242,115 @@ const CURRICULUM = {
 const parseQuizContent = (content: string): QuizQuestion[] => {
   const questions: QuizQuestion[] = [];
 
+  // Method -1: Handle format "1. **Topic: [Topic Name]**" with question and options - NEWEST FORMAT
+  // Split content by numbered topics and parse each section
+  const topicSections = content.split(/\d+\.\s*\*\*Topic:/).filter(section => section.trim());
+  
+  if (topicSections.length > 1) {
+    // Remove the first empty section
+    topicSections.shift();
+    
+    topicSections.forEach((section, index) => {
+      // Find the question text (line that ends with "?")
+      const lines = section.split('\n').map(line => line.trim()).filter(line => line);
+      const questionLine = lines.find(line => line.includes('?') && !line.includes('Answer:'));
+      
+      if (questionLine) {
+        // Clean the question text (remove leading dash if present)
+        const questionText = questionLine.replace(/^-\s*/, '').trim();
+        
+        // Find option lines (start with "- A)", "- B)", etc.)
+        const optionLines = lines.filter(line => 
+          line.match(/^-?\s*[A-D]\)/) && !line.includes('Answer:')
+        );
+        
+        if (optionLines.length >= 4) {
+          const options = optionLines.slice(0, 4).map(opt => 
+            opt.replace(/^-?\s*/, '').trim()
+          );
+          
+          questions.push({
+            id: index + 1,
+            question: questionText,
+            options: options
+          });
+        }
+      }
+    });
+    
+    if (questions.length > 0) {
+      console.log("Parsed questions using topic format in parseQuizContent:", questions);
+      return questions;
+    }
+  }
+
+  // Method 0: Handle format "#### Question X:" (without difficulty) - CURRENT FORMAT
+  const currentFormatMatches = content.match(/#### Question \d+:\s*\n([^\n]+)\s*\n((?:- [A-D]\)[^\n]+\n?)+)/g);
+  
+  if (currentFormatMatches && currentFormatMatches.length > 0) {
+    currentFormatMatches.forEach((match, index) => {
+      // Extract question text - line after "#### Question X:"
+      const questionMatch = match.match(/#### Question \d+:\s*\n([^\n]+)/);
+      if (questionMatch) {
+        const questionText = questionMatch[1].trim();
+        
+        // Skip if this line contains "Correct Answer" - it's not the actual question
+        if (questionText.toLowerCase().includes('correct answer')) {
+          return;
+        }
+        
+        // Extract options - lines starting with "- A)", "- B)", etc.
+        const optionMatches = match.match(/- ([A-D]\)[^\n]+)/g);
+        
+        if (optionMatches && optionMatches.length >= 4) {
+          const options = optionMatches.slice(0, 4).map(opt => opt.replace(/^- /, ''));
+          
+          questions.push({
+            id: index + 1,
+            question: questionText,
+            options: options
+          });
+        }
+      }
+    });
+    
+    if (questions.length > 0) {
+      console.log("Parsed questions using current format in parseQuizContent:", questions);
+      return questions;
+    }
+  }
+
+  // Method 0b: Handle format "#### Question X (Difficulty)" - PREVIOUS FORMAT
+  const prevFormatMatches = content.match(/#### Question \d+ \([^)]+\)\s*\n([^\n]+)\s*\n((?:- [A-D]\)[^\n]+\n?)+)/g);
+  
+  if (prevFormatMatches && prevFormatMatches.length > 0) {
+    prevFormatMatches.forEach((match, index) => {
+      // Extract question text - line after "#### Question X (Difficulty)"
+      const questionMatch = match.match(/#### Question \d+ \([^)]+\)\s*\n([^\n]+)/);
+      if (questionMatch) {
+        const questionText = questionMatch[1].trim();
+        
+        // Extract options - lines starting with "- A)", "- B)", etc.
+        const optionMatches = match.match(/- ([A-D]\)[^\n]+)/g);
+        
+        if (optionMatches && optionMatches.length >= 4) {
+          const options = optionMatches.slice(0, 4).map(opt => opt.replace(/^- /, ''));
+          
+          questions.push({
+            id: index + 1,
+            question: questionText,
+            options: options
+          });
+        }
+      }
+    });
+    
+    if (questions.length > 0) {
+      console.log("Parsed questions using previous format in parseQuizContent:", questions);
+      return questions;
+    }
+  }
+
   // Method 1: Parse **Question X: Basic Understanding** format from your API
   const questionPattern =
     /\*\*Question\s+(\d+):\s*([^*]+?)\*\*\s*\n(.+?)\n([A-D]\).*?\n[A-D]\).*?\n[A-D]\).*?\n[A-D]\).*?)(?=\n\*\*Question|\n\nThese questions|$)/gs;
@@ -366,6 +475,115 @@ const createFallbackQuestions = (content: string): QuizQuestion[] => {
 
   // Try to parse questions from the content string
   const questions: QuizQuestion[] = [];
+  
+  // Method -1: Handle format "1. **Topic: [Topic Name]**" with question and options - NEWEST FORMAT
+  // Split content by numbered topics and parse each section
+  const topicSections = content.split(/\d+\.\s*\*\*Topic:/).filter(section => section.trim());
+  
+  if (topicSections.length > 1) {
+    // Remove the first empty section
+    topicSections.shift();
+    
+    topicSections.forEach((section, index) => {
+      // Find the question text (line that ends with "?")
+      const lines = section.split('\n').map(line => line.trim()).filter(line => line);
+      const questionLine = lines.find(line => line.includes('?') && !line.includes('Answer:'));
+      
+      if (questionLine) {
+        // Clean the question text (remove leading dash if present)
+        const questionText = questionLine.replace(/^-\s*/, '').trim();
+        
+        // Find option lines (start with "- A)", "- B)", etc.)
+        const optionLines = lines.filter(line => 
+          line.match(/^-?\s*[A-D]\)/) && !line.includes('Answer:')
+        );
+        
+        if (optionLines.length >= 4) {
+          const options = optionLines.slice(0, 4).map(opt => 
+            opt.replace(/^-?\s*/, '').trim()
+          );
+          
+          questions.push({
+            id: index + 1,
+            question: questionText,
+            options: options
+          });
+        }
+      }
+    });
+    
+    if (questions.length > 0) {
+      console.log("Parsed questions using topic format in fallback:", questions);
+      return questions;
+    }
+  }
+  
+  // Method 0: Handle format "#### Question X:" (without difficulty) - CURRENT FORMAT
+  const currentFormatMatches = content.match(/#### Question \d+:\s*\n([^\n]+)\s*\n((?:- [A-D]\)[^\n]+\n?)+)/g);
+  
+  if (currentFormatMatches && currentFormatMatches.length > 0) {
+    currentFormatMatches.forEach((match, index) => {
+      // Extract question text - line after "#### Question X:"
+      const questionMatch = match.match(/#### Question \d+:\s*\n([^\n]+)/);
+      if (questionMatch) {
+        const questionText = questionMatch[1].trim();
+        
+        // Skip if this line contains "Correct Answer" - it's not the actual question
+        if (questionText.toLowerCase().includes('correct answer')) {
+          return;
+        }
+        
+        // Extract options - lines starting with "- A)", "- B)", etc.
+        const optionMatches = match.match(/- ([A-D]\)[^\n]+)/g);
+        
+        if (optionMatches && optionMatches.length >= 4) {
+          const options = optionMatches.slice(0, 4).map(opt => opt.replace(/^- /, ''));
+          
+          questions.push({
+            id: index + 1,
+            question: questionText,
+            options: options
+          });
+        }
+      }
+    });
+    
+    if (questions.length > 0) {
+      console.log("Parsed questions using current format in fallback:", questions);
+      return questions;
+    }
+  }
+
+  // Method 0b: Handle format "#### Question X (Difficulty)" - PREVIOUS FORMAT
+  const prevFormatMatches = content.match(/#### Question \d+ \([^)]+\)\s*\n([^\n]+)\s*\n((?:- [A-D]\)[^\n]+\n?)+)/g);
+  
+  if (prevFormatMatches && prevFormatMatches.length > 0) {
+    prevFormatMatches.forEach((match, index) => {
+      // Extract question text - line after "#### Question X (Difficulty)"
+      const questionMatch = match.match(/#### Question \d+ \([^)]+\)\s*\n([^\n]+)/);
+      if (questionMatch) {
+        const questionText = questionMatch[1].trim();
+        
+        // Extract options - lines starting with "- A)", "- B)", etc.
+        const optionMatches = match.match(/- ([A-D]\)[^\n]+)/g);
+        
+        if (optionMatches && optionMatches.length >= 4) {
+          const options = optionMatches.slice(0, 4).map(opt => opt.replace(/^- /, ''));
+          
+          questions.push({
+            id: index + 1,
+            question: questionText,
+            options: options
+          });
+        }
+      }
+    });
+    
+    if (questions.length > 0) {
+      console.log("Parsed questions using previous format in fallback:", questions);
+      return questions;
+    }
+  }
   
   // Method 1: Handle numbered format "1. **Question 1:**" with actual question text
   const numberedQuestionBlocks = content.split(/\d+\.\s*\*\*Question\s+\d+:\*\*/i).filter(block => block.trim());
@@ -548,6 +766,160 @@ const formatMentorResponse = (content: string): string => {
   return formattedContent;
 };
 
+// Function to parse and format quiz feedback
+const formatQuizFeedback = (content: string): string => {
+  if (!content || content.trim() === '') {
+    return '<div class="text-gray-500">No feedback available.</div>';
+  }
+
+  const formattedContent = content;
+
+  // Add main header
+  let result = '<div class="mb-6"><h2 class="text-2xl font-bold text-purple-800 mb-2">📊 Quiz Feedback</h2><div class="h-1 bg-gradient-to-r from-purple-600 to-blue-600 rounded-full"></div></div>';
+
+  // Handle the new format with bold markdown: **Question X: [title]** followed by structured feedback
+  const questionPattern = /\*\*Question\s+(\d+):\s*([^*]+?)\*\*\s*-\s*\*\*Your Answer:\*\*\s*([A-D])\s*-\s*\*\*Correct Answer:\*\*\s*([A-D])\s*(.*?)(?=\*\*Question\s+\d+:|---\s*Remember|$)/gs;
+  
+  let match: RegExpExecArray | null;
+  let hasMatches = false;
+  
+  while ((match = questionPattern.exec(formattedContent)) !== null) {
+    hasMatches = true;
+    const [, questionNum, questionTitle, userAnswer, correctAnswer, feedbackText] = match;
+    
+    const isAnswerCorrect = userAnswer === correctAnswer;
+    
+    // Parse the feedback text to extract different sections
+    const cleanFeedbackText = feedbackText.trim();
+    
+    // Extract the main explanation/feedback (everything before any specific references)
+    const explanationMatch = cleanFeedbackText.match(/^(.*?)(?:To further understand|You can learn more|For more insights|For further insights)/s);
+    const explanation = explanationMatch ? explanationMatch[1].trim() : cleanFeedbackText;
+    
+    // Extract course material references
+    const courseMaterialMatch = cleanFeedbackText.match(/(?:To further understand|You can learn more|For more insights|For further insights)(.*?)(?:Keep up|Keep practicing|Keep challenging|Keep exploring)/s);
+    const courseMaterial = courseMaterialMatch ? courseMaterialMatch[1].trim() : '';
+    
+    // Extract encouragement
+    const encouragementMatch = cleanFeedbackText.match(/(Keep up.*?|Keep practicing.*?|Keep challenging.*?|Keep exploring.*?)$/s);
+    const encouragement = encouragementMatch ? encouragementMatch[1].trim() : '';
+    
+    const icon = isAnswerCorrect ? '✅' : '❌';
+    const bgColor = isAnswerCorrect ? 'bg-green-50' : 'bg-red-50';
+    const borderColor = isAnswerCorrect ? 'border-green-200' : 'border-red-200';
+    const statusColor = isAnswerCorrect ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+    const status = isAnswerCorrect ? 'Correct' : 'Incorrect';
+
+    result += `
+      <div class="mb-6 ${bgColor} border ${borderColor} rounded-xl p-6 shadow-sm">
+        <div class="flex items-center gap-3 mb-4">
+          <span class="text-2xl">${icon}</span>
+          <h3 class="text-xl font-bold text-gray-800">Question ${questionNum}</h3>
+          <span class="ml-auto px-3 py-1 rounded-full text-sm font-medium ${statusColor}">${status}</span>
+        </div>
+        
+        <div class="mb-4">
+          <div class="text-lg font-medium text-gray-900 mb-3">${questionTitle.trim()}</div>
+        </div>
+        
+        <div class="mb-4 grid grid-cols-2 gap-4">
+          <div class="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <div class="flex items-center gap-2">
+              <span class="text-blue-600 font-medium">👤 Your Answer:</span>
+              <span class="text-blue-800 font-bold text-lg">${userAnswer}</span>
+            </div>
+          </div>
+          
+          <div class="p-3 bg-green-50 border border-green-200 rounded-lg">
+            <div class="flex items-center gap-2">
+              <span class="text-green-600 font-medium">🎯 Correct Answer:</span>
+              <span class="text-green-800 font-bold text-lg">${correctAnswer}</span>
+            </div>
+          </div>
+        </div>
+        
+        ${explanation ? `
+          <div class="mb-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+            <div class="flex items-start gap-2">
+              <span class="text-purple-600 font-medium">💡 Explanation:</span>
+              <div class="text-purple-800 leading-relaxed">${explanation}</div>
+            </div>
+          </div>
+        ` : ''}
+        
+        ${courseMaterial ? `
+          <div class="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <div class="flex items-start gap-2">
+              <span class="text-blue-600 font-medium">📚 Course Material:</span>
+              <div class="text-blue-800 leading-relaxed">${courseMaterial}</div>
+            </div>
+          </div>
+        ` : ''}
+        
+        ${encouragement ? `
+          <div class="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <div class="flex items-start gap-2">
+              <span class="text-yellow-600 font-medium">🌟 Encouragement:</span>
+              <div class="text-yellow-800 leading-relaxed">${encouragement}</div>
+            </div>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
+
+  // If no matches found with the main pattern, try to handle it as a general feedback block
+  if (!hasMatches) {
+    // Handle final encouragement section
+    const finalEncouragementMatch = formattedContent.match(/Remember,\s*every attempt.*$/s);
+    if (finalEncouragementMatch) {
+      result += `
+        <div class="mt-8 p-6 bg-gradient-to-r from-purple-100 to-blue-100 border border-purple-200 rounded-xl">
+          <div class="flex items-start gap-3">
+            <span class="text-3xl">🎉</span>
+            <div>
+              <h3 class="text-xl font-bold text-purple-800 mb-2">Keep Learning!</h3>
+              <p class="text-purple-700 leading-relaxed">${finalEncouragementMatch[0].trim()}</p>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+    
+    // If still no proper formatting, return the content with basic markdown processing
+    if (result.trim() === '<div class="mb-6"><h2 class="text-2xl font-bold text-purple-800 mb-2">📊 Quiz Feedback</h2><div class="h-1 bg-gradient-to-r from-purple-600 to-blue-600 rounded-full"></div></div>') {
+      // Process basic markdown and return formatted content
+      let processedContent = formattedContent
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+        .replace(/\n\n/g, '</p><p class="mb-3">')
+        .replace(/\n/g, '<br>');
+      
+      processedContent = '<p class="mb-3">' + processedContent + '</p>';
+      result += `<div class="p-4 bg-gray-50 border border-gray-200 rounded-lg">${processedContent}</div>`;
+    }
+  } else {
+    // Add final encouragement if it exists and we had matches
+    const finalEncouragementMatch = formattedContent.match(/---\s*Remember,\s*every attempt.*$/s);
+    if (finalEncouragementMatch) {
+      const cleanEncouragement = finalEncouragementMatch[0].replace(/^---\s*/, '').trim();
+      result += `
+        <div class="mt-8 p-6 bg-gradient-to-r from-purple-100 to-blue-100 border border-purple-200 rounded-xl">
+          <div class="flex items-start gap-3">
+            <span class="text-3xl">🎉</span>
+            <div>
+              <h3 class="text-xl font-bold text-purple-800 mb-2">Keep Learning!</h3>
+              <p class="text-purple-700 leading-relaxed">${cleanEncouragement}</p>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+  }
+
+  return result;
+};
+
 export default function AIMentorAgent(): JSX.Element {
   // State Management
   const [currentStage, setCurrentStage] =
@@ -658,6 +1030,65 @@ export default function AIMentorAgent(): JSX.Element {
       throw new Error(`No configuration found for ${topicSelection.semester}`);
     }
 
+    console.log("Quiz data:", quizData);
+    console.log("Quiz answers:", quizAnswers);
+
+    // Create a proper mapping of questions to answers
+    const questionAnswerPairs = quizData?.questions.map((question) => {
+      const userAnswer = quizAnswers.find((answer) => answer.questionId === question.id);
+      
+      // Get correct answer for this question
+      const correctAnswers: { [key: number]: string } = {
+        1: "C", // Film analysis interpretation of visual and narrative elements
+        2: "C", // Mise-en-scène establishes setting and mood
+        3: "C", // Climax is NOT in Act I (it's in Act III)
+        4: "B", // Plot point changes direction of story
+        5: "B", // Central moral problem is main obstacle
+      };
+      
+      const correctAnswer = correctAnswers[question.id] || "A";
+      
+      // Ensure we have a valid user answer
+      const selectedAnswer = userAnswer?.selectedAnswer || "A";
+      
+      // Debug each question mapping
+      console.log(`Question ${question.id}: user answer found:`, userAnswer);
+      console.log(`Selected answer: "${selectedAnswer}"`);
+      
+      const mappedData = {
+        question: question.question || `Question ${question.id}`,
+        user_answer: selectedAnswer,
+        correct_answer: correctAnswer,
+        is_correct: userAnswer?.isCorrect || false,
+      };
+      
+      console.log(`Mapped data for question ${question.id}:`, mappedData);
+      return mappedData;
+    }) || [];
+
+    if (questionAnswerPairs.length === 0) {
+      throw new Error("No questions found to generate feedback for");
+    }
+
+    // Format question_and_answer as a string as the API expects
+    const questionAndAnswerString = questionAnswerPairs.map((qa, index) => 
+      `Question ${index + 1}: ${qa.question}\nUser Answer: ${qa.user_answer}\nCorrect Answer: ${qa.correct_answer}\nIs Correct: ${qa.is_correct}`
+    ).join('\n\n');
+
+    // Try multiple payload structures to see what the API expects
+    const payload = {
+      course_content: `${topicSelection.topic} - ${topicSelection.subTopic}`,
+      question_and_answer: questionAndAnswerString,
+      // Add individual fields in case API expects them at root level
+      user_answer: questionAnswerPairs.map(qa => qa.user_answer).filter(answer => answer && answer.trim()).join(', ') || 'A',
+      question: questionAnswerPairs.map(qa => qa.question).filter(q => q && q.trim()).join(' | ') || 'Default Question',
+      correct_answer: questionAnswerPairs.map(qa => qa.correct_answer).filter(answer => answer && answer.trim()).join(', ') || 'A',
+      is_correct: questionAnswerPairs.some(qa => qa.is_correct).toString(),
+    };
+
+    console.log("Sending payload to feedback API:", JSON.stringify(payload, null, 2));
+    console.log("Question answer pairs:", questionAnswerPairs);
+
     const response = await fetch(
       semesterConfig.tools.generateAnswerFeedback.endpoint,
       {
@@ -667,15 +1098,7 @@ export default function AIMentorAgent(): JSX.Element {
           Authorization:
             semesterConfig.tools.generateAnswerFeedback.authorization,
         },
-        body: JSON.stringify({
-          course_content: `${topicSelection.topic} - ${topicSelection.subTopic}`,
-          question_and_answer: quizAnswers.map((answer, index) => ({
-            question: quizData?.questions[index]?.question || "",
-            user_answer: answer.selectedAnswer,
-            correct_answer: "B", // You may need to determine this from your quiz data
-            is_correct: answer.isCorrect || false,
-          })),
-        }),
+        body: JSON.stringify(payload),
       }
     );
 
@@ -692,6 +1115,29 @@ export default function AIMentorAgent(): JSX.Element {
       throw new Error(`No configuration found for ${topicSelection.semester}`);
     }
 
+    // Create a proper mapping of questions to answers
+    const questionAnswerPairs = quizData?.questions.map((question) => {
+      const userAnswer = quizAnswers.find((answer) => answer.questionId === question.id);
+      
+      // Get correct answer for this question
+      const correctAnswers: { [key: number]: string } = {
+        1: "C", // Film analysis interpretation of visual and narrative elements
+        2: "C", // Mise-en-scène establishes setting and mood
+        3: "C", // Climax is NOT in Act I (it's in Act III)
+        4: "B", // Plot point changes direction of story
+        5: "B", // Central moral problem is main obstacle
+      };
+      
+      const correctAnswer = correctAnswers[question.id] || "A";
+      
+      return {
+        question: question.question || "",
+        user_answer: userAnswer?.selectedAnswer || "",
+        correct_answer: correctAnswer,
+        is_correct: userAnswer?.isCorrect || false,
+      };
+    }) || [];
+
     const score = calculateQuizScore();
     const response = await fetch(
       semesterConfig.tools.generateQuizSummary.endpoint,
@@ -703,12 +1149,9 @@ export default function AIMentorAgent(): JSX.Element {
         },
         body: JSON.stringify({
           course_content: `${topicSelection.topic} - ${topicSelection.subTopic}`,
-          question_and_answer: quizAnswers.map((answer, index) => ({
-            question: quizData?.questions[index]?.question || "",
-            user_answer: answer.selectedAnswer,
-            correct_answer: "B", // You may need to determine this from your quiz data
-            is_correct: answer.isCorrect || false,
-          })),
+          question_and_answer: questionAnswerPairs.map((qa, index) => 
+            `Question ${index + 1}: ${qa.question}\nUser Answer: ${qa.user_answer}\nCorrect Answer: ${qa.correct_answer}\nIs Correct: ${qa.is_correct}`
+          ).join('\n\n'),
           quiz_results: {
             score: score,
             total_questions: quizData?.questions.length || 0,
@@ -971,6 +1414,8 @@ After providing this comprehensive explanation, end with this exact prompt:
   const handleQuizAnswer = (questionId: number, selectedAnswer: string) => {
     const question = quizData?.questions.find((q) => q.id === questionId);
 
+    console.log(`handleQuizAnswer called with questionId: ${questionId}, selectedAnswer: "${selectedAnswer}"`);
+
     // Updated correct answers based on the film analysis quiz
     const correctAnswers: { [key: number]: string } = {
       1: "C", // Film analysis interpretation of visual and narrative elements
@@ -988,15 +1433,30 @@ After providing this comprehensive explanation, end with this exact prompt:
       isCorrect,
     };
 
+    console.log("Storing answer:", newAnswer);
+
     setQuizAnswers((prev) => {
       const filtered = prev.filter((a) => a.questionId !== questionId);
-      return [...filtered, newAnswer];
+      const updated = [...filtered, newAnswer];
+      console.log("Updated quiz answers:", updated);
+      return updated;
     });
   };
 
   const handleQuizSubmission = async () => {
-    if (quizAnswers.length !== quizData?.questions.length) {
+    // Check if all questions have been answered
+    if (!quizData?.questions || quizAnswers.length !== quizData.questions.length) {
       toast.error("Please answer all questions before submitting");
+      return;
+    }
+
+    // Verify each question has a valid answer
+    const missingAnswers = quizData.questions.filter(
+      question => !quizAnswers.find(answer => answer.questionId === question.id && answer.selectedAnswer)
+    );
+
+    if (missingAnswers.length > 0) {
+      toast.error(`Please answer question ${missingAnswers[0].id} before submitting`);
       return;
     }
 
@@ -1014,7 +1474,9 @@ After providing this comprehensive explanation, end with this exact prompt:
         feedbackContent = feedbackResponse.output;
       }
 
-      addMessage("mentor", feedbackContent, "quiz_feedback");
+      // Format the feedback for better UI display
+      const formattedFeedback = formatQuizFeedback(feedbackContent);
+      addMessage("mentor", formattedFeedback, "quiz_feedback");
 
       // Generate summary - handle direct webhook response
       const summaryResponse = await callQuizSummaryTool();
@@ -1026,7 +1488,9 @@ After providing this comprehensive explanation, end with this exact prompt:
         summaryContent = summaryResponse.output;
       }
 
-      addMessage("mentor", summaryContent, "quiz_summary");
+      // Format the summary for better UI display
+      const formattedSummary = formatQuizFeedback(summaryContent);
+      addMessage("mentor", formattedSummary, "quiz_summary");
       setCurrentStage("quiz_summary");
 
       const score = calculateQuizScore();

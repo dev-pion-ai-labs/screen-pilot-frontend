@@ -1054,16 +1054,17 @@ const TeacherAssignment = () => {
                             
                             // Clean up the strings by extracting only the relevant parts
                             if (feedback.Strengths) {
-                              // Extract just the strengths part before any ** markers
-                              const strengthsMatch = feedback.Strengths.match(/^([^*]+?)(?=\n\*\*|$)/);
-                              strengths = strengthsMatch ? strengthsMatch[1].trim() : feedback.Strengths;
+                              const strengthsText = feedback.Strengths;
+                              // Remove any areas for improvement or recommendations that got mixed in
+                              const strengthsMatch = strengthsText.match(/^([^*]+?)(?=\n\s*\*\s*\*\*Areas for Improvement\*\*|\n\s*\*\s*\*\*Recommendations\*\*|$)/s);
+                              strengths = strengthsMatch ? strengthsMatch[1].trim() : strengthsText.split('\n\n')[0].trim();
                             }
                             
                             if (feedback["Areas for Improvement"]) {
-                              // Extract just the areas for improvement
-                              let areas = feedback["Areas for Improvement"];
-                              const areasMatch = areas.match(/^([^*]+?)(?=\n\*\*|$)/);
-                              areasForImprovement = areasMatch ? areasMatch[1].trim() : areas;
+                              const areas = feedback["Areas for Improvement"];
+                              // Remove any recommendations that got mixed in
+                              const areasMatch = areas.match(/^([^*]+?)(?=\n\s*\*\s*\*\*Recommendations\*\*|$)/s);
+                              areasForImprovement = areasMatch ? areasMatch[1].trim() : areas.split('\n\n')[0].trim();
                             }
                             
                             if (feedback.Recommendations) {
@@ -1088,13 +1089,17 @@ const TeacherAssignment = () => {
                       
                       // Fallback to individual fields
                       if (!strengths && submission.ai_strengths) {
-                        const strengthsMatch = submission.ai_strengths.match(/^([^*]+?)(?=\n\*\*|$)/);
-                        strengths = strengthsMatch ? strengthsMatch[1].trim() : submission.ai_strengths;
+                        const strengthsText = submission.ai_strengths;
+                        // Remove any areas for improvement or recommendations that got mixed in
+                        const strengthsMatch = strengthsText.match(/^([^*]+?)(?=\n\s*\*\s*\*\*Areas for Improvement\*\*|\n\s*\*\s*\*\*Recommendations\*\*|$)/s);
+                        strengths = strengthsMatch ? strengthsMatch[1].trim() : strengthsText.split('\n\n')[0].trim();
                       }
                       
                       if (!areasForImprovement && submission.ai_areas_for_improvement) {
-                        const areasMatch = submission.ai_areas_for_improvement.match(/^([^*]+?)(?=\n\*\*|$)/);
-                        areasForImprovement = areasMatch ? areasMatch[1].trim() : submission.ai_areas_for_improvement;
+                        const areasText = submission.ai_areas_for_improvement;
+                        // Remove any recommendations that got mixed in
+                        const areasMatch = areasText.match(/^([^*]+?)(?=\n\s*\*\s*\*\*Recommendations\*\*|$)/s);
+                        areasForImprovement = areasMatch ? areasMatch[1].trim() : areasText.split('\n\n')[0].trim();
                       }
                       
                       if (!recommendations && submission.ai_recommendations) {
@@ -1103,8 +1108,10 @@ const TeacherAssignment = () => {
                       
                       // Final fallback to ai_evaluation
                       if (!strengths && submission.ai_evaluation?.["Constructive Feedback"]?.Strengths) {
-                        const strengthsMatch = submission.ai_evaluation["Constructive Feedback"].Strengths.match(/^([^*]+?)(?=\n\*\*|$)/);
-                        strengths = strengthsMatch ? strengthsMatch[1].trim() : submission.ai_evaluation["Constructive Feedback"].Strengths;
+                        const strengthsText = submission.ai_evaluation["Constructive Feedback"].Strengths;
+                        // Remove any areas for improvement or recommendations that got mixed in
+                        const strengthsMatch = strengthsText.match(/^([^*]+?)(?=\n\s*\*\s*\*\*Areas for Improvement\*\*|\n\s*\*\s*\*\*Recommendations\*\*|$)/s);
+                        strengths = strengthsMatch ? strengthsMatch[1].trim() : strengthsText.split('\n\n')[0].trim();
                       }
                       
                       return {

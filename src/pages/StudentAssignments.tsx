@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import {
   Dialog,
   DialogContent,
@@ -43,6 +44,7 @@ import {
   ArrowUp,
   ArrowDown,
   Brain,
+  Star,
 } from "lucide-react";
 import { format, isAfter } from "date-fns";
 import { v4 as uuidv4 } from "uuid";
@@ -110,6 +112,7 @@ interface Submission {
   ai_academic_integrity?: string | null;
   ai_status?: string | null;
   ai_red_flags?: string | null;
+  ai_feedback?: string | null;
 }
 
 interface Profile {
@@ -396,6 +399,31 @@ function extractLineValue(text: string, label: string): string {
   const match = text.match(regex);
   return match ? match[1].trim() : "";
 }
+
+// Helper function to get grade color based on score
+const getGradeColor = (score: number) => {
+  if (score >= 90) return "text-green-600";
+  if (score >= 80) return "text-blue-600";
+  if (score >= 70) return "text-yellow-600";
+  if (score >= 60) return "text-orange-600";
+  return "text-red-600";
+};
+
+// Helper function to get grade badge color
+const getGradeBadgeColor = (grade: string) => {
+  switch (grade?.toLowerCase()) {
+    case "excellent":
+      return "bg-gradient-to-r from-green-500 to-emerald-500 text-white border-0";
+    case "good":
+      return "bg-gradient-to-r from-blue-500 to-cyan-500 text-white border-0";
+    case "satisfactory":
+      return "bg-gradient-to-r from-yellow-500 to-orange-500 text-white border-0";
+    case "needs improvement":
+      return "bg-gradient-to-r from-red-500 to-pink-500 text-white border-0";
+    default:
+      return "bg-gradient-to-r from-gray-400 to-gray-500 text-white border-0";
+  }
+};
 
 // Helper to format assignment description - preserves all content
 // Helper to format assignment description - fixed to handle all cases properly
@@ -712,7 +740,17 @@ export default function StudentAssignments() {
               teacher_feedback,
               file_name,
               file_path,
-              grade
+              grade,
+              ai_grade,
+              ai_overall_grade,
+              ai_strengths,
+              ai_areas_for_improvement,
+              ai_recommendations,
+              ai_rubric_breakdown,
+              ai_academic_integrity,
+              ai_status,
+              ai_red_flags,
+              ai_feedback
             )
           )
         `
@@ -1593,6 +1631,257 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
                                 )}
                               </div>
                             )}
+
+                            {/* AI Feedback and Rubric Section */}
+                            <div className="bg-gradient-to-r from-cyan-50 to-blue-50 rounded-xl p-4 border border-cyan-200 mt-4">
+                              <div className="flex items-center gap-2 mb-4">
+                                <Brain className="h-5 w-5 text-cyan-600" />
+                                <h4 className="font-bold text-cyan-800">
+                                  Detailed Feedback & Assessment
+                                </h4>
+                              </div>
+
+                              {/* Rubric Breakdown */}
+                              {(() => {
+                                const parseRubricFromSubmission = (submission: any) => {
+                                  let feedbackData = null;
+                                  let rawText = '';
+                                  
+                                  // Parse ai_feedback JSON
+                                  if (submission.ai_feedback) {
+                                    try {
+                                      feedbackData = JSON.parse(submission.ai_feedback);
+                                      rawText = feedbackData.rawText || '';
+                                    } catch (e) {
+                                      console.warn('❌ Failed to parse ai_feedback JSON:', e);
+                                    }
+                                  }
+                                  
+                                  // Fallback to ai_evaluation.rawText
+                                  if (!rawText && submission.ai_evaluation?.rawText) {
+                                    rawText = submission.ai_evaluation.rawText;
+                                  }
+                                  
+                                  if (!rawText) {
+                                    return null;
+                                  }
+                                  
+                                  // Parse rubric breakdown from rawText
+                                  const rubricItems = [];
+                                  
+                                  // Pattern: * **Name (percentage%)**: score/maxScore - assessment
+                                  const rubricPattern = /\* \*\*([^(]+)\s*\((\d+)%\)\*\*:\s*(\d+)\/(\d+)\s*-\s*([^*]+?)(?=\n\*|$)/g;
+                                  
+                                  let match;
+                                  while ((match = rubricPattern.exec(rawText)) !== null) {
+                                    const criterion = match[1].trim();
+                                    const percentage = match[2];
+                                    const score = parseInt(match[3]);
+                                    const maxScore = parseInt(match[4]);
+                                    const assessment = match[5].trim();
+                                    
+                                    rubricItems.push({
+                                      criterion,
+                                      percentage: percentage + "%",
+                                      score,
+                                      maxScore,
+                                      assessment
+                                    });
+                                  }
+                                  
+                                  // Fallback pattern without leading *
+                                  if (rubricItems.length === 0) {
+                                    const altPattern = /\*\*([^(]+)\s*\((\d+)%\)\*\*:\s*(\d+)\/(\d+)\s*-\s*([^*]+?)(?=\n\*|$)/g;
+                                    
+                                    while ((match = altPattern.exec(rawText)) !== null) {
+                                      const criterion = match[1].trim();
+                                      const percentage = match[2];
+                                      const score = parseInt(match[3]);
+                                      const maxScore = parseInt(match[4]);
+                                      const assessment = match[5].trim();
+                                      
+                                      rubricItems.push({
+                                        criterion,
+                                        percentage: percentage + "%",
+                                        score,
+                                        maxScore,
+                                        assessment
+                                      });
+                                    }
+                                  }
+                                  
+                                  return rubricItems.length > 0 ? rubricItems : null;
+                                };
+
+                                const rubricItems = parseRubricFromSubmission(submission);
+                                
+                                return rubricItems ? (
+                                  <div className="mb-4">
+                                    <h5 className="font-semibold text-cyan-700 mb-3 flex items-center gap-2">
+                                      <Target className="h-4 w-4" />
+                                      Detailed Rubric Assessment
+                                    </h5>
+                                    <div className="space-y-3">
+                                      {rubricItems.map((item, index) => (
+                                        <div key={index} className="bg-white/60 rounded-lg p-3">
+                                          <div className="flex items-center justify-between mb-2">
+                                            <div className="flex items-center gap-2">
+                                              <span className="font-medium text-gray-800 text-sm">
+                                                {item.criterion}
+                                              </span>
+                                              <Badge className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white border-0 text-xs">
+                                                {item.percentage}
+                                              </Badge>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                              <span className={`text-sm font-bold ${getGradeColor(
+                                                (item.score / item.maxScore) * 100
+                                              )}`}>
+                                                {item.score}
+                                              </span>
+                                              <span className="text-gray-500 text-sm">/ {item.maxScore}</span>
+                                            </div>
+                                          </div>
+                                          <Progress
+                                            value={(item.score / item.maxScore) * 100}
+                                            className="mb-2 h-2"
+                                          />
+                                          <p className="text-xs text-gray-700">
+                                            {item.assessment}
+                                          </p>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ) : null;
+                              })()}
+
+                              {/* AI Feedback Sections */}
+                              {(() => {
+                                const getFeedbackData = (submission: any) => {
+                                  let feedbackData = null;
+                                  let strengths = "";
+                                  let areasForImprovement = "";
+                                  let recommendations = "";
+                                  
+                                  // Parse ai_feedback JSON first
+                                  if (submission.ai_feedback) {
+                                    try {
+                                      feedbackData = JSON.parse(submission.ai_feedback);
+                                      
+                                      if (feedbackData["Constructive Feedback"]) {
+                                        const feedback = feedbackData["Constructive Feedback"];
+                                        
+                                        // Extract clean feedback sections
+                                        if (feedback.Strengths) {
+                                          const strengthsText = feedback.Strengths;
+                                          // Remove any areas for improvement or recommendations that got mixed in
+                                          const strengthsMatch = strengthsText.match(/^([^*]+?)(?=\n\s*\*\s*\*\*Areas for Improvement\*\*|\n\s*\*\s*\*\*Recommendations\*\*|$)/s);
+                                          strengths = strengthsMatch ? strengthsMatch[1].trim() : strengthsText.split('\n\n')[0].trim();
+                                        }
+                                        
+                                        if (feedback["Areas for Improvement"]) {
+                                          const areas = feedback["Areas for Improvement"];
+                                          // Remove any recommendations that got mixed in
+                                          const areasMatch = areas.match(/^([^*]+?)(?=\n\s*\*\s*\*\*Recommendations\*\*|$)/s);
+                                          areasForImprovement = areasMatch ? areasMatch[1].trim() : areas.split('\n\n')[0].trim();
+                                        }
+                                        
+                                        if (feedback.Recommendations) {
+                                          recommendations = feedback.Recommendations;
+                                        }
+                                      } else if (feedbackData.rawText) {
+                                        // Parse from rawText if structured data not available
+                                        const rawText = feedbackData.rawText;
+                                        
+                                        const strengthsMatch = rawText.match(/\*\*Strengths\*\*: ([^*]+?)(?=\n\*\*|$)/);
+                                        const areasMatch = rawText.match(/\*\*Areas for Improvement\*\*: ([^*]+?)(?=\n\*\*|$)/);
+                                        const recommendationsMatch = rawText.match(/\*\*Recommendations\*\*: ([^*]+?)(?=\n\*\*|$)/);
+                                        
+                                        strengths = strengthsMatch ? strengthsMatch[1].trim() : "";
+                                        areasForImprovement = areasMatch ? areasMatch[1].trim() : "";
+                                        recommendations = recommendationsMatch ? recommendationsMatch[1].trim() : "";
+                                      }
+                                    } catch (e) {
+                                      console.warn('❌ Failed to parse ai_feedback JSON:', e);
+                                    }
+                                  }
+                                  
+                                  // Fallback to individual fields
+                                  if (!strengths && submission.ai_strengths) {
+                                    const strengthsText = submission.ai_strengths;
+                                    // Remove any areas for improvement or recommendations that got mixed in
+                                    const strengthsMatch = strengthsText.match(/^([^*]+?)(?=\n\s*\*\s*\*\*Areas for Improvement\*\*|\n\s*\*\s*\*\*Recommendations\*\*|$)/s);
+                                    strengths = strengthsMatch ? strengthsMatch[1].trim() : strengthsText.split('\n\n')[0].trim();
+                                  }
+                                  
+                                  if (!areasForImprovement && submission.ai_areas_for_improvement) {
+                                    const areasText = submission.ai_areas_for_improvement;
+                                    // Remove any recommendations that got mixed in
+                                    const areasMatch = areasText.match(/^([^*]+?)(?=\n\s*\*\s*\*\*Recommendations\*\*|$)/s);
+                                    areasForImprovement = areasMatch ? areasMatch[1].trim() : areasText.split('\n\n')[0].trim();
+                                  }
+                                  
+                                  if (!recommendations && submission.ai_recommendations) {
+                                    recommendations = submission.ai_recommendations;
+                                  }
+                                  
+                                  return {
+                                    strengths: strengths || "",
+                                    areasForImprovement: areasForImprovement || "",
+                                    recommendations: recommendations || ""
+                                  };
+                                };
+
+                                const feedbackData = getFeedbackData(submission);
+                                
+                                return (feedbackData.strengths || feedbackData.areasForImprovement || feedbackData.recommendations) ? (
+                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                    {feedbackData.strengths && (
+                                      <div className="bg-white/60 rounded-lg p-3">
+                                        <div className="flex items-center gap-2 mb-2">
+                                          <CheckCircle className="w-4 h-4 text-green-600" />
+                                          <h6 className="font-semibold text-green-700 text-sm">
+                                            Strengths
+                                          </h6>
+                                        </div>
+                                        <p className="text-xs text-gray-700">
+                                          {feedbackData.strengths}
+                                        </p>
+                                      </div>
+                                    )}
+
+                                    {feedbackData.areasForImprovement && (
+                                      <div className="bg-white/60 rounded-lg p-3">
+                                        <div className="flex items-center gap-2 mb-2">
+                                          <AlertCircle className="w-4 h-4 text-orange-600" />
+                                          <h6 className="font-semibold text-orange-700 text-sm">
+                                            Areas for Improvement
+                                          </h6>
+                                        </div>
+                                        <p className="text-xs text-gray-700">
+                                          {feedbackData.areasForImprovement}
+                                        </p>
+                                      </div>
+                                    )}
+
+                                    {feedbackData.recommendations && (
+                                      <div className="bg-white/60 rounded-lg p-3">
+                                        <div className="flex items-center gap-2 mb-2">
+                                          <Star className="w-4 h-4 text-purple-600" />
+                                          <h6 className="font-semibold text-purple-700 text-sm">
+                                            Recommendations
+                                          </h6>
+                                        </div>
+                                        <p className="text-xs text-gray-700">
+                                          {feedbackData.recommendations}
+                                        </p>
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : null;
+                              })()}
+                            </div>
                           </div>
                         ))}
                       </div>

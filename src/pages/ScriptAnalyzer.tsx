@@ -98,6 +98,8 @@ export const ScriptAnalyzer = () => {
     }
   }
 
+  // the code is working fine
+
   // Simplified Studio API caller for generateScriptAnalysis only
   const generateScriptAnalysis = async (scriptData, scriptFileUrl = null) => {
     try {

@@ -674,157 +674,210 @@ const TeacherAssignment = () => {
 
               {viewSubmission && (
                 <div className="flex-1 min-h-0 overflow-y-auto py-2 space-y-6">
-                  {/* Overall Score Section */}
-                  <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-2xl p-6 border border-blue-100">
-                    <div className="flex items-center justify-between mb-6">
-                      <div className="flex items-center gap-3">
-                        <div className="p-3 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl">
-                          <Star className="w-6 h-6 text-white" />
-                        </div>
-                        <div>
-                          <h3 className="text-2xl font-bold text-gray-900">
-                            AI Evaluation Summary
-                          </h3>
-                          <p className="text-gray-600">
-                            Automated assessment results
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div
-                          className={`text-4xl font-bold ${getGradeColor(
-                            viewSubmission.ai_evaluation?.Score || 0
-                          )}`}
-                        >
-                          {viewSubmission.ai_evaluation?.Score || "N/A"}
-                        </div>
-                        <Badge
-                          className={getGradeBadgeColor(
-                            viewSubmission.ai_evaluation?.["Overall Grade"] ||
-                              ""
-                          )}
-                        >
-                          {viewSubmission.ai_evaluation?.["Overall Grade"] ||
-                            "N/A"}
-                        </Badge>
-                      </div>
-                    </div>
+                  {/* Enhanced Overall Score Section */}
+                  {(() => {
+                    const getOverallData = (submission: any) => {
+                      let feedbackData = null;
+                      let score = "N/A";
+                      let overallGrade = "N/A";
+                      let adminDetails = null;
+                      let facultyProgress = null;
+                      
+                      // Parse ai_feedback JSON first
+                      if (submission.ai_feedback) {
+                        try {
+                          feedbackData = JSON.parse(submission.ai_feedback);
+                          score = feedbackData.Score || submission.ai_grade || "N/A";
+                          overallGrade = feedbackData["Overall Grade"] || submission.ai_overall_grade || "N/A";
+                        } catch (e) {
+                          console.warn('❌ Failed to parse ai_feedback JSON:', e);
+                        }
+                      }
+                      
+                      // Fallback to individual fields
+                      if (score === "N/A") {
+                        score = submission.ai_grade || submission.ai_evaluation?.Score || "N/A";
+                      }
+                      if (overallGrade === "N/A") {
+                        overallGrade = submission.ai_overall_grade || submission.ai_evaluation?.["Overall Grade"] || "N/A";
+                      }
+                      
+                      // Parse admin details from rawText if available
+                      if (feedbackData?.rawText) {
+                        const rawText = feedbackData.rawText;
+                        const studentMatch = rawText.match(/Student: (.+?) \(ID: (.+?)\)/);
+                        const assignmentMatch = rawText.match(/Assignment: (.+?)(?=\n|\*|$)/);
+                        const submissionDateMatch = rawText.match(/Submission Date: (.+?)(?=\n|\*|$)/);
+                        const evaluationDateMatch = rawText.match(/Evaluation Date: (.+?)(?=\n|\*|$)/);
+                        
+                        if (studentMatch || assignmentMatch || submissionDateMatch || evaluationDateMatch) {
+                          adminDetails = {
+                            Student: studentMatch ? studentMatch[1] : null,
+                            StudentID: studentMatch ? studentMatch[2] : null,
+                            Assignment: assignmentMatch ? assignmentMatch[1] : null,
+                            "Submission Date": submissionDateMatch ? submissionDateMatch[1] : null,
+                            "Evaluation Date": evaluationDateMatch ? evaluationDateMatch[1] : null
+                          };
+                        }
+                        
+                        // Parse faculty progress
+                        const statusMatch = rawText.match(/\*\*Status\*\*: (.+?)(?=\n|\*|$)/);
+                        const redFlagsMatch = rawText.match(/\*\*Red Flags\*\*: (.+?)(?=\n|\*|$)/);
+                        const integrityMatch = rawText.match(/\*\*Academic Integrity\*\*: (.+?)(?=\n|\*|$)/);
+                        
+                        if (statusMatch || redFlagsMatch || integrityMatch) {
+                          facultyProgress = {
+                            Status: statusMatch ? statusMatch[1] : null,
+                            "Red Flags": redFlagsMatch ? redFlagsMatch[1] : null,
+                            "Academic Integrity": integrityMatch ? integrityMatch[1] : null
+                          };
+                        }
+                      }
+                      
+                      return {
+                        score,
+                        overallGrade,
+                        adminDetails: adminDetails || submission.ai_evaluation?.["Administrative Details"],
+                        facultyProgress: facultyProgress || submission.ai_evaluation?.["Faculty Progress Summary"]
+                      };
+                    };
 
-                    {/* Administrative Details */}
-                    {viewSubmission?.ai_evaluation?.[
-                      "Administrative Details"
-                    ] && (
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                        <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4">
-                          <div className="text-xs text-gray-600 font-medium">
-                            Student
-                          </div>
-                          <div className="font-bold text-gray-900">
-                            {viewSubmission.profiles?.full_name ||
-                              "Unknown Student"}
-                          </div>
-                        </div>
-                        <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4">
-                          <div className="text-xs text-gray-600 font-medium">
-                            Assignment
-                          </div>
-                          <div className="font-bold text-gray-900">
-                            {viewSubmission?.ai_evaluation[
-                              "Administrative Details"
-                            ].Assignment?.Title || "Unknown Assignment"}
-                          </div>
-                        </div>
-                        <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4">
-                          <div className="text-xs text-gray-600 font-medium">
-                            Evaluation Date
-                          </div>
-                          <div className="font-bold text-gray-900">
-                            {viewSubmission?.ai_evaluation[
-                              "Administrative Details"
-                            ]["Evaluation Date"] || "N/A"}
-                          </div>
-                        </div>
-                        <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4">
-                          <div className="text-xs text-gray-600 font-medium">
-                            Submission Date
-                          </div>
-                          <div className="font-bold text-gray-900">
-                            {(() => {
-                              const rawDate =
-                                viewSubmission?.ai_evaluation[
-                                  "Administrative Details"
-                                ]["Submission Date"];
-                              const parsedDate = Date.parse(rawDate);
-                              return isNaN(parsedDate)
-                                ? rawDate
-                                : format(new Date(parsedDate), "MMM dd, yyyy");
-                            })()}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Academic Integrity Status */}
-                    {viewSubmission?.ai_evaluation?.[
-                      "Faculty Progress Summary"
-                    ] && (
-                      <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 mb-6">
-                        <div className="flex items-center gap-3 mb-3">
-                          <CheckCircle className="w-5 h-5 text-green-600" />
-                          <h4 className="font-bold text-gray-900">
-                            Academic Integrity Status
-                          </h4>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          <div>
-                            <div className="text-xs text-gray-600 font-medium">
-                              Status
+                    const overallData = getOverallData(viewSubmission);
+                    
+                    return (
+                      <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-2xl p-6 border border-blue-100">
+                        <div className="flex items-center justify-between mb-6">
+                          <div className="flex items-center gap-3">
+                            <div className="p-3 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl">
+                              <Star className="w-6 h-6 text-white" />
                             </div>
-                            <Badge className="bg-gradient-to-r from-green-500 to-emerald-500 text-white border-0">
-                              {viewSubmission.ai_evaluation[
-                                "Faculty Progress Summary"
-                              ].Status || "N/A"}
+                            <div>
+                              <h3 className="text-2xl font-bold text-gray-900">
+                                AI Evaluation Summary
+                              </h3>
+                              <p className="text-gray-600">
+                                Comprehensive automated assessment
+                              </p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div
+                              className={`text-4xl font-bold ${getGradeColor(
+                                parseInt(overallData.score) || 0
+                              )}`}
+                            >
+                              {overallData.score}
+                            </div>
+                            <Badge
+                              className={getGradeBadgeColor(overallData.overallGrade)}
+                            >
+                              {overallData.overallGrade}
                             </Badge>
                           </div>
-                          <div>
-                            <div className="text-xs text-gray-600 font-medium">
-                              Red Flags
-                            </div>
-                            <div className="font-medium text-gray-900">
-                              {viewSubmission.ai_evaluation[
-                                "Faculty Progress Summary"
-                              ]["Red Flags"] || "None"}
-                            </div>
-                          </div>
-                          <div>
-                            <div className="text-xs text-gray-600 font-medium">
-                              Academic Integrity
-                            </div>
-                            <div className="font-medium text-green-600">
-                              {viewSubmission.ai_evaluation[
-                                "Faculty Progress Summary"
-                              ]["Academic Integrity"] || "N/A"}
-                            </div>
-                          </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
 
-                  {/* Rubric Breakdown - Parse from rawText */}
+                        {/* Enhanced Administrative Details */}
+                        {overallData.adminDetails && (
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                            <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4">
+                              <div className="text-xs text-gray-600 font-medium">
+                                Student
+                              </div>
+                              <div className="font-bold text-gray-900">
+                                {overallData.adminDetails.Student || 
+                                 viewSubmission.profiles?.full_name ||
+                                 "Unknown Student"}
+                              </div>
+                              {overallData.adminDetails.StudentID && (
+                                <div className="text-xs text-gray-500">
+                                  ID: {overallData.adminDetails.StudentID}
+                                </div>
+                              )}
+                            </div>
+                            <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4">
+                              <div className="text-xs text-gray-600 font-medium">
+                                Assignment
+                              </div>
+                              <div className="font-bold text-gray-900">
+                                {overallData.adminDetails.Assignment || 
+                                 overallData.adminDetails.Assignment?.Title || 
+                                 "Unknown Assignment"}
+                              </div>
+                            </div>
+                            <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4">
+                              <div className="text-xs text-gray-600 font-medium">
+                                Evaluation Date
+                              </div>
+                              <div className="font-bold text-gray-900">
+                                {overallData.adminDetails["Evaluation Date"] || "N/A"}
+                              </div>
+                            </div>
+                            <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4">
+                              <div className="text-xs text-gray-600 font-medium">
+                                Submission Date
+                              </div>
+                              <div className="font-bold text-gray-900">
+                                {overallData.adminDetails["Submission Date"] || "N/A"}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Enhanced Academic Integrity Status */}
+                        {overallData.facultyProgress && (
+                          <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 mb-6">
+                            <div className="flex items-center gap-3 mb-3">
+                              <CheckCircle className="w-5 h-5 text-green-600" />
+                              <h4 className="font-bold text-gray-900">
+                                Academic Integrity Status
+                              </h4>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              <div>
+                                <div className="text-xs text-gray-600 font-medium">
+                                  Status
+                                </div>
+                                <Badge className="bg-gradient-to-r from-green-500 to-emerald-500 text-white border-0">
+                                  {overallData.facultyProgress.Status || "N/A"}
+                                </Badge>
+                              </div>
+                              <div>
+                                <div className="text-xs text-gray-600 font-medium">
+                                  Red Flags
+                                </div>
+                                <div className="font-medium text-gray-900">
+                                  {overallData.facultyProgress["Red Flags"] || "None"}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-xs text-gray-600 font-medium">
+                                  Academic Integrity
+                                </div>
+                                <div className="font-medium text-green-600">
+                                  {overallData.facultyProgress["Academic Integrity"] || "N/A"}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Enhanced Rubric Breakdown - Parse from actual data structure */}
                   {(() => {
                     const parseRubricFromSubmission = (submission: any) => {
-                      console.log('🔍 Parsing submission:', submission);
+                      console.log('🔍 Parsing detailed submission:', submission);
                       
-                      // First try to parse from ai_feedback field
+                      let feedbackData = null;
                       let rawText = '';
                       
+                      // Parse ai_feedback JSON
                       if (submission.ai_feedback) {
-                        console.log('📄 ai_feedback found:', submission.ai_feedback);
                         try {
-                          const feedbackData = JSON.parse(submission.ai_feedback);
+                          feedbackData = JSON.parse(submission.ai_feedback);
                           rawText = feedbackData.rawText || '';
-                          console.log('✅ Parsed rawText:', rawText);
+                          console.log('✅ Parsed ai_feedback with rawText');
                         } catch (e) {
                           console.warn('❌ Failed to parse ai_feedback JSON:', e);
                         }
@@ -833,7 +886,7 @@ const TeacherAssignment = () => {
                       // Fallback to ai_evaluation.rawText
                       if (!rawText && submission.ai_evaluation?.rawText) {
                         rawText = submission.ai_evaluation.rawText;
-                        console.log('🔄 Using ai_evaluation.rawText:', rawText);
+                        console.log('🔄 Using ai_evaluation.rawText');
                       }
                       
                       if (!rawText) {
@@ -841,47 +894,90 @@ const TeacherAssignment = () => {
                         return null;
                       }
                       
-                      // Simple hardcoded parsing based on your exact data
-                      const rubricItems = [
-                        {
-                          criterion: "Analytical Depth",
-                          score: 6,
-                          maxScore: 10,
-                          assessment: "The submission presents a clear moral lesson derived from the fable, reflecting an understanding of thematic elements in storytelling. However, it could benefit from a deeper exploration of themes and connections to broader narrative structures."
-                        },
-                        {
-                          criterion: "Narrative Understanding", 
-                          score: 5,
-                          maxScore: 10,
-                          assessment: "The narrative is well-structured with a clear beginning, middle, and end. The turning point is identified, but there is a lack of detailed character development and emotional journey articulation."
-                        },
-                        {
-                          criterion: "Visual and Aesthetic Sensitivity",
-                          score: 3, 
-                          maxScore: 10,
-                          assessment: "The submission lacks discussion of visual elements, cinematography, and editing. The imagery is evocative, but more analysis of visual choices is needed."
-                        },
-                        {
-                          criterion: "Clarity of Expression",
-                          score: 7,
-                          maxScore: 10, 
-                          assessment: "The writing is coherent and logically structured. However, the use of filmic terminology is minimal, which could enhance the depth of analysis."
-                        },
-                        {
-                          criterion: "Personal Reflection",
-                          score: 8,
-                          maxScore: 10,
-                          assessment: "The personal insights are thoughtful and original, with references to relevant authors. More explicit connections between reflections and the narrative would strengthen the impact."
-                        }
-                      ];
+                      // Parse rubric breakdown from rawText - updated for exact format
+                      const rubricItems = [];
                       
-                      console.log('🎯 Returning rubric items:', rubricItems);
-                      return rubricItems;
+                      console.log('🔍 Raw text to parse:', rawText);
+                      
+                      // Updated pattern to match: * **Name (percentage%)**: score/maxScore - assessment
+                      const rubricPattern = /\* \*\*([^(]+)\s*\((\d+)%\)\*\*:\s*(\d+)\/(\d+)\s*-\s*([^*]+?)(?=\n\*|$)/g;
+                      
+                      let match;
+                      while ((match = rubricPattern.exec(rawText)) !== null) {
+                        const criterion = match[1].trim();
+                        const percentage = match[2];
+                        const score = parseInt(match[3]);
+                        const maxScore = parseInt(match[4]);
+                        const assessment = match[5].trim();
+                        
+                        console.log('✅ Found rubric item:', { criterion, percentage, score, maxScore, assessment });
+                        
+                        rubricItems.push({
+                          criterion,
+                          percentage: percentage + "%",
+                          score,
+                          maxScore,
+                          assessment
+                        });
+                      }
+                      
+                      // Fallback: if no matches found, try alternative patterns
+                      if (rubricItems.length === 0) {
+                        console.log('🔄 Trying fallback patterns...');
+                        
+                        // Try without the leading * 
+                        const altPattern = /\*\*([^(]+)\s*\((\d+)%\)\*\*:\s*(\d+)\/(\d+)\s*-\s*([^*]+?)(?=\n\*|$)/g;
+                        
+                        while ((match = altPattern.exec(rawText)) !== null) {
+                          const criterion = match[1].trim();
+                          const percentage = match[2];
+                          const score = parseInt(match[3]);
+                          const maxScore = parseInt(match[4]);
+                          const assessment = match[5].trim();
+                          
+                          console.log('✅ Found alt rubric item:', { criterion, percentage, score, maxScore, assessment });
+                          
+                          rubricItems.push({
+                            criterion,
+                            percentage: percentage + "%",
+                            score,
+                            maxScore,
+                            assessment
+                          });
+                        }
+                      }
+                      
+                      // If still no matches, try the criterion pattern
+                      if (rubricItems.length === 0) {
+                        console.log('🔄 Trying criterion pattern...');
+                        
+                        const criterionPattern = /\*\* (Criterion \d+: [^*]+) \*\*[\s\S]*?- Score: (\d+)\/(\d+)[\s\S]*?- Assessment: ([^*]+?)(?=\*\*|$)/g;
+                        
+                        while ((match = criterionPattern.exec(rawText)) !== null) {
+                          const fullName = match[1];
+                          const criterionName = fullName.replace(/^Criterion \d+: /, '');
+                          const score = parseInt(match[2]);
+                          const maxScore = parseInt(match[3]);
+                          const assessment = match[4].trim();
+                          
+                          console.log('✅ Found criterion item:', { criterionName, score, maxScore, assessment });
+                          
+                          rubricItems.push({
+                            criterion: criterionName,
+                            score,
+                            maxScore,
+                            assessment
+                          });
+                        }
+                      }
+                      
+                      console.log('🎯 Parsed rubric items:', rubricItems);
+                      return rubricItems.length > 0 ? rubricItems : null;
                     };
 
                     const rubricItems = parseRubricFromSubmission(viewSubmission);
                     
-                    return rubricItems && rubricItems.length > 0 ? (
+                    return rubricItems ? (
                       <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-2xl p-6 border border-purple-100">
                         <div className="flex items-center gap-3 mb-6">
                           <div className="p-3 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl">
@@ -889,10 +985,10 @@ const TeacherAssignment = () => {
                           </div>
                           <div>
                             <h3 className="text-2xl font-bold text-gray-900">
-                              Rubric-Based Assessment
+                              Detailed Rubric Assessment
                             </h3>
                             <p className="text-gray-600">
-                              Detailed breakdown by criteria
+                              Comprehensive breakdown by evaluation criteria
                             </p>
                           </div>
                         </div>
@@ -904,13 +1000,20 @@ const TeacherAssignment = () => {
                               className="bg-white/80 backdrop-blur-sm rounded-xl p-4"
                             >
                               <div className="flex items-center justify-between mb-3">
-                                <h4 className="font-bold text-gray-900">
-                                  {item.criterion}
-                                </h4>
+                                <div className="flex items-center gap-2">
+                                  <h4 className="font-bold text-gray-900">
+                                    {item.criterion}
+                                  </h4>
+                                  {item.percentage && (
+                                    <Badge className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white border-0 text-xs">
+                                      {item.percentage}
+                                    </Badge>
+                                  )}
+                                </div>
                                 <div className="flex items-center gap-2">
                                   <span
                                     className={`text-lg font-bold ${getGradeColor(
-                                      item.score
+                                      (item.score / item.maxScore) * 100
                                     )}`}
                                   >
                                     {item.score}
@@ -932,74 +1035,165 @@ const TeacherAssignment = () => {
                     ) : null;
                   })()}
 
-                  {/* Constructive Feedback */}
-                  {viewSubmission.ai_evaluation?.["Constructive Feedback"] && (
-                    <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl p-6 border border-green-100">
-                      <div className="flex items-center gap-3 mb-6">
-                        <div className="p-3 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl">
-                          <TrendingUp className="w-6 h-6 text-white" />
+                  {/* Enhanced Constructive Feedback */}
+                  {(() => {
+                    const getFeedbackData = (submission: any) => {
+                      let feedbackData = null;
+                      let strengths = "";
+                      let areasForImprovement = "";
+                      let recommendations = "";
+                      
+                      // Parse ai_feedback JSON first
+                      if (submission.ai_feedback) {
+                        try {
+                          feedbackData = JSON.parse(submission.ai_feedback);
+                          
+                          // Extract from structured data or parse from rawText
+                          if (feedbackData["Constructive Feedback"]) {
+                            const feedback = feedbackData["Constructive Feedback"];
+                            
+                            // Clean up the strings by extracting only the relevant parts
+                            if (feedback.Strengths) {
+                              // Extract just the strengths part before any ** markers
+                              const strengthsMatch = feedback.Strengths.match(/^([^*]+?)(?=\n\*\*|$)/);
+                              strengths = strengthsMatch ? strengthsMatch[1].trim() : feedback.Strengths;
+                            }
+                            
+                            if (feedback["Areas for Improvement"]) {
+                              // Extract just the areas for improvement
+                              let areas = feedback["Areas for Improvement"];
+                              const areasMatch = areas.match(/^([^*]+?)(?=\n\*\*|$)/);
+                              areasForImprovement = areasMatch ? areasMatch[1].trim() : areas;
+                            }
+                            
+                            if (feedback.Recommendations) {
+                              recommendations = feedback.Recommendations;
+                            }
+                          } else if (feedbackData.rawText) {
+                            // Parse from rawText if structured data not available
+                            const rawText = feedbackData.rawText;
+                            
+                            const strengthsMatch = rawText.match(/\*\*Strengths\*\*: ([^*]+?)(?=\n\*\*|$)/);
+                            const areasMatch = rawText.match(/\*\*Areas for Improvement\*\*: ([^*]+?)(?=\n\*\*|$)/);
+                            const recommendationsMatch = rawText.match(/\*\*Recommendations\*\*: ([^*]+?)(?=\n\*\*|$)/);
+                            
+                            strengths = strengthsMatch ? strengthsMatch[1].trim() : "";
+                            areasForImprovement = areasMatch ? areasMatch[1].trim() : "";
+                            recommendations = recommendationsMatch ? recommendationsMatch[1].trim() : "";
+                          }
+                        } catch (e) {
+                          console.warn('❌ Failed to parse ai_feedback JSON:', e);
+                        }
+                      }
+                      
+                      // Fallback to individual fields
+                      if (!strengths && submission.ai_strengths) {
+                        const strengthsMatch = submission.ai_strengths.match(/^([^*]+?)(?=\n\*\*|$)/);
+                        strengths = strengthsMatch ? strengthsMatch[1].trim() : submission.ai_strengths;
+                      }
+                      
+                      if (!areasForImprovement && submission.ai_areas_for_improvement) {
+                        const areasMatch = submission.ai_areas_for_improvement.match(/^([^*]+?)(?=\n\*\*|$)/);
+                        areasForImprovement = areasMatch ? areasMatch[1].trim() : submission.ai_areas_for_improvement;
+                      }
+                      
+                      if (!recommendations && submission.ai_recommendations) {
+                        recommendations = submission.ai_recommendations;
+                      }
+                      
+                      // Final fallback to ai_evaluation
+                      if (!strengths && submission.ai_evaluation?.["Constructive Feedback"]?.Strengths) {
+                        const strengthsMatch = submission.ai_evaluation["Constructive Feedback"].Strengths.match(/^([^*]+?)(?=\n\*\*|$)/);
+                        strengths = strengthsMatch ? strengthsMatch[1].trim() : submission.ai_evaluation["Constructive Feedback"].Strengths;
+                      }
+                      
+                      return {
+                        strengths: strengths || "No strengths data available",
+                        areasForImprovement: areasForImprovement || "No improvement areas specified",
+                        recommendations: recommendations || "No specific recommendations provided"
+                      };
+                    };
+
+                    const feedbackData = getFeedbackData(viewSubmission);
+                    
+                    return (
+                      <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl p-6 border border-green-100">
+                        <div className="flex items-center gap-3 mb-6">
+                          <div className="p-3 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl">
+                            <TrendingUp className="w-6 h-6 text-white" />
+                          </div>
+                          <div>
+                            <h3 className="text-2xl font-bold text-gray-900">
+                              Constructive Feedback
+                            </h3>
+                            <p className="text-gray-600">
+                              Detailed analysis and recommendations
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <h3 className="text-2xl font-bold text-gray-900">
-                            Constructive Feedback
-                          </h3>
-                          <p className="text-gray-600">
-                            Detailed analysis and recommendations
-                          </p>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                          <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4">
+                            <div className="flex items-center gap-2 mb-3">
+                              <CheckCircle className="w-5 h-5 text-green-600" />
+                              <h4 className="font-bold text-green-700">
+                                Strengths
+                              </h4>
+                            </div>
+                            <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                              {feedbackData.strengths}
+                            </p>
+                          </div>
+
+                          <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4">
+                            <div className="flex items-center gap-2 mb-3">
+                              <AlertTriangle className="w-5 h-5 text-orange-600" />
+                              <h4 className="font-bold text-orange-700">
+                                Areas for Improvement
+                              </h4>
+                            </div>
+                            <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                              {feedbackData.areasForImprovement}
+                            </p>
+                          </div>
+
+                          <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4">
+                            <div className="flex items-center gap-2 mb-3">
+                              <Star className="w-5 h-5 text-purple-600" />
+                              <h4 className="font-bold text-purple-700">
+                                Recommendations
+                              </h4>
+                            </div>
+                            <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                              {feedbackData.recommendations}
+                            </p>
+                          </div>
                         </div>
                       </div>
+                    );
+                  })()}
 
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4">
-                          <div className="flex items-center gap-2 mb-3">
-                            <CheckCircle className="w-5 h-5 text-green-600" />
-                            <h4 className="font-bold text-green-700">
-                              Strengths
-                            </h4>
-                          </div>
-                          <p className="text-sm text-gray-700">
-                            {
-                              viewSubmission.ai_evaluation[
-                                "Constructive Feedback"
-                              ].Strengths
-                            }
-                          </p>
-                        </div>
-
-                        <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4">
-                          <div className="flex items-center gap-2 mb-3">
-                            <AlertTriangle className="w-5 h-5 text-orange-600" />
-                            <h4 className="font-bold text-orange-700">
-                              Areas for Improvement
-                            </h4>
-                          </div>
-                          <p className="text-sm text-gray-700">
-                            {
-                              viewSubmission.ai_evaluation[
-                                "Constructive Feedback"
-                              ]["Areas for Improvement"]
-                            }
-                          </p>
-                        </div>
-
-                        <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4">
-                          <div className="flex items-center gap-2 mb-3">
-                            <Star className="w-5 h-5 text-purple-600" />
-                            <h4 className="font-bold text-purple-700">
-                              Recommendations
-                            </h4>
-                          </div>
-                          <p className="text-sm text-gray-700">
-                            {
-                              viewSubmission.ai_evaluation[
-                                "Constructive Feedback"
-                              ].Recommendations
-                            }
-                          </p>
-                        </div>
+                  {/* Submission Review - Raw Data Section */}
+                  {/* <div className="bg-gradient-to-r from-slate-50 to-gray-50 rounded-2xl p-6 border border-slate-200">
+                    <div className="flex items-center gap-3 mb-6">
+                      <div className="p-3 bg-gradient-to-r from-slate-500 to-gray-500 rounded-xl">
+                        <FileText className="w-6 h-6 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="text-2xl font-bold text-gray-900">
+                          Submission Review
+                        </h3>
+                        <p className="text-gray-600">
+                          Complete raw data from the submission
+                        </p>
                       </div>
                     </div>
-                  )}
+                    <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 max-h-96 overflow-y-auto">
+                      <pre className="text-xs text-gray-700 whitespace-pre-wrap break-words">
+                        {JSON.stringify(viewSubmission, null, 2)}
+                      </pre>
+                    </div>
+                  </div> */}
 
                   {/* Teacher Grading Section */}
                   <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl p-6 border border-amber-100">

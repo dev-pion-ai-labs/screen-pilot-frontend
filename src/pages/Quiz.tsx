@@ -80,23 +80,49 @@ interface QuizAnswer {
 type WorkflowStage =
   | "topic_selection"
   | "mentor_explanation"
+  | "help_decision"
+  | "chat_mode"
   | "quiz_prompt"
   | "quiz_active"
   | "quiz_feedback"
   | "quiz_summary"
   | "conversation_end";
 
+// API Response Types
+interface AgentResponse {
+  job_info?: {
+    job_id: string;
+    studio_id?: string;
+    conversation_id?: string;
+  };
+  conversation_id?: string;
+}
+
+interface AgentResult {
+  success: boolean;
+  content?: string;
+  conversationId?: string;
+  error?: string;
+}
+
+interface QuizResponse {
+  answer?: string;
+  output?: string;
+}
+
 // AI Mentor Agent Configuration
 const AI_MENTOR_AGENT_CONFIG = {
   mentor: {
     "Semester 1": {
-      endpoint: "https://api-d7b62b.stack.tryrelevance.com/latest/agents/trigger",
+      endpoint:
+        "https://api-d7b62b.stack.tryrelevance.com/latest/agents/trigger",
       authorization:
         "5cc7752400a6-4648-b47b-04fc92b47cae:sk-M2ZhMjg2ZjUtOTVlMS00YjNhLTgzZWUtM2RiODRhZTU5M2Q5",
       agent_id: "da1cdcf3-0091-48d3-b6a3-f6abb69ae449",
     },
     "Semester 2": {
-      endpoint: "https://api-d7b62b.stack.tryrelevance.com/latest/agents/trigger",
+      endpoint:
+        "https://api-d7b62b.stack.tryrelevance.com/latest/agents/trigger",
       authorization:
         "5cc7752400a6-4648-b47b-04fc92b47cae:sk-YmVhZTc5MjAtNzBjYy00ZWMzLTgwMGUtMDU5YThiYTlhOWI5",
       agent_id: "9febbea9-510f-44ad-af56-05d36fd03bfb",
@@ -243,197 +269,240 @@ const parseQuizContent = (content: string): QuizQuestion[] => {
   const questions: QuizQuestion[] = [];
 
   // Method -3: Handle format "### Question X (Level)" with **question text** - CURRENT FORMAT
-  const headerQuestionSections = content.split(/###\s*Question\s+\d+\s*\([^)]+\)/).filter(section => section.trim());
-  
+  const headerQuestionSections = content
+    .split(/###\s*Question\s+\d+\s*\([^)]+\)/)
+    .filter((section) => section.trim());
+
   if (headerQuestionSections.length > 1) {
     // Remove the first section (usually intro text)
     headerQuestionSections.shift();
-    
+
     headerQuestionSections.forEach((section, index) => {
       // Find the actual question text (text between ** that ends with "?")
-      const lines = section.split('\n').map(line => line.trim()).filter(line => line);
-      
+      const lines = section
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line);
+
       // Look for question text between ** markers
       const questionMatch = section.match(/\*\*([^*]+\?)\*\*/);
-      
+
       if (questionMatch) {
         const questionText = questionMatch[1].trim();
-        
+
         // Find option lines (start with "A)", "B)", etc.)
-        const optionLines = lines.filter(line => 
-          line.match(/^[A-D]\)/) && !line.includes('Answer:')
+        const optionLines = lines.filter(
+          (line) => line.match(/^[A-D]\)/) && !line.includes("Answer:")
         );
-        
+
         if (optionLines.length >= 4) {
-          const options = optionLines.slice(0, 4).map(opt => opt.trim());
-          
+          const options = optionLines.slice(0, 4).map((opt) => opt.trim());
+
           questions.push({
             id: index + 1,
             question: questionText,
-            options: options
+            options: options,
           });
         }
       }
     });
-    
+
     if (questions.length > 0) {
-      console.log("Parsed questions using header question format in parseQuizContent:", questions);
+      console.log(
+        "Parsed questions using header question format in parseQuizContent:",
+        questions
+      );
       return questions;
     }
   }
 
   // Method -2: Handle format "1. **Question X: [Title]**" with actual question text - PREVIOUS FORMAT
-  const questionSections = content.split(/\d+\.\s*\*\*Question\s+\d+:/).filter(section => section.trim());
-  
+  const questionSections = content
+    .split(/\d+\.\s*\*\*Question\s+\d+:/)
+    .filter((section) => section.trim());
+
   if (questionSections.length > 1) {
     // Remove the first section (usually intro text)
     questionSections.shift();
-    
+
     questionSections.forEach((section, index) => {
       // Find the actual question text (line that ends with "?")
-      const lines = section.split('\n').map(line => line.trim()).filter(line => line);
-      
+      const lines = section
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line);
+
       // Skip the title line and find the actual question
-      const questionLine = lines.find(line => 
-        line.includes('?') && 
-        !line.includes('Answer:') && 
-        !line.includes('**')
+      const questionLine = lines.find(
+        (line) =>
+          line.includes("?") &&
+          !line.includes("Answer:") &&
+          !line.includes("**")
       );
-      
+
       if (questionLine) {
         // Clean the question text
-        const questionText = questionLine.replace(/^-\s*/, '').trim();
-        
+        const questionText = questionLine.replace(/^-\s*/, "").trim();
+
         // Find option lines (start with "- A)", "- B)", etc.)
-        const optionLines = lines.filter(line => 
-          line.match(/^\s*-?\s*[A-D]\)/) && !line.includes('Answer:')
+        const optionLines = lines.filter(
+          (line) => line.match(/^\s*-?\s*[A-D]\)/) && !line.includes("Answer:")
         );
-        
+
         if (optionLines.length >= 4) {
-          const options = optionLines.slice(0, 4).map(opt => 
-            opt.replace(/^\s*-?\s*/, '').trim()
-          );
-          
+          const options = optionLines
+            .slice(0, 4)
+            .map((opt) => opt.replace(/^\s*-?\s*/, "").trim());
+
           questions.push({
             id: index + 1,
             question: questionText,
-            options: options
+            options: options,
           });
         }
       }
     });
-    
+
     if (questions.length > 0) {
-      console.log("Parsed questions using numbered question format in parseQuizContent:", questions);
+      console.log(
+        "Parsed questions using numbered question format in parseQuizContent:",
+        questions
+      );
       return questions;
     }
   }
 
   // Method -1: Handle format "1. **Topic: [Topic Name]**" with question and options - PREVIOUS FORMAT
   // Split content by numbered topics and parse each section
-  const topicSections = content.split(/\d+\.\s*\*\*Topic:/).filter(section => section.trim());
-  
+  const topicSections = content
+    .split(/\d+\.\s*\*\*Topic:/)
+    .filter((section) => section.trim());
+
   if (topicSections.length > 1) {
     // Remove the first empty section
     topicSections.shift();
-    
+
     topicSections.forEach((section, index) => {
       // Find the question text (line that ends with "?")
-      const lines = section.split('\n').map(line => line.trim()).filter(line => line);
-      const questionLine = lines.find(line => line.includes('?') && !line.includes('Answer:'));
-      
+      const lines = section
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line);
+      const questionLine = lines.find(
+        (line) => line.includes("?") && !line.includes("Answer:")
+      );
+
       if (questionLine) {
         // Clean the question text (remove leading dash if present)
-        const questionText = questionLine.replace(/^-\s*/, '').trim();
-        
+        const questionText = questionLine.replace(/^-\s*/, "").trim();
+
         // Find option lines (start with "- A)", "- B)", etc.)
-        const optionLines = lines.filter(line => 
-          line.match(/^-?\s*[A-D]\)/) && !line.includes('Answer:')
+        const optionLines = lines.filter(
+          (line) => line.match(/^-?\s*[A-D]\)/) && !line.includes("Answer:")
         );
-        
+
         if (optionLines.length >= 4) {
-          const options = optionLines.slice(0, 4).map(opt => 
-            opt.replace(/^-?\s*/, '').trim()
-          );
-          
+          const options = optionLines
+            .slice(0, 4)
+            .map((opt) => opt.replace(/^-?\s*/, "").trim());
+
           questions.push({
             id: index + 1,
             question: questionText,
-            options: options
+            options: options,
           });
         }
       }
     });
-    
+
     if (questions.length > 0) {
-      console.log("Parsed questions using topic format in parseQuizContent:", questions);
+      console.log(
+        "Parsed questions using topic format in parseQuizContent:",
+        questions
+      );
       return questions;
     }
   }
 
   // Method 0: Handle format "#### Question X:" (without difficulty) - CURRENT FORMAT
-  const currentFormatMatches = content.match(/#### Question \d+:\s*\n([^\n]+)\s*\n((?:- [A-D]\)[^\n]+\n?)+)/g);
-  
+  const currentFormatMatches = content.match(
+    /#### Question \d+:\s*\n([^\n]+)\s*\n((?:- [A-D]\)[^\n]+\n?)+)/g
+  );
+
   if (currentFormatMatches && currentFormatMatches.length > 0) {
     currentFormatMatches.forEach((match, index) => {
       // Extract question text - line after "#### Question X:"
       const questionMatch = match.match(/#### Question \d+:\s*\n([^\n]+)/);
       if (questionMatch) {
         const questionText = questionMatch[1].trim();
-        
+
         // Skip if this line contains "Correct Answer" - it's not the actual question
-        if (questionText.toLowerCase().includes('correct answer')) {
+        if (questionText.toLowerCase().includes("correct answer")) {
           return;
         }
-        
+
         // Extract options - lines starting with "- A)", "- B)", etc.
         const optionMatches = match.match(/- ([A-D]\)[^\n]+)/g);
-        
+
         if (optionMatches && optionMatches.length >= 4) {
-          const options = optionMatches.slice(0, 4).map(opt => opt.replace(/^- /, ''));
-          
+          const options = optionMatches
+            .slice(0, 4)
+            .map((opt) => opt.replace(/^- /, ""));
+
           questions.push({
             id: index + 1,
             question: questionText,
-            options: options
+            options: options,
           });
         }
       }
     });
-    
+
     if (questions.length > 0) {
-      console.log("Parsed questions using current format in parseQuizContent:", questions);
+      console.log(
+        "Parsed questions using current format in parseQuizContent:",
+        questions
+      );
       return questions;
     }
   }
 
   // Method 0b: Handle format "#### Question X (Difficulty)" - PREVIOUS FORMAT
-  const prevFormatMatches = content.match(/#### Question \d+ \([^)]+\)\s*\n([^\n]+)\s*\n((?:- [A-D]\)[^\n]+\n?)+)/g);
-  
+  const prevFormatMatches = content.match(
+    /#### Question \d+ \([^)]+\)\s*\n([^\n]+)\s*\n((?:- [A-D]\)[^\n]+\n?)+)/g
+  );
+
   if (prevFormatMatches && prevFormatMatches.length > 0) {
     prevFormatMatches.forEach((match, index) => {
       // Extract question text - line after "#### Question X (Difficulty)"
-      const questionMatch = match.match(/#### Question \d+ \([^)]+\)\s*\n([^\n]+)/);
+      const questionMatch = match.match(
+        /#### Question \d+ \([^)]+\)\s*\n([^\n]+)/
+      );
       if (questionMatch) {
         const questionText = questionMatch[1].trim();
-        
+
         // Extract options - lines starting with "- A)", "- B)", etc.
         const optionMatches = match.match(/- ([A-D]\)[^\n]+)/g);
-        
+
         if (optionMatches && optionMatches.length >= 4) {
-          const options = optionMatches.slice(0, 4).map(opt => opt.replace(/^- /, ''));
-          
+          const options = optionMatches
+            .slice(0, 4)
+            .map((opt) => opt.replace(/^- /, ""));
+
           questions.push({
             id: index + 1,
             question: questionText,
-            options: options
+            options: options,
           });
         }
       }
     });
-    
+
     if (questions.length > 0) {
-      console.log("Parsed questions using previous format in parseQuizContent:", questions);
+      console.log(
+        "Parsed questions using previous format in parseQuizContent:",
+        questions
+      );
       return questions;
     }
   }
@@ -562,264 +631,317 @@ const createFallbackQuestions = (content: string): QuizQuestion[] => {
 
   // Try to parse questions from the content string
   const questions: QuizQuestion[] = [];
-  
+
   // Method -3: Handle format "### Question X (Level)" with **question text** - CURRENT FORMAT
-  const headerQuestionSections = content.split(/###\s*Question\s+\d+\s*\([^)]+\)/).filter(section => section.trim());
-  
+  const headerQuestionSections = content
+    .split(/###\s*Question\s+\d+\s*\([^)]+\)/)
+    .filter((section) => section.trim());
+
   if (headerQuestionSections.length > 1) {
     // Remove the first section (usually intro text)
     headerQuestionSections.shift();
-    
+
     headerQuestionSections.forEach((section, index) => {
       // Find the actual question text (text between ** that ends with "?")
-      const lines = section.split('\n').map(line => line.trim()).filter(line => line);
-      
+      const lines = section
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line);
+
       // Look for question text between ** markers
       const questionMatch = section.match(/\*\*([^*]+\?)\*\*/);
-      
+
       if (questionMatch) {
         const questionText = questionMatch[1].trim();
-        
+
         // Find option lines (start with "A)", "B)", etc.)
-        const optionLines = lines.filter(line => 
-          line.match(/^[A-D]\)/) && !line.includes('Answer:')
+        const optionLines = lines.filter(
+          (line) => line.match(/^[A-D]\)/) && !line.includes("Answer:")
         );
-        
+
         if (optionLines.length >= 4) {
-          const options = optionLines.slice(0, 4).map(opt => opt.trim());
-          
+          const options = optionLines.slice(0, 4).map((opt) => opt.trim());
+
           questions.push({
             id: index + 1,
             question: questionText,
-            options: options
+            options: options,
           });
         }
       }
     });
-    
+
     if (questions.length > 0) {
-      console.log("Parsed questions using header question format in fallback:", questions);
+      console.log(
+        "Parsed questions using header question format in fallback:",
+        questions
+      );
       return questions;
     }
   }
-  
+
   // Method -2: Handle format "1. **Question X: [Title]**" with actual question text - PREVIOUS FORMAT
-  const questionSections = content.split(/\d+\.\s*\*\*Question\s+\d+:/).filter(section => section.trim());
-  
+  const questionSections = content
+    .split(/\d+\.\s*\*\*Question\s+\d+:/)
+    .filter((section) => section.trim());
+
   if (questionSections.length > 1) {
     // Remove the first section (usually intro text)
     questionSections.shift();
-    
+
     questionSections.forEach((section, index) => {
       // Find the actual question text (line that ends with "?")
-      const lines = section.split('\n').map(line => line.trim()).filter(line => line);
-      
+      const lines = section
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line);
+
       // Skip the title line and find the actual question
-      const questionLine = lines.find(line => 
-        line.includes('?') && 
-        !line.includes('Answer:') && 
-        !line.includes('**')
+      const questionLine = lines.find(
+        (line) =>
+          line.includes("?") &&
+          !line.includes("Answer:") &&
+          !line.includes("**")
       );
-      
+
       if (questionLine) {
         // Clean the question text
-        const questionText = questionLine.replace(/^-\s*/, '').trim();
-        
+        const questionText = questionLine.replace(/^-\s*/, "").trim();
+
         // Find option lines (start with "- A)", "- B)", etc.)
-        const optionLines = lines.filter(line => 
-          line.match(/^\s*-?\s*[A-D]\)/) && !line.includes('Answer:')
+        const optionLines = lines.filter(
+          (line) => line.match(/^\s*-?\s*[A-D]\)/) && !line.includes("Answer:")
         );
-        
+
         if (optionLines.length >= 4) {
-          const options = optionLines.slice(0, 4).map(opt => 
-            opt.replace(/^\s*-?\s*/, '').trim()
-          );
-          
+          const options = optionLines
+            .slice(0, 4)
+            .map((opt) => opt.replace(/^\s*-?\s*/, "").trim());
+
           questions.push({
             id: index + 1,
             question: questionText,
-            options: options
+            options: options,
           });
         }
       }
     });
-    
+
     if (questions.length > 0) {
-      console.log("Parsed questions using numbered question format in fallback:", questions);
+      console.log(
+        "Parsed questions using numbered question format in fallback:",
+        questions
+      );
       return questions;
     }
   }
-  
+
   // Method -1: Handle format "1. **Topic: [Topic Name]**" with question and options - PREVIOUS FORMAT
   // Split content by numbered topics and parse each section
-  const topicSections = content.split(/\d+\.\s*\*\*Topic:/).filter(section => section.trim());
-  
+  const topicSections = content
+    .split(/\d+\.\s*\*\*Topic:/)
+    .filter((section) => section.trim());
+
   if (topicSections.length > 1) {
     // Remove the first empty section
     topicSections.shift();
-    
+
     topicSections.forEach((section, index) => {
       // Find the question text (line that ends with "?")
-      const lines = section.split('\n').map(line => line.trim()).filter(line => line);
-      const questionLine = lines.find(line => line.includes('?') && !line.includes('Answer:'));
-      
+      const lines = section
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line);
+      const questionLine = lines.find(
+        (line) => line.includes("?") && !line.includes("Answer:")
+      );
+
       if (questionLine) {
         // Clean the question text (remove leading dash if present)
-        const questionText = questionLine.replace(/^-\s*/, '').trim();
-        
+        const questionText = questionLine.replace(/^-\s*/, "").trim();
+
         // Find option lines (start with "- A)", "- B)", etc.)
-        const optionLines = lines.filter(line => 
-          line.match(/^-?\s*[A-D]\)/) && !line.includes('Answer:')
+        const optionLines = lines.filter(
+          (line) => line.match(/^-?\s*[A-D]\)/) && !line.includes("Answer:")
         );
-        
+
         if (optionLines.length >= 4) {
-          const options = optionLines.slice(0, 4).map(opt => 
-            opt.replace(/^-?\s*/, '').trim()
-          );
-          
+          const options = optionLines
+            .slice(0, 4)
+            .map((opt) => opt.replace(/^-?\s*/, "").trim());
+
           questions.push({
             id: index + 1,
             question: questionText,
-            options: options
+            options: options,
           });
         }
       }
     });
-    
+
     if (questions.length > 0) {
-      console.log("Parsed questions using topic format in fallback:", questions);
+      console.log(
+        "Parsed questions using topic format in fallback:",
+        questions
+      );
       return questions;
     }
   }
-  
+
   // Method 0: Handle format "#### Question X:" (without difficulty) - CURRENT FORMAT
-  const currentFormatMatches = content.match(/#### Question \d+:\s*\n([^\n]+)\s*\n((?:- [A-D]\)[^\n]+\n?)+)/g);
-  
+  const currentFormatMatches = content.match(
+    /#### Question \d+:\s*\n([^\n]+)\s*\n((?:- [A-D]\)[^\n]+\n?)+)/g
+  );
+
   if (currentFormatMatches && currentFormatMatches.length > 0) {
     currentFormatMatches.forEach((match, index) => {
       // Extract question text - line after "#### Question X:"
       const questionMatch = match.match(/#### Question \d+:\s*\n([^\n]+)/);
       if (questionMatch) {
         const questionText = questionMatch[1].trim();
-        
+
         // Skip if this line contains "Correct Answer" - it's not the actual question
-        if (questionText.toLowerCase().includes('correct answer')) {
+        if (questionText.toLowerCase().includes("correct answer")) {
           return;
         }
-        
+
         // Extract options - lines starting with "- A)", "- B)", etc.
         const optionMatches = match.match(/- ([A-D]\)[^\n]+)/g);
-        
+
         if (optionMatches && optionMatches.length >= 4) {
-          const options = optionMatches.slice(0, 4).map(opt => opt.replace(/^- /, ''));
-          
+          const options = optionMatches
+            .slice(0, 4)
+            .map((opt) => opt.replace(/^- /, ""));
+
           questions.push({
             id: index + 1,
             question: questionText,
-            options: options
+            options: options,
           });
         }
       }
     });
-    
+
     if (questions.length > 0) {
-      console.log("Parsed questions using current format in fallback:", questions);
+      console.log(
+        "Parsed questions using current format in fallback:",
+        questions
+      );
       return questions;
     }
   }
 
   // Method 0b: Handle format "#### Question X (Difficulty)" - PREVIOUS FORMAT
-  const prevFormatMatches = content.match(/#### Question \d+ \([^)]+\)\s*\n([^\n]+)\s*\n((?:- [A-D]\)[^\n]+\n?)+)/g);
-  
+  const prevFormatMatches = content.match(
+    /#### Question \d+ \([^)]+\)\s*\n([^\n]+)\s*\n((?:- [A-D]\)[^\n]+\n?)+)/g
+  );
+
   if (prevFormatMatches && prevFormatMatches.length > 0) {
     prevFormatMatches.forEach((match, index) => {
       // Extract question text - line after "#### Question X (Difficulty)"
-      const questionMatch = match.match(/#### Question \d+ \([^)]+\)\s*\n([^\n]+)/);
+      const questionMatch = match.match(
+        /#### Question \d+ \([^)]+\)\s*\n([^\n]+)/
+      );
       if (questionMatch) {
         const questionText = questionMatch[1].trim();
-        
+
         // Extract options - lines starting with "- A)", "- B)", etc.
         const optionMatches = match.match(/- ([A-D]\)[^\n]+)/g);
-        
+
         if (optionMatches && optionMatches.length >= 4) {
-          const options = optionMatches.slice(0, 4).map(opt => opt.replace(/^- /, ''));
-          
+          const options = optionMatches
+            .slice(0, 4)
+            .map((opt) => opt.replace(/^- /, ""));
+
           questions.push({
             id: index + 1,
             question: questionText,
-            options: options
+            options: options,
           });
         }
       }
     });
-    
+
     if (questions.length > 0) {
-      console.log("Parsed questions using previous format in fallback:", questions);
+      console.log(
+        "Parsed questions using previous format in fallback:",
+        questions
+      );
       return questions;
     }
   }
-  
+
   // Method 1: Handle numbered format "1. **Question 1:**" with actual question text
-  const numberedQuestionBlocks = content.split(/\d+\.\s*\*\*Question\s+\d+:\*\*/i).filter(block => block.trim());
-  
+  const numberedQuestionBlocks = content
+    .split(/\d+\.\s*\*\*Question\s+\d+:\*\*/i)
+    .filter((block) => block.trim());
+
   if (numberedQuestionBlocks.length > 1) {
     // Remove the first block (usually topic info)
     numberedQuestionBlocks.shift();
-    
+
     numberedQuestionBlocks.forEach((block, index) => {
       if (block.trim()) {
         // Extract the actual question text (first meaningful line after the question header)
-        const lines = block.trim().split('\n').filter(line => line.trim());
+        const lines = block
+          .trim()
+          .split("\n")
+          .filter((line) => line.trim());
         const questionText = lines[0]?.trim();
-        
+
         if (questionText) {
           // Extract options - look for lines starting with - A), - B), etc.
           const optionMatches = block.match(/[-\s]*[A-D]\)\s*[^\n\r]+/g);
-          
+
           if (optionMatches && optionMatches.length >= 4) {
-            const options = optionMatches.slice(0, 4).map(opt => {
+            const options = optionMatches.slice(0, 4).map((opt) => {
               // Clean up the option text - remove leading dashes and spaces
-              return opt.trim().replace(/^[-\s]*/, '');
+              return opt.trim().replace(/^[-\s]*/, "");
             });
-            
+
             questions.push({
               id: index + 1,
               question: questionText,
-              options: options
+              options: options,
             });
           }
         }
       }
     });
-  } 
+  }
   // Method 2: Handle format "**Question X:**" with question text on next line
   else {
-    const questionHeaderBlocks = content.split(/\*\*Question\s+\d+:\*\*/i).filter(block => block.trim());
-    
+    const questionHeaderBlocks = content
+      .split(/\*\*Question\s+\d+:\*\*/i)
+      .filter((block) => block.trim());
+
     if (questionHeaderBlocks.length > 1) {
       // Remove the first block (usually empty or topic info)
       questionHeaderBlocks.shift();
-      
+
       questionHeaderBlocks.forEach((block, index) => {
         if (block.trim()) {
           // Extract the actual question text (first meaningful line)
-          const lines = block.trim().split('\n').filter(line => line.trim());
+          const lines = block
+            .trim()
+            .split("\n")
+            .filter((line) => line.trim());
           const questionText = lines[0]?.trim();
-          
+
           if (questionText) {
             // Extract options - look for lines starting with - A), - B), etc.
             const optionMatches = block.match(/[-\s]*[A-D]\)\s*[^\n\r]+/g);
-            
+
             if (optionMatches && optionMatches.length >= 4) {
-              const options = optionMatches.slice(0, 4).map(opt => {
+              const options = optionMatches.slice(0, 4).map((opt) => {
                 // Clean up the option text - remove leading dashes and spaces
-                return opt.trim().replace(/^[-\s]*/, '');
+                return opt.trim().replace(/^[-\s]*/, "");
               });
-              
+
               questions.push({
                 id: index + 1,
                 question: questionText,
-                options: options
+                options: options,
               });
             }
           }
@@ -827,32 +949,36 @@ const createFallbackQuestions = (content: string): QuizQuestion[] => {
       });
     }
   }
-  
+
   // Method 3: Handle format "### Question X:" with ** question ** (fallback)
   if (questions.length === 0) {
-    const newFormatBlocks = content.split(/###\s*Question\s+\d+:\s*/i).filter(block => block.trim());
-    
+    const newFormatBlocks = content
+      .split(/###\s*Question\s+\d+:\s*/i)
+      .filter((block) => block.trim());
+
     if (newFormatBlocks.length > 1) {
       // Remove the first empty block
       newFormatBlocks.shift();
-      
+
       newFormatBlocks.forEach((block, index) => {
         if (block.trim()) {
           // Extract question text (between ** and **)
           const questionMatch = block.match(/\*\*([^*]+)\*\*/);
           if (questionMatch) {
             const questionText = questionMatch[1].trim();
-            
+
             // Extract options (A), B), C), D))
             const optionMatches = block.match(/[A-D]\)\s*[^\n\r]+/g);
-            
+
             if (optionMatches && optionMatches.length >= 4) {
-              const options = optionMatches.slice(0, 4).map(opt => opt.trim());
-              
+              const options = optionMatches
+                .slice(0, 4)
+                .map((opt) => opt.trim());
+
               questions.push({
                 id: index + 1,
                 question: questionText,
-                options: options
+                options: options,
               });
             }
           }
@@ -860,33 +986,38 @@ const createFallbackQuestions = (content: string): QuizQuestion[] => {
       });
     }
   }
-  
+
   // Method 4: Handle old format "1. **" with "- a)" options (final fallback)
   if (questions.length === 0) {
-    const questionBlocks = content.split(/\d+\.\s*\*\*/).filter(block => block.trim());
-    
+    const questionBlocks = content
+      .split(/\d+\.\s*\*\*/)
+      .filter((block) => block.trim());
+
     questionBlocks.forEach((block, index) => {
       if (block.trim()) {
         // Extract question text (between ** and **)
         const questionMatch = block.match(/^([^*]+)\*\*/);
         if (questionMatch) {
           const questionText = questionMatch[1].trim();
-          
+
           // Extract options - handle both formats: "- a)" and "A)"
           const optionMatches = block.match(/[-\s]*[a-dA-D]\)\s*[^\n-]+/g);
-          
+
           if (optionMatches && optionMatches.length >= 4) {
-            const options = optionMatches.slice(0, 4).map(opt => {
+            const options = optionMatches.slice(0, 4).map((opt) => {
               // Clean up the option text and format consistently
-              const cleanOpt = opt.trim().replace(/^[-\s]*/, '');
+              const cleanOpt = opt.trim().replace(/^[-\s]*/, "");
               // Convert lowercase to uppercase for consistency
-              return cleanOpt.replace(/^([a-d])\)/, (match, letter) => `${letter.toUpperCase()})`);
+              return cleanOpt.replace(
+                /^([a-d])\)/,
+                (match, letter) => `${letter.toUpperCase()})`
+              );
             });
-            
+
             questions.push({
               id: index + 1,
               question: questionText,
-              options: options
+              options: options,
             });
           }
         }
@@ -902,193 +1033,380 @@ const generateId = () => Math.random().toString(36).substr(2, 9);
 
 // Function to parse and format mentor response content
 const formatMentorResponse = (content: string): string => {
-  // Replace **text** with proper HTML bold tags
-  let formattedContent = content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-  
-  // Format section headers that end with colon (like "Study Guide & Exam Preparation:")
-  formattedContent = formattedContent.replace(/^([A-Z][^:\n]*:)$/gm, '<div class="mb-3 mt-4"><strong class="text-lg text-purple-700">$1</strong></div>');
-  
-  // Format numbered lists with better spacing and styling
-  formattedContent = formattedContent.replace(/(\d+\.\s\*\*[^*]+\*\*)/g, '\n\n<div class="mb-2">$1</div>');
-  
-  // Format bullet points with better spacing and styling
-  formattedContent = formattedContent.replace(/^\*\s(.+)$/gm, '<div class="mb-2 ml-4">• $1</div>');
-  
-  // Format sub-section headers (like "What is it about?")
-  formattedContent = formattedContent.replace(/^([A-Z][^:\n?]*\?)\s*$/gm, '<div class="mb-3 mt-3"><strong class="text-base text-blue-600">$1</strong></div>');
-  
-  // Format reference materials section
-  formattedContent = formattedContent.replace(/Reference Materials:\s*\n((?:- .+\n?)+)/g, 
-    '<div class="mb-3 mt-4"><strong class="text-lg text-purple-700">Reference Materials:</strong></div><div class="bg-gray-50 p-3 rounded-lg mb-3">$1</div>');
-  
-  // Format reference list items
-  formattedContent = formattedContent.replace(/^- (.+)$/gm, '<div class="mb-1">📚 $1</div>');
-  
-  // Format question at the end with special styling
+  let formattedContent = content.trim();
+
+  // Extract subtopic from the beginning
+  const subtopicMatch = formattedContent.match(/^Subtopic:\s*(.+?)(?:\n|$)/);
+  let subtopic = "";
+  if (subtopicMatch) {
+    subtopic = subtopicMatch[1].trim();
+    formattedContent = formattedContent.replace(/^Subtopic:\s*.+?\n\n?/, "");
+  }
+
+  // Add subtopic header if found
+  let result = "";
+  if (subtopic) {
+    result += `<div class="mb-6">
+      <h1 class="text-3xl font-bold text-purple-800 mb-2 flex items-center gap-2">
+        <span class="text-purple-600">🎬</span> ${subtopic}
+      </h1>
+      <div class="h-1 bg-gradient-to-r from-purple-600 to-blue-600 rounded-full"></div>
+    </div>`;
+  }
+
+  // Format main section headers (What is it about?, Study Guide & Exam Preparation:, etc.)
   formattedContent = formattedContent.replace(
-    /Feeling confident\? Would you like to take a quiz on this topic to test your understanding\?/g,
-    '<div class="mt-6 p-4 bg-gradient-to-r from-purple-100 to-blue-100 rounded-lg border-l-4 border-purple-500"><strong class="text-purple-700">Feeling confident? Would you like to take a quiz on this topic to test your understanding?</strong></div>'
+    /^(What is it about\?|Study Guide & Exam Preparation:|Key Concepts:|Pro Tips:|Reference Materials:)\s*$/gm,
+    (_match, header) => {
+      const icons = {
+        "What is it about?": "📖",
+        "Study Guide & Exam Preparation:": "📚",
+        "Key Concepts:": "💡",
+        "Pro Tips:": "⭐",
+        "Reference Materials:": "📚",
+      };
+      const icon = icons[header as keyof typeof icons] || "📋";
+      return `<div class="mb-4 mt-6">
+        <h2 class="text-xl font-bold text-purple-700 flex items-center gap-2 mb-3">
+          <span>${icon}</span> ${header.replace(":", "")}
+        </h2>
+      </div>`;
+    }
   );
-  
-  // Add proper paragraph spacing for main content blocks
-  formattedContent = formattedContent.replace(/\n\n/g, '</p><p class="mb-3">');
-  formattedContent = '<p class="mb-3">' + formattedContent + '</p>';
-  
-  // Clean up empty paragraphs
-  formattedContent = formattedContent.replace(/<p class="mb-3"><\/p>/g, '');
-  
-  return formattedContent;
+
+  // Format numbered lists in main content (1. **Sound Effects**: ...)
+  formattedContent = formattedContent.replace(
+    /(\d+)\.\s*\*\*([^*]+)\*\*:\s*([^\n]+(?:\n(?!\d+\.)[^\n]*)*)/g,
+    '<div class="mb-4 ml-4"><div class="flex items-start gap-3"><span class="bg-purple-100 text-purple-800 w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold mt-1">$1</span><div><h3 class="font-semibold text-purple-800 mb-1">$2</h3><p class="text-gray-700 leading-relaxed">$3</p></div></div></div>'
+  );
+
+  // Format bullet points with icons
+  formattedContent = formattedContent.replace(
+    /^\*\s*\*\*([^*]+)\*\*:\s*(.+)$/gm,
+    '<div class="mb-3 ml-4 flex items-start gap-2"><span class="text-purple-600 mt-1">•</span><div><strong class="text-purple-800">$1:</strong> <span class="text-gray-700">$2</span></div></div>'
+  );
+
+  // Format simple bullet points
+  formattedContent = formattedContent.replace(
+    /^\*\s*(.+)$/gm,
+    '<div class="mb-2 ml-4 flex items-start gap-2"><span class="text-purple-600 mt-1">•</span><span class="text-gray-700">$1</span></div>'
+  );
+
+  // Format reference materials section specially
+  formattedContent = formattedContent.replace(
+    /Reference Materials:\s*\n([^\n]+(?:\n[^\n]+)*?)(?=\n\n|$)/g,
+    (_match, materials) => {
+      return `<div class="mt-4 p-4 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg border-l-4 border-purple-500">
+        <div class="text-purple-800 font-medium mb-2">📚 ${materials.trim()}</div>
+      </div>`;
+    }
+  );
+
+  // Format the final question
+  formattedContent = formattedContent.replace(
+    /Would you like help with any other part of this topic[^?]*\?/g,
+    '<div class="mt-6 p-4 bg-gradient-to-r from-purple-100 to-blue-100 rounded-lg border border-purple-200"><div class="text-purple-700 font-medium text-center">$&</div></div>'
+  );
+
+  // Replace **text** with proper bold tags
+  formattedContent = formattedContent.replace(
+    /\*\*([^*]+)\*\*/g,
+    '<strong class="text-purple-800">$1</strong>'
+  );
+
+  // Add proper paragraph spacing for remaining content
+  formattedContent = formattedContent.replace(
+    /\n\n+/g,
+    '</p><p class="mb-4 text-gray-700 leading-relaxed">'
+  );
+  formattedContent =
+    '<p class="mb-4 text-gray-700 leading-relaxed">' +
+    formattedContent +
+    "</p>";
+
+  // Clean up empty paragraphs and fix spacing
+  formattedContent = formattedContent.replace(
+    /<p class="mb-4 text-gray-700 leading-relaxed"><\/p>/g,
+    ""
+  );
+  formattedContent = formattedContent.replace(
+    /<\/p><p class="mb-4 text-gray-700 leading-relaxed"><div/g,
+    "</p><div"
+  );
+  formattedContent = formattedContent.replace(/<\/div><\/p>/g, "</div>");
+
+  return result + formattedContent;
 };
 
 // Function to parse and format quiz feedback
 const formatQuizFeedback = (content: string): string => {
-  if (!content || content.trim() === '') {
+  if (!content || content.trim() === "") {
     return '<div class="text-gray-500">No feedback available.</div>';
   }
 
   const formattedContent = content;
 
-  // Add main header
-  let result = '<div class="mb-6"><h2 class="text-2xl font-bold text-purple-800 mb-2">📊 Quiz Feedback</h2><div class="h-1 bg-gradient-to-r from-purple-600 to-blue-600 rounded-full"></div></div>';
+  // Add main header with beautiful styling
+  let result = `
+    <div class="mb-8 text-center">
+      <div class="inline-flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 rounded-full text-white mb-4 shadow-lg">
+        <span class="text-2xl">📊</span>
+        <h2 class="text-2xl font-bold">Quiz Feedback</h2>
+      </div>
+      <div class="h-1 bg-gradient-to-r from-purple-600 via-blue-600 to-green-600 rounded-full mx-auto w-32"></div>
+    </div>
+  `;
 
-  // Handle the new format with bold markdown: **Question X: [title]** followed by structured feedback
-  const questionPattern = /\*\*Question\s+(\d+):\s*([^*]+?)\*\*\s*-\s*\*\*Your Answer:\*\*\s*([A-D])\s*-\s*\*\*Correct Answer:\*\*\s*([A-D])\s*(.*?)(?=\*\*Question\s+\d+:|---\s*Remember|$)/gs;
+  // Updated pattern to match the actual feedback format
+  const questionPattern = /\*\*Question\s+(\d+):\s*([^*]+?)\*\*\s*-\s*\*\*User Answer:\*\*\s*([A-D])\s*-\s*\*\*Correct Answer:\*\*\s*([A-D])\s*\*\*Feedback:\*\*\s*(.*?)(?=---|\*\*Question\s+\d+:|Remember,)/gs;
+
+  // First pass: count total questions and correct answers for summary
+  let tempMatch: RegExpExecArray | null;
+  let totalQuestions = 0;
+  let correctAnswers = 0;
+  const tempPattern = new RegExp(questionPattern.source, questionPattern.flags);
   
-  let match: RegExpExecArray | null;
-  let hasMatches = false;
-  
-  while ((match = questionPattern.exec(formattedContent)) !== null) {
-    hasMatches = true;
-    const [, questionNum, questionTitle, userAnswer, correctAnswer, feedbackText] = match;
-    
-    const isAnswerCorrect = userAnswer === correctAnswer;
-    
-    // Parse the feedback text to extract different sections
-    const cleanFeedbackText = feedbackText.trim();
-    
-    // Extract the main explanation/feedback (everything before any specific references)
-    const explanationMatch = cleanFeedbackText.match(/^(.*?)(?:To further understand|You can learn more|For more insights|For further insights)/s);
-    const explanation = explanationMatch ? explanationMatch[1].trim() : cleanFeedbackText;
-    
-    // Extract course material references
-    const courseMaterialMatch = cleanFeedbackText.match(/(?:To further understand|You can learn more|For more insights|For further insights)(.*?)(?:Keep up|Keep practicing|Keep challenging|Keep exploring)/s);
-    const courseMaterial = courseMaterialMatch ? courseMaterialMatch[1].trim() : '';
-    
-    // Extract encouragement
-    const encouragementMatch = cleanFeedbackText.match(/(Keep up.*?|Keep practicing.*?|Keep challenging.*?|Keep exploring.*?)$/s);
-    const encouragement = encouragementMatch ? encouragementMatch[1].trim() : '';
-    
-    const icon = isAnswerCorrect ? '✅' : '❌';
-    const bgColor = isAnswerCorrect ? 'bg-green-50' : 'bg-red-50';
-    const borderColor = isAnswerCorrect ? 'border-green-200' : 'border-red-200';
-    const statusColor = isAnswerCorrect ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
-    const status = isAnswerCorrect ? 'Correct' : 'Incorrect';
+  while ((tempMatch = tempPattern.exec(formattedContent)) !== null) {
+    totalQuestions++;
+    const userAnswer = tempMatch[3];
+    const correctAnswer = tempMatch[4];
+    if (userAnswer === correctAnswer) {
+      correctAnswers++;
+    }
+  }
+
+  // Add performance summary if we have questions
+  if (totalQuestions > 0) {
+    const percentage = Math.round((correctAnswers / totalQuestions) * 100);
+    const performanceColor = percentage >= 80 ? 'from-green-500 to-emerald-500' : 
+                            percentage >= 60 ? 'from-yellow-500 to-orange-500' : 
+                            'from-red-500 to-pink-500';
+    const performanceIcon = percentage >= 80 ? '🏆' : percentage >= 60 ? '📈' : '💪';
+    const performanceText = percentage >= 80 ? 'Excellent!' : percentage >= 60 ? 'Good Job!' : 'Keep Learning!';
 
     result += `
-      <div class="mb-6 ${bgColor} border ${borderColor} rounded-xl p-6 shadow-sm">
-        <div class="flex items-center gap-3 mb-4">
-          <span class="text-2xl">${icon}</span>
-          <h3 class="text-xl font-bold text-gray-800">Question ${questionNum}</h3>
-          <span class="ml-auto px-3 py-1 rounded-full text-sm font-medium ${statusColor}">${status}</span>
+      <div class="mb-8 p-6 bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-2xl shadow-lg">
+        <div class="flex items-center gap-4 mb-4">
+          <div class="w-16 h-16 bg-gradient-to-r ${performanceColor} rounded-full flex items-center justify-center text-3xl shadow-lg">
+            ${performanceIcon}
+          </div>
+          <div class="flex-1">
+            <h3 class="text-2xl font-bold text-gray-800 mb-1">${performanceText}</h3>
+            <p class="text-gray-600">Your Quiz Performance Summary</p>
+          </div>
+          <div class="text-right">
+            <div class="text-3xl font-bold bg-gradient-to-r ${performanceColor} bg-clip-text text-transparent">${percentage}%</div>
+            <div class="text-sm text-gray-600">${correctAnswers}/${totalQuestions} Correct</div>
+          </div>
         </div>
         
-        <div class="mb-4">
-          <div class="text-lg font-medium text-gray-900 mb-3">${questionTitle.trim()}</div>
+        <div class="w-full bg-gray-200 rounded-full h-3 mb-2">
+          <div class="bg-gradient-to-r ${performanceColor} h-3 rounded-full transition-all duration-1000 ease-out" style="width: ${percentage}%"></div>
         </div>
         
-        <div class="mb-4 grid grid-cols-2 gap-4">
-          <div class="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-            <div class="flex items-center gap-2">
-              <span class="text-blue-600 font-medium">👤 Your Answer:</span>
-              <span class="text-blue-800 font-bold text-lg">${userAnswer}</span>
+        <div class="grid grid-cols-3 gap-4 mt-4">
+          <div class="text-center p-3 bg-white/50 rounded-lg">
+            <div class="text-2xl font-bold text-green-600">${correctAnswers}</div>
+            <div class="text-sm text-gray-600">Correct</div>
+          </div>
+          <div class="text-center p-3 bg-white/50 rounded-lg">
+            <div class="text-2xl font-bold text-red-600">${totalQuestions - correctAnswers}</div>
+            <div class="text-sm text-gray-600">Incorrect</div>
+          </div>
+          <div class="text-center p-3 bg-white/50 rounded-lg">
+            <div class="text-2xl font-bold text-blue-600">${totalQuestions}</div>
+            <div class="text-sm text-gray-600">Total</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  let match: RegExpExecArray | null;
+  let hasMatches = false;
+
+  while ((match = questionPattern.exec(formattedContent)) !== null) {
+    hasMatches = true;
+    const [
+      ,
+      questionNum,
+      questionTitle,
+      userAnswer,
+      correctAnswer,
+      feedbackText,
+    ] = match;
+
+    const isAnswerCorrect = userAnswer === correctAnswer;
+
+    // Parse the feedback text to extract different sections
+    const cleanFeedbackText = feedbackText.trim();
+
+    // Extract the main explanation (everything before course material references)
+    const explanationMatch = cleanFeedbackText.match(
+      /^(.*?)(?:To gain more insight|For a deeper understanding|To further understand|You might find it helpful|I recommend)/s
+    );
+    const explanation = explanationMatch
+      ? explanationMatch[1].trim()
+      : cleanFeedbackText.split(/(?:To gain more insight|For a deeper understanding|To further understand|You might find it helpful|I recommend)/)[0].trim();
+
+    // Extract course material references
+    const courseMaterialMatch = cleanFeedbackText.match(
+      /(?:To gain more insight|For a deeper understanding|To further understand|You might find it helpful|I recommend)(.*?)(?:Keep up|Keep practicing|Keep challenging|Keep exploring|Keep pushing)/s
+    );
+    const courseMaterial = courseMaterialMatch
+      ? courseMaterialMatch[1].trim()
+      : "";
+
+    // Extract encouragement
+    const encouragementMatch = cleanFeedbackText.match(
+      /(Keep up.*?|Keep practicing.*?|Keep challenging.*?|Keep exploring.*?|Keep pushing.*?)!?$/s
+    );
+    const encouragement = encouragementMatch
+      ? encouragementMatch[1].trim()
+      : "";
+
+    const icon = isAnswerCorrect ? "🎉" : "💡";
+    const bgGradient = isAnswerCorrect 
+      ? "bg-gradient-to-br from-green-50 to-emerald-50" 
+      : "bg-gradient-to-br from-red-50 to-pink-50";
+    const borderColor = isAnswerCorrect ? "border-green-300" : "border-red-300";
+    const statusGradient = isAnswerCorrect
+      ? "bg-gradient-to-r from-green-500 to-emerald-500 text-white"
+      : "bg-gradient-to-r from-red-500 to-pink-500 text-white";
+    const status = isAnswerCorrect ? "Correct" : "Needs Review";
+
+    result += `
+      <div class="mb-8 ${bgGradient} border-2 ${borderColor} rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300">
+        <div class="flex items-center gap-3 mb-6">
+          <div class="w-12 h-12 ${statusGradient} rounded-full flex items-center justify-center text-2xl shadow-lg">
+            ${icon}
+          </div>
+          <div class="flex-1">
+            <h3 class="text-xl font-bold text-gray-800">Question ${questionNum}</h3>
+            <p class="text-gray-600 text-sm mt-1">Click to expand details</p>
+          </div>
+          <span class="px-4 py-2 rounded-full text-sm font-bold ${statusGradient} shadow-md">${status}</span>
+        </div>
+        
+        <div class="mb-6 p-4 bg-white/70 backdrop-blur-sm rounded-xl border border-white/50">
+          <div class="text-lg font-medium text-gray-900 leading-relaxed">${questionTitle.trim()}</div>
+        </div>
+        
+        <div class="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="p-4 bg-gradient-to-r from-blue-100 to-indigo-100 border-2 border-blue-200 rounded-xl shadow-sm">
+            <div class="flex items-center gap-3">
+              <span class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold text-sm">👤</span>
+              <div>
+                <div class="text-blue-700 font-medium text-sm">Your Answer</div>
+                <span class="text-blue-900 font-bold text-2xl">${userAnswer}</span>
+              </div>
             </div>
           </div>
           
-          <div class="p-3 bg-green-50 border border-green-200 rounded-lg">
-            <div class="flex items-center gap-2">
-              <span class="text-green-600 font-medium">🎯 Correct Answer:</span>
-              <span class="text-green-800 font-bold text-lg">${correctAnswer}</span>
+          <div class="p-4 bg-gradient-to-r from-green-100 to-emerald-100 border-2 border-green-200 rounded-xl shadow-sm">
+            <div class="flex items-center gap-3">
+              <span class="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-white font-bold text-sm">🎯</span>
+              <div>
+                <div class="text-green-700 font-medium text-sm">Correct Answer</div>
+                <span class="text-green-900 font-bold text-2xl">${correctAnswer}</span>
+              </div>
             </div>
           </div>
         </div>
         
-        ${explanation ? `
-          <div class="mb-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
-            <div class="flex items-start gap-2">
-              <span class="text-purple-600 font-medium">💡 Explanation:</span>
-              <div class="text-purple-800 leading-relaxed">${explanation}</div>
+        ${
+          explanation
+            ? `
+          <div class="mb-4 p-5 bg-gradient-to-r from-purple-100 to-violet-100 border-2 border-purple-200 rounded-xl shadow-sm">
+            <div class="flex items-start gap-3">
+              <span class="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center text-white font-bold text-sm">💡</span>
+              <div class="flex-1">
+                <div class="text-purple-700 font-semibold mb-2">Explanation</div>
+                <div class="text-purple-900 leading-relaxed">${explanation}</div>
+              </div>
             </div>
           </div>
-        ` : ''}
+        `
+            : ""
+        }
         
-        ${courseMaterial ? `
-          <div class="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <div class="flex items-start gap-2">
-              <span class="text-blue-600 font-medium">📚 Course Material:</span>
-              <div class="text-blue-800 leading-relaxed">${courseMaterial}</div>
+        ${
+          courseMaterial
+            ? `
+          <div class="mb-4 p-5 bg-gradient-to-r from-orange-100 to-amber-100 border-2 border-orange-200 rounded-xl shadow-sm">
+            <div class="flex items-start gap-3">
+              <span class="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center text-white font-bold text-sm">📚</span>
+              <div class="flex-1">
+                <div class="text-orange-700 font-semibold mb-2">Study Resources</div>
+                <div class="text-orange-900 leading-relaxed">${courseMaterial}</div>
+              </div>
             </div>
           </div>
-        ` : ''}
+        `
+            : ""
+        }
         
-        ${encouragement ? `
-          <div class="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <div class="flex items-start gap-2">
-              <span class="text-yellow-600 font-medium">🌟 Encouragement:</span>
-              <div class="text-yellow-800 leading-relaxed">${encouragement}</div>
+        ${
+          encouragement
+            ? `
+          <div class="p-5 bg-gradient-to-r from-yellow-100 to-amber-100 border-2 border-yellow-200 rounded-xl shadow-sm">
+            <div class="flex items-start gap-3">
+              <span class="w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center text-white font-bold text-sm">🌟</span>
+              <div class="flex-1">
+                <div class="text-yellow-700 font-semibold mb-2">Keep Going!</div>
+                <div class="text-yellow-900 leading-relaxed font-medium">${encouragement}</div>
+              </div>
             </div>
           </div>
-        ` : ''}
+        `
+            : ""
+        }
+      </div>
+    `;
+  }
+
+  // Add final encouragement section at the end
+  const finalEncouragementMatch = formattedContent.match(
+    /(Remember,\s*making mistakes.*$|Remember,\s*every attempt.*$)/s
+  );
+  
+  if (finalEncouragementMatch) {
+    const cleanEncouragement = finalEncouragementMatch[0].trim();
+    result += `
+      <div class="mt-8 p-6 bg-gradient-to-br from-indigo-100 via-purple-100 to-pink-100 border-2 border-purple-300 rounded-2xl shadow-lg">
+        <div class="flex items-start gap-4">
+          <div class="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-2xl shadow-lg">
+            🎯
+          </div>
+          <div class="flex-1">
+            <h3 class="text-xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent mb-3">Final Words of Encouragement</h3>
+            <p class="text-gray-800 leading-relaxed text-lg font-medium">${cleanEncouragement}</p>
+          </div>
+        </div>
       </div>
     `;
   }
 
   // If no matches found with the main pattern, try to handle it as a general feedback block
   if (!hasMatches) {
-    // Handle final encouragement section
-    const finalEncouragementMatch = formattedContent.match(/Remember,\s*every attempt.*$/s);
-    if (finalEncouragementMatch) {
-      result += `
-        <div class="mt-8 p-6 bg-gradient-to-r from-purple-100 to-blue-100 border border-purple-200 rounded-xl">
-          <div class="flex items-start gap-3">
-            <span class="text-3xl">🎉</span>
-            <div>
-              <h3 class="text-xl font-bold text-purple-800 mb-2">Keep Learning!</h3>
-              <p class="text-purple-700 leading-relaxed">${finalEncouragementMatch[0].trim()}</p>
-            </div>
-          </div>
-        </div>
-      `;
-    }
+    // Process the entire content as fallback
+    let processedContent = formattedContent
+      .replace(/\*\*(.*?)\*\*/g, "<strong class='font-bold text-gray-900'>$1</strong>")
+      .replace(/\*(.*?)\*/g, "<em class='italic text-gray-700'>$1</em>")
+      .replace(/\n\n/g, '</p><p class="mb-4 text-gray-800 leading-relaxed">')
+      .replace(/\n/g, "<br>");
+
+    processedContent = '<p class="mb-4 text-gray-800 leading-relaxed">' + processedContent + "</p>";
     
-    // If still no proper formatting, return the content with basic markdown processing
-    if (result.trim() === '<div class="mb-6"><h2 class="text-2xl font-bold text-purple-800 mb-2">📊 Quiz Feedback</h2><div class="h-1 bg-gradient-to-r from-purple-600 to-blue-600 rounded-full"></div></div>') {
-      // Process basic markdown and return formatted content
-      let processedContent = formattedContent
-        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-        .replace(/\*(.*?)\*/g, '<em>$1</em>')
-        .replace(/\n\n/g, '</p><p class="mb-3">')
-        .replace(/\n/g, '<br>');
-      
-      processedContent = '<p class="mb-3">' + processedContent + '</p>';
-      result += `<div class="p-4 bg-gray-50 border border-gray-200 rounded-lg">${processedContent}</div>`;
-    }
-  } else {
-    // Add final encouragement if it exists and we had matches
-    const finalEncouragementMatch = formattedContent.match(/---\s*Remember,\s*every attempt.*$/s);
-    if (finalEncouragementMatch) {
-      const cleanEncouragement = finalEncouragementMatch[0].replace(/^---\s*/, '').trim();
-      result += `
-        <div class="mt-8 p-6 bg-gradient-to-r from-purple-100 to-blue-100 border border-purple-200 rounded-xl">
-          <div class="flex items-start gap-3">
-            <span class="text-3xl">🎉</span>
-            <div>
-              <h3 class="text-xl font-bold text-purple-800 mb-2">Keep Learning!</h3>
-              <p class="text-purple-700 leading-relaxed">${cleanEncouragement}</p>
-            </div>
-          </div>
+    result += `
+      <div class="p-6 bg-gradient-to-br from-gray-50 to-blue-50 border-2 border-gray-200 rounded-2xl shadow-lg">
+        <div class="flex items-start gap-3 mb-4">
+          <span class="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold">📝</span>
+          <h3 class="text-xl font-bold text-gray-800">Feedback Details</h3>
         </div>
-      `;
-    }
+        ${processedContent}
+      </div>
+    `;
   }
 
   return result;
@@ -1124,25 +1442,32 @@ export default function AIMentorAgent(): JSX.Element {
     const progressMap = {
       topic_selection: 0,
       mentor_explanation: 25,
-      quiz_prompt: 40,
-      quiz_active: 60,
-      quiz_feedback: 80,
-      quiz_summary: 90,
+      help_decision: 35,
+      chat_mode: 45,
+      quiz_prompt: 50,
+      quiz_active: 70,
+      quiz_feedback: 85,
+      quiz_summary: 95,
       conversation_end: 100,
     };
     setSessionProgress(progressMap[currentStage]);
   }, [currentStage]);
 
   // API Functions
-  const callMentorAgent = async (message: string): Promise<any> => {
+  const callMentorAgent = async (message: string): Promise<unknown> => {
     // Get the appropriate mentor config based on selected semester
-    const mentorConfig = AI_MENTOR_AGENT_CONFIG.mentor[topicSelection.semester as keyof typeof AI_MENTOR_AGENT_CONFIG.mentor];
-    
+    const mentorConfig =
+      AI_MENTOR_AGENT_CONFIG.mentor[
+        topicSelection.semester as keyof typeof AI_MENTOR_AGENT_CONFIG.mentor
+      ];
+
     if (!mentorConfig) {
-      throw new Error(`No mentor configuration found for ${topicSelection.semester}`);
+      throw new Error(
+        `No mentor configuration found for ${topicSelection.semester}`
+      );
     }
 
-    const payload: any = {
+    const payload: Record<string, unknown> = {
       message: { role: "user", content: message },
       agent_id: mentorConfig.agent_id,
     };
@@ -1150,6 +1475,7 @@ export default function AIMentorAgent(): JSX.Element {
     if (conversationId) {
       payload.conversation_id = conversationId;
     }
+
 
     const response = await fetch(mentorConfig.endpoint, {
       method: "POST",
@@ -1167,7 +1493,7 @@ export default function AIMentorAgent(): JSX.Element {
     return response.json();
   };
 
-  const callQuizGenerationTool = async (): Promise<any> => {
+  const callQuizGenerationTool = async (): Promise<unknown> => {
     const semesterConfig = AI_MENTOR_AGENT_CONFIG.quiz[topicSelection.semester];
     if (!semesterConfig) {
       throw new Error(`No configuration found for ${topicSelection.semester}`);
@@ -1198,7 +1524,7 @@ export default function AIMentorAgent(): JSX.Element {
     return response.json();
   };
 
-  const callAnswerFeedbackTool = async (): Promise<any> => {
+  const callAnswerFeedbackTool = async (): Promise<unknown> => {
     const semesterConfig = AI_MENTOR_AGENT_CONFIG.quiz[topicSelection.semester];
     if (!semesterConfig) {
       throw new Error(`No configuration found for ${topicSelection.semester}`);
@@ -1208,59 +1534,82 @@ export default function AIMentorAgent(): JSX.Element {
     console.log("Quiz answers:", quizAnswers);
 
     // Create a proper mapping of questions to answers
-    const questionAnswerPairs = quizData?.questions.map((question) => {
-      const userAnswer = quizAnswers.find((answer) => answer.questionId === question.id);
-      
-      // Get correct answer for this question
-      const correctAnswers: { [key: number]: string } = {
-        1: "C", // Film analysis interpretation of visual and narrative elements
-        2: "C", // Mise-en-scène establishes setting and mood
-        3: "C", // Climax is NOT in Act I (it's in Act III)
-        4: "B", // Plot point changes direction of story
-        5: "B", // Central moral problem is main obstacle
-      };
-      
-      const correctAnswer = correctAnswers[question.id] || "A";
-      
-      // Ensure we have a valid user answer
-      const selectedAnswer = userAnswer?.selectedAnswer || "A";
-      
-      // Debug each question mapping
-      console.log(`Question ${question.id}: user answer found:`, userAnswer);
-      console.log(`Selected answer: "${selectedAnswer}"`);
-      
-      const mappedData = {
-        question: question.question || `Question ${question.id}`,
-        user_answer: selectedAnswer,
-        correct_answer: correctAnswer,
-        is_correct: userAnswer?.isCorrect || false,
-      };
-      
-      console.log(`Mapped data for question ${question.id}:`, mappedData);
-      return mappedData;
-    }) || [];
+    const questionAnswerPairs =
+      quizData?.questions.map((question) => {
+        const userAnswer = quizAnswers.find(
+          (answer) => answer.questionId === question.id
+        );
+
+        // Get correct answer for this question
+        const correctAnswers: { [key: number]: string } = {
+          1: "C", // Film analysis interpretation of visual and narrative elements
+          2: "C", // Mise-en-scène establishes setting and mood
+          3: "C", // Climax is NOT in Act I (it's in Act III)
+          4: "B", // Plot point changes direction of story
+          5: "B", // Central moral problem is main obstacle
+        };
+
+        const correctAnswer = correctAnswers[question.id] || "A";
+
+        // Ensure we have a valid user answer
+        const selectedAnswer = userAnswer?.selectedAnswer || "A";
+
+        // Debug each question mapping
+        console.log(`Question ${question.id}: user answer found:`, userAnswer);
+        console.log(`Selected answer: "${selectedAnswer}"`);
+
+        const mappedData = {
+          question: question.question || `Question ${question.id}`,
+          user_answer: selectedAnswer,
+          correct_answer: correctAnswer,
+          is_correct: userAnswer?.isCorrect || false,
+        };
+
+        console.log(`Mapped data for question ${question.id}:`, mappedData);
+        return mappedData;
+      }) || [];
 
     if (questionAnswerPairs.length === 0) {
       throw new Error("No questions found to generate feedback for");
     }
 
     // Format question_and_answer as a string as the API expects
-    const questionAndAnswerString = questionAnswerPairs.map((qa, index) => 
-      `Question ${index + 1}: ${qa.question}\nUser Answer: ${qa.user_answer}\nCorrect Answer: ${qa.correct_answer}\nIs Correct: ${qa.is_correct}`
-    ).join('\n\n');
+    const questionAndAnswerString = questionAnswerPairs
+      .map(
+        (qa, index) =>
+          `Question ${index + 1}: ${qa.question}\nUser Answer: ${
+            qa.user_answer
+          }\nCorrect Answer: ${qa.correct_answer}\nIs Correct: ${qa.is_correct}`
+      )
+      .join("\n\n");
 
     // Try multiple payload structures to see what the API expects
     const payload = {
       course_content: `${topicSelection.topic} - ${topicSelection.subTopic}`,
       question_and_answer: questionAndAnswerString,
       // Add individual fields in case API expects them at root level
-      user_answer: questionAnswerPairs.map(qa => qa.user_answer).filter(answer => answer && answer.trim()).join(', ') || 'A',
-      question: questionAnswerPairs.map(qa => qa.question).filter(q => q && q.trim()).join(' | ') || 'Default Question',
-      correct_answer: questionAnswerPairs.map(qa => qa.correct_answer).filter(answer => answer && answer.trim()).join(', ') || 'A',
-      is_correct: questionAnswerPairs.some(qa => qa.is_correct).toString(),
+      user_answer:
+        questionAnswerPairs
+          .map((qa) => qa.user_answer)
+          .filter((answer) => answer && answer.trim())
+          .join(", ") || "A",
+      question:
+        questionAnswerPairs
+          .map((qa) => qa.question)
+          .filter((q) => q && q.trim())
+          .join(" | ") || "Default Question",
+      correct_answer:
+        questionAnswerPairs
+          .map((qa) => qa.correct_answer)
+          .filter((answer) => answer && answer.trim())
+          .join(", ") || "A",
+      is_correct: questionAnswerPairs.some((qa) => qa.is_correct).toString(),
     };
 
-    console.log("Sending payload to feedback API:", JSON.stringify(payload, null, 2));
+    console.log(
+      "Sending payload to feedback API:",
+      JSON.stringify(payload, null, 2)
+    );
     console.log("Question answer pairs:", questionAnswerPairs);
 
     const response = await fetch(
@@ -1283,34 +1632,37 @@ export default function AIMentorAgent(): JSX.Element {
     return response.json();
   };
 
-  const callQuizSummaryTool = async (): Promise<any> => {
+  const callQuizSummaryTool = async (): Promise<unknown> => {
     const semesterConfig = AI_MENTOR_AGENT_CONFIG.quiz[topicSelection.semester];
     if (!semesterConfig) {
       throw new Error(`No configuration found for ${topicSelection.semester}`);
     }
 
     // Create a proper mapping of questions to answers
-    const questionAnswerPairs = quizData?.questions.map((question) => {
-      const userAnswer = quizAnswers.find((answer) => answer.questionId === question.id);
-      
-      // Get correct answer for this question
-      const correctAnswers: { [key: number]: string } = {
-        1: "C", // Film analysis interpretation of visual and narrative elements
-        2: "C", // Mise-en-scène establishes setting and mood
-        3: "C", // Climax is NOT in Act I (it's in Act III)
-        4: "B", // Plot point changes direction of story
-        5: "B", // Central moral problem is main obstacle
-      };
-      
-      const correctAnswer = correctAnswers[question.id] || "A";
-      
-      return {
-        question: question.question || "",
-        user_answer: userAnswer?.selectedAnswer || "",
-        correct_answer: correctAnswer,
-        is_correct: userAnswer?.isCorrect || false,
-      };
-    }) || [];
+    const questionAnswerPairs =
+      quizData?.questions.map((question) => {
+        const userAnswer = quizAnswers.find(
+          (answer) => answer.questionId === question.id
+        );
+
+        // Get correct answer for this question
+        const correctAnswers: { [key: number]: string } = {
+          1: "C", // Film analysis interpretation of visual and narrative elements
+          2: "C", // Mise-en-scène establishes setting and mood
+          3: "C", // Climax is NOT in Act I (it's in Act III)
+          4: "B", // Plot point changes direction of story
+          5: "B", // Central moral problem is main obstacle
+        };
+
+        const correctAnswer = correctAnswers[question.id] || "A";
+
+        return {
+          question: question.question || "",
+          user_answer: userAnswer?.selectedAnswer || "",
+          correct_answer: correctAnswer,
+          is_correct: userAnswer?.isCorrect || false,
+        };
+      }) || [];
 
     const score = calculateQuizScore();
     const response = await fetch(
@@ -1323,9 +1675,16 @@ export default function AIMentorAgent(): JSX.Element {
         },
         body: JSON.stringify({
           course_content: `${topicSelection.topic} - ${topicSelection.subTopic}`,
-          question_and_answer: questionAnswerPairs.map((qa, index) => 
-            `Question ${index + 1}: ${qa.question}\nUser Answer: ${qa.user_answer}\nCorrect Answer: ${qa.correct_answer}\nIs Correct: ${qa.is_correct}`
-          ).join('\n\n'),
+          question_and_answer: questionAnswerPairs
+            .map(
+              (qa, index) =>
+                `Question ${index + 1}: ${qa.question}\nUser Answer: ${
+                  qa.user_answer
+                }\nCorrect Answer: ${qa.correct_answer}\nIs Correct: ${
+                  qa.is_correct
+                }`
+            )
+            .join("\n\n"),
           quiz_results: {
             score: score,
             total_questions: quizData?.questions.length || 0,
@@ -1347,15 +1706,29 @@ export default function AIMentorAgent(): JSX.Element {
     return response.json();
   };
 
-  const pollAgentResponse = async (jobInfo: any): Promise<any> => {
+  const pollAgentResponse = async (jobInfo: {
+    job_id: string;
+    studio_id?: string;
+    conversation_id?: string;
+  }): Promise<{
+    success: boolean;
+    content?: string;
+    conversationId?: string;
+    error?: string;
+  }> => {
     const maxAttempts = 20;
     let attempts = 0;
-    
+
     // Get the appropriate mentor config based on selected semester
-    const mentorConfig = AI_MENTOR_AGENT_CONFIG.mentor[topicSelection.semester as keyof typeof AI_MENTOR_AGENT_CONFIG.mentor];
-    
+    const mentorConfig =
+      AI_MENTOR_AGENT_CONFIG.mentor[
+        topicSelection.semester as keyof typeof AI_MENTOR_AGENT_CONFIG.mentor
+      ];
+
     if (!mentorConfig) {
-      throw new Error(`No mentor configuration found for ${topicSelection.semester}`);
+      throw new Error(
+        `No mentor configuration found for ${topicSelection.semester}`
+      );
     }
 
     while (attempts < maxAttempts) {
@@ -1396,10 +1769,17 @@ export default function AIMentorAgent(): JSX.Element {
               }
             }
 
+            // Try to get conversation ID from various possible locations in the response
+            const conversationId = 
+              status.conversation_id || 
+              update.conversation_id || 
+              update.output?.conversation_id ||
+              jobInfo.conversation_id;
+
             return {
               success: true,
               content: String(content),
-              conversationId: jobInfo.conversation_id,
+              conversationId: conversationId,
             };
           }
           if (update.type === "chain-error") {
@@ -1468,29 +1848,24 @@ export default function AIMentorAgent(): JSX.Element {
     );
 
     try {
-      // Call the dedicated AI Mentor Agent for detailed explanation
-      const mentorPrompt = `Please provide a comprehensive learning session about "${topicSelection.subTopic}" for a ${topicSelection.semester} student studying ${topicSelection.topic} in Film Studies and Direction.
+      // Call the dedicated AI Mentor Agent - sending only the subtopic
+      const agentResponse = await callMentorAgent(topicSelection.subTopic);
+      const response = agentResponse as AgentResponse;
 
-Please provide:
-1. **Detailed Explanation**: A comprehensive explanation of "${topicSelection.subTopic}" including core concepts, principles, and techniques
-2. **Key Concepts to Study**: List the most important concepts, terms, and principles students should focus on
-3. **What NOT to Focus On**: Mention any common misconceptions or areas that are less important for ${topicSelection.semester} level
-4. **Recommended Reading Materials**: Suggest specific books, articles, or knowledge sources for deeper understanding
-5. **Preparation Tips**: Provide semester-specific study tips and practical advice for mastering this topic
-
-After providing this comprehensive explanation, end with this exact prompt:
-"Feeling confident? Would you like to take a quiz on this topic to test your understanding?"`;
-
-      const agentResponse = await callMentorAgent(mentorPrompt);
-
-      if (agentResponse.job_info) {
-        const result = await pollAgentResponse(agentResponse.job_info);
+      if (response.job_info) {
+        // Pass the conversation_id along with job_info
+        const jobInfoWithConversation = {
+          ...response.job_info,
+          conversation_id: response.job_info.conversation_id || response.conversation_id || conversationId,
+        };
+        
+        const result = await pollAgentResponse(jobInfoWithConversation);
 
         if (result.success) {
           const formattedContent = formatMentorResponse(result.content);
           addMessage("mentor", formattedContent, "mentor_explanation");
           setConversationId(result.conversationId);
-          setCurrentStage("quiz_prompt");
+          setCurrentStage("help_decision");
         } else {
           addMessage("system", `Error: ${result.error}`);
         }
@@ -1505,6 +1880,84 @@ After providing this comprehensive explanation, end with this exact prompt:
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleHelpDecision = async (needsHelp: boolean) => {
+    if (!needsHelp) {
+      // Send "no" to AI and proceed to quiz
+      addMessage("user", "No, I'm ready for the quiz!");
+      setIsLoading(true);
+
+      try {
+        await callMentorAgent("no");
+        setCurrentStage("quiz_prompt");
+      } catch (error) {
+        console.error("Error:", error);
+        toast.error("Failed to process response");
+      } finally {
+        setIsLoading(false);
+      }
+    } else {
+      // Open chat mode
+      addMessage("user", "Yes, I have some questions!");
+      setCurrentStage("chat_mode");
+      addMessage(
+        "mentor",
+        "Great! What would you like to know more about? Feel free to ask any questions about the topic."
+      );
+    }
+  };
+
+  const handleChatMessage = async (message: string) => {
+    if (!message.trim()) return;
+
+    addMessage("user", message);
+    setInputMessage("");
+    setIsLoading(true);
+
+    try {
+      const agentResponse = await callMentorAgent(message);
+      const response = agentResponse as AgentResponse;
+
+      if (response.job_info) {
+        // Pass the conversation_id along with job_info
+        const jobInfoWithConversation = {
+          ...response.job_info,
+          conversation_id: response.job_info.conversation_id || response.conversation_id || conversationId,
+        };
+        
+        const result = await pollAgentResponse(jobInfoWithConversation);
+
+        if (result.success) {
+          const formattedContent = formatMentorResponse(result.content);
+          addMessage("mentor", formattedContent, "chat_mode");
+          
+          // Update conversation ID if we got a new one
+          if (result.conversationId && result.conversationId !== conversationId) {
+            setConversationId(result.conversationId);
+          }
+        } else {
+          addMessage("system", `Error: ${result.error}`);
+        }
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      addMessage(
+        "system",
+        "I encountered an error while processing your question. Please try again."
+      );
+      toast.error("Failed to get response");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleEndChat = () => {
+    setCurrentStage("quiz_prompt");
+    addMessage(
+      "mentor",
+      "Now that we've covered your questions, would you like to take a quiz to test your understanding?"
+    );
   };
 
   const handleQuizDecision = async (wantsQuiz: boolean) => {
@@ -1532,10 +1985,11 @@ After providing this comprehensive explanation, end with this exact prompt:
 
       // Direct response handling - no polling needed for webhook
       let quizContent = "";
-      if (quizResponse.answer) {
-        quizContent = quizResponse.answer;
-      } else if (quizResponse.output) {
-        quizContent = quizResponse.output;
+      const response = quizResponse as QuizResponse;
+      if (response.answer) {
+        quizContent = response.answer;
+      } else if (response.output) {
+        quizContent = response.output;
       } else {
         quizContent = JSON.stringify(quizResponse);
       }
@@ -1588,7 +2042,9 @@ After providing this comprehensive explanation, end with this exact prompt:
   const handleQuizAnswer = (questionId: number, selectedAnswer: string) => {
     const question = quizData?.questions.find((q) => q.id === questionId);
 
-    console.log(`handleQuizAnswer called with questionId: ${questionId}, selectedAnswer: "${selectedAnswer}"`);
+    console.log(
+      `handleQuizAnswer called with questionId: ${questionId}, selectedAnswer: "${selectedAnswer}"`
+    );
 
     // Updated correct answers based on the film analysis quiz
     const correctAnswers: { [key: number]: string } = {
@@ -1619,18 +2075,26 @@ After providing this comprehensive explanation, end with this exact prompt:
 
   const handleQuizSubmission = async () => {
     // Check if all questions have been answered
-    if (!quizData?.questions || quizAnswers.length !== quizData.questions.length) {
+    if (
+      !quizData?.questions ||
+      quizAnswers.length !== quizData.questions.length
+    ) {
       toast.error("Please answer all questions before submitting");
       return;
     }
 
     // Verify each question has a valid answer
     const missingAnswers = quizData.questions.filter(
-      question => !quizAnswers.find(answer => answer.questionId === question.id && answer.selectedAnswer)
+      (question) =>
+        !quizAnswers.find(
+          (answer) => answer.questionId === question.id && answer.selectedAnswer
+        )
     );
 
     if (missingAnswers.length > 0) {
-      toast.error(`Please answer question ${missingAnswers[0].id} before submitting`);
+      toast.error(
+        `Please answer question ${missingAnswers[0].id} before submitting`
+      );
       return;
     }
 
@@ -1642,10 +2106,11 @@ After providing this comprehensive explanation, end with this exact prompt:
       const feedbackResponse = await callAnswerFeedbackTool();
 
       let feedbackContent = "Here's your quiz feedback:";
-      if (feedbackResponse.answer) {
-        feedbackContent = feedbackResponse.answer;
-      } else if (feedbackResponse.output) {
-        feedbackContent = feedbackResponse.output;
+      const feedbackResp = feedbackResponse as QuizResponse;
+      if (feedbackResp.answer) {
+        feedbackContent = feedbackResp.answer;
+      } else if (feedbackResp.output) {
+        feedbackContent = feedbackResp.output;
       }
 
       // Format the feedback for better UI display
@@ -1656,10 +2121,11 @@ After providing this comprehensive explanation, end with this exact prompt:
       const summaryResponse = await callQuizSummaryTool();
 
       let summaryContent = "Quiz Summary: Great work completing the quiz!";
-      if (summaryResponse.answer) {
-        summaryContent = summaryResponse.answer;
-      } else if (summaryResponse.output) {
-        summaryContent = summaryResponse.output;
+      const summaryResp = summaryResponse as QuizResponse;
+      if (summaryResp.answer) {
+        summaryContent = summaryResp.answer;
+      } else if (summaryResp.output) {
+        summaryContent = summaryResp.output;
       }
 
       // Format the summary for better UI display
@@ -1921,7 +2387,7 @@ After providing this comprehensive explanation, end with this exact prompt:
                             topicSelection.topic &&
                             CURRICULUM[topicSelection.semester]?.[
                               topicSelection.topic
-                            ]?.map((subTopic) => (
+                            ]?.map((subTopic: string) => (
                               <SelectItem key={subTopic} value={subTopic}>
                                 {subTopic}
                               </SelectItem>
@@ -2120,20 +2586,22 @@ After providing this comprehensive explanation, end with this exact prompt:
                                 : "bg-yellow-50 border border-yellow-200"
                             )}
                           >
-                            <div 
+                            <div
                               className={cn(
                                 "text-sm leading-relaxed",
-                                message.type === "mentor" 
-                                  ? "prose prose-sm max-w-none" 
+                                message.type === "mentor"
+                                  ? "prose prose-sm max-w-none"
                                   : "whitespace-pre-wrap"
                               )}
                               dangerouslySetInnerHTML={
-                                message.type === "mentor" 
+                                message.type === "mentor"
                                   ? { __html: message.content }
                                   : undefined
                               }
                             >
-                              {message.type !== "mentor" ? message.content : null}
+                              {message.type !== "mentor"
+                                ? message.content
+                                : null}
                             </div>
                             <div
                               className={cn(
@@ -2174,6 +2642,68 @@ After providing this comprehensive explanation, end with this exact prompt:
                   </ScrollArea>
 
                   {/* Quiz Decision Buttons */}
+                  {/* Help Decision */}
+                  {currentStage === "help_decision" && !isLoading && (
+                    <Card>
+                      <CardContent className="p-6">
+                        <div className="text-center space-y-4">
+                          <h3 className="text-lg font-semibold text-gray-900">
+                            Need More Help?
+                          </h3>
+                          <p className="text-gray-600">
+                            Would you like help with any other part of this
+                            topic — like a different concept, format, or
+                            sub-section?
+                          </p>
+                          <div className="flex gap-4 justify-center">
+                            <Button
+                              onClick={() => handleHelpDecision(true)}
+                              className="bg-blue-600 hover:bg-blue-700 text-white px-8"
+                              size="lg"
+                            >
+                              <MessageSquare className="h-4 w-4 mr-2" />
+                              Yes, I have questions
+                            </Button>
+                            <Button
+                              onClick={() => handleHelpDecision(false)}
+                              variant="outline"
+                              size="lg"
+                              className="px-8"
+                            >
+                              <Target className="h-4 w-4 mr-2" />
+                              No, ready for quiz
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Chat Mode */}
+                  {currentStage === "chat_mode" && !isLoading && (
+                    <Card>
+                      <CardContent className="p-6">
+                        <div className="text-center space-y-4">
+                          <h3 className="text-lg font-semibold text-gray-900">
+                            Ask Your Questions
+                          </h3>
+                          <p className="text-gray-600">
+                            Feel free to ask any questions about{" "}
+                            {topicSelection.subTopic}
+                          </p>
+                          <Button
+                            onClick={handleEndChat}
+                            className="bg-green-600 hover:bg-green-700 text-white px-8"
+                            size="lg"
+                          >
+                            <Target className="h-4 w-4 mr-2" />
+                            Finish Questions & Take Quiz
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
                   {currentStage === "quiz_prompt" && !isLoading && (
                     <Card>
                       <CardContent className="p-6">
@@ -2253,13 +2783,18 @@ After providing this comprehensive explanation, end with this exact prompt:
               )}
 
             {/* Chat Input for Free Conversation */}
-            {currentStage === "mentor_explanation" && (
+            {(currentStage === "mentor_explanation" ||
+              currentStage === "chat_mode") && (
               <Card>
                 <CardContent className="p-4">
                   <div className="flex gap-3">
                     <div className="flex-1">
                       <Textarea
-                        placeholder="Ask follow-up questions about the topic..."
+                        placeholder={
+                          currentStage === "chat_mode"
+                            ? "Ask your questions about the topic..."
+                            : "Ask follow-up questions about the topic..."
+                        }
                         value={inputMessage}
                         onChange={(e) => setInputMessage(e.target.value)}
                         className="resize-none border-gray-300 focus:border-purple-500 focus:ring-purple-500 rounded-xl"
@@ -2269,9 +2804,13 @@ After providing this comprehensive explanation, end with this exact prompt:
                           if (e.key === "Enter" && !e.shiftKey) {
                             e.preventDefault();
                             if (inputMessage.trim()) {
-                              addMessage("user", inputMessage);
-                              setInputMessage("");
-                              // Handle follow-up questions here if needed
+                              if (currentStage === "chat_mode") {
+                                handleChatMessage(inputMessage);
+                              } else {
+                                addMessage("user", inputMessage);
+                                setInputMessage("");
+                                // Handle follow-up questions here if needed
+                              }
                             }
                           }
                         }}
@@ -2280,8 +2819,12 @@ After providing this comprehensive explanation, end with this exact prompt:
                     <Button
                       onClick={() => {
                         if (inputMessage.trim()) {
-                          addMessage("user", inputMessage);
-                          setInputMessage("");
+                          if (currentStage === "chat_mode") {
+                            handleChatMessage(inputMessage);
+                          } else {
+                            addMessage("user", inputMessage);
+                            setInputMessage("");
+                          }
                         }
                       }}
                       disabled={!inputMessage.trim() || isLoading}
@@ -2296,8 +2839,10 @@ After providing this comprehensive explanation, end with this exact prompt:
                   </div>
                   <div className="flex items-center justify-between mt-3 text-xs text-gray-500">
                     <span>
-                      💭 Ask questions about the topic or proceed to quiz when
-                      ready
+                      💭{" "}
+                      {currentStage === "chat_mode"
+                        ? "Ask any questions about the topic"
+                        : "Ask questions about the topic or proceed to quiz when ready"}
                     </span>
                     <span>Press Enter to send</span>
                   </div>

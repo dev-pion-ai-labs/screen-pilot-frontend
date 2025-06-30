@@ -147,10 +147,10 @@ const AdminAssignClass = () => {
       return;
     }
 
-    if (selectedTeachers.length !== 1) {
+    if (selectedTeachers.length === 0) {
       toast({
         title: "Error",
-        description: "Please select exactly one teacher",
+        description: "Please select at least one teacher",
         variant: "destructive",
       });
       return;
@@ -183,17 +183,17 @@ const AdminAssignClass = () => {
 
       const classId = classData.id;
 
-      // 2. Insert class teacher
-      const { error: teacherError } = await supabase
-        .from("class_teachers")
-        .insert([
-          {
+      // 2. Insert class teachers
+      for (const teacher of selectedTeachers) {
+        const { error: teacherError } = await supabase
+          .from("class_teachers")
+          .insert({
             class_id: classId,
-            teacher_id: selectedTeachers[0].id,
-          },
-        ]);
-
-      if (teacherError) throw teacherError;
+            teacher_id: teacher.id,
+          });
+        
+        if (teacherError) throw teacherError;
+      }
 
       // 3. Insert selected students (not all semester students)
       if (selectedStudents.length > 0) {
@@ -251,10 +251,10 @@ const AdminAssignClass = () => {
       return;
     }
 
-    if (selectedTeachers.length !== 1) {
+    if (selectedTeachers.length === 0) {
       toast({
         title: "Error",
-        description: "Please select exactly one teacher",
+        description: "Please select at least one teacher",
         variant: "destructive",
       });
       return;
@@ -289,17 +289,17 @@ const AdminAssignClass = () => {
 
       if (deleteTeacherError) throw deleteTeacherError;
 
-      // 3. Insert new teacher assignment
-      const { error: teacherError } = await supabase
-        .from("class_teachers")
-        .insert([
-          {
+      // 3. Insert new teacher assignments
+      for (const teacher of selectedTeachers) {
+        const { error: teacherError } = await supabase
+          .from("class_teachers")
+          .insert({
             class_id: editingClass.id,
-            teacher_id: selectedTeachers[0].id,
-          },
-        ]);
-
-      if (teacherError) throw teacherError;
+            teacher_id: teacher.id,
+          });
+        
+        if (teacherError) throw teacherError;
+      }
 
       // 4. Delete existing student assignments
       const { error: deleteStudentError } = await supabase

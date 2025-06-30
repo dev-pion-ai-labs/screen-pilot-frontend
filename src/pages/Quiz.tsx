@@ -268,6 +268,46 @@ const CURRICULUM = {
 const parseQuizContent = (content: string): QuizQuestion[] => {
   const questions: QuizQuestion[] = [];
 
+  // Method -4: Handle NEW format "### Question X" with **question text** and **Answer:** - NEWEST FORMAT
+  const newQuestionSections = content.split(/###\s*Question\s+\d+/).filter((section) => section.trim());
+
+  if (newQuestionSections.length > 1) {
+    // Remove the first section (usually intro text)
+    newQuestionSections.shift();
+
+    newQuestionSections.forEach((section, index) => {
+      // Extract question text (text between **What is...** pattern)
+      const questionMatch = section.match(/\*\*([^*]+\?)\*\*/);
+      
+      if (questionMatch) {
+        const questionText = questionMatch[1].trim();
+
+        // Extract options (A) through D) with their text)
+        const optionMatches = section.match(/([A-D]\)\s*[^A-D\n]+)/g);
+        
+        if (optionMatches && optionMatches.length >= 4) {
+          const options = optionMatches.slice(0, 4).map(opt => opt.trim());
+
+          // Extract the correct answer (text after **Answer:** pattern)
+          const answerMatch = section.match(/\*\*Answer:\*\*\s*([A-D]\))/);
+          const correctAnswer = answerMatch ? answerMatch[1].charAt(0) : 'A';
+
+          questions.push({
+            id: index + 1,
+            text: questionText,
+            options: options,
+            correctAnswer: correctAnswer,
+          });
+        }
+      }
+    });
+
+    if (questions.length > 0) {
+      console.log("Parsed questions using NEW format (### Question X):", questions);
+      return questions;
+    }
+  }
+
   // Method -3: Handle format "### Question X (Level)" with **question text** - CURRENT FORMAT
   const headerQuestionSections = content
     .split(/###\s*Question\s+\d+\s*\([^)]+\)/)
@@ -631,6 +671,51 @@ const createFallbackQuestions = (content: string): QuizQuestion[] => {
 
   // Try to parse questions from the content string
   const questions: QuizQuestion[] = [];
+
+  // Method -4: Handle NEW format "### Question X" with **question text** and **Answer:** - NEWEST FORMAT
+  const newQuestionSections = content.split(/###\s*Question\s+\d+/).filter((section) => section.trim());
+  
+  if (newQuestionSections.length > 1) {
+    // Remove the first section (usually intro text)
+    newQuestionSections.shift();
+
+    newQuestionSections.forEach((section, index) => {
+      const lines = section
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line);
+
+      // Look for question text between ** markers that ends with "?"
+      const questionMatch = section.match(/\*\*([^*]+\?)\*\*/);
+
+      if (questionMatch) {
+        const questionText = questionMatch[1].trim();
+
+        // Find option lines (start with "A)", "B)", etc. but not "**Answer:**")
+        const optionLines = lines.filter(
+          (line) => line.match(/^[A-D]\)/) && !line.includes("**Answer:**")
+        );
+
+        if (optionLines.length >= 4) {
+          const options = optionLines.slice(0, 4).map((opt) => opt.trim());
+
+          questions.push({
+            id: index + 1,
+            question: questionText,
+            options: options,
+          });
+        }
+      }
+    });
+
+    if (questions.length > 0) {
+      console.log(
+        "Parsed questions using newest format (### Question X) in fallback:",
+        questions
+      );
+      return questions;
+    }
+  }
 
   // Method -3: Handle format "### Question X (Level)" with **question text** - CURRENT FORMAT
   const headerQuestionSections = content
@@ -1139,7 +1224,7 @@ const formatMentorResponse = (content: string): string => {
 };
 
 // Function to parse and format quiz feedback
-const formatQuizFeedback = (content: string): string => {
+const formatQuizFeedback = (content: string, quizData?: QuizData | null, quizAnswers?: QuizAnswer[]): string => {
   if (!content || content.trim() === "") {
     return '<div class="text-gray-500">No feedback available.</div>';
   }
@@ -1157,22 +1242,63 @@ const formatQuizFeedback = (content: string): string => {
     </div>
   `;
 
-  // Updated pattern to match the actual feedback format
-  const questionPattern = /\*\*Question\s+(\d+):\s*([^*]+?)\*\*\s*-\s*\*\*User Answer:\*\*\s*([A-D])\s*-\s*\*\*Correct Answer:\*\*\s*([A-D])\s*\*\*Feedback:\*\*\s*(.*?)(?=---|\*\*Question\s+\d+:|Remember,)/gs;
+  // Debug: log the content to see what we're working with
+  console.log("🔍 Feedback content:", formattedContent);
 
-  // First pass: count total questions and correct answers for summary
+  // Multiple patterns to try - the feedback format might vary
+  const patterns = [
+    // Pattern 1: Current actual format with line breaks
+    /\*\*Question\s+(\d+):\s*([^*]+?)\*\*\s*-\s*\*\*Your Answer:\*\*\s*([A-D])\s*-\s*\*\*Correct Answer:\*\*\s*([A-D])\s*\*\*Feedback:\*\*\s*(.*?)(?=---\s*\*\*Question|\*\*Question\s+\d+:|---\s*Keep|$)/gs,
+    
+    // Pattern 2: Alternative with "User Answer"
+    /\*\*Question\s+(\d+):\s*([^*]+?)\*\*\s*-\s*\*\*User Answer:\*\*\s*([A-D])\s*-\s*\*\*Correct Answer:\*\*\s*([A-D])\s*\*\*Feedback:\*\*\s*(.*?)(?=---\s*\*\*Question|\*\*Question\s+\d+:|---\s*Keep|$)/gs,
+    
+    // Pattern 3: Simple format without markdown
+    /Question\s+(\d+):\s*([^\n]+?)\s*.*?Your Answer:\s*([A-D])\s*.*?Correct Answer:\s*([A-D])\s*.*?Feedback:\s*(.*?)(?=Question\s+\d+:|Keep going|$)/gis
+  ];
+
+  let questionPattern = patterns[0];
   let tempMatch: RegExpExecArray | null;
   let totalQuestions = 0;
   let correctAnswers = 0;
-  const tempPattern = new RegExp(questionPattern.source, questionPattern.flags);
-  
-  while ((tempMatch = tempPattern.exec(formattedContent)) !== null) {
-    totalQuestions++;
-    const userAnswer = tempMatch[3];
-    const correctAnswer = tempMatch[4];
-    if (userAnswer === correctAnswer) {
-      correctAnswers++;
+
+  // Use actual quiz data if available, otherwise try to parse from feedback
+  if (quizData && quizAnswers) {
+    totalQuestions = quizData.questions.length;
+    correctAnswers = quizAnswers.filter(answer => answer.isCorrect).length;
+    console.log(`🔍 Using quiz data: ${totalQuestions} questions, ${correctAnswers} correct`);
+  } else {
+    // Try each pattern until we find one that works
+    for (let i = 0; i < patterns.length; i++) {
+      const testPattern = new RegExp(patterns[i].source, patterns[i].flags);
+      let testMatches = 0;
+      
+      while ((tempMatch = testPattern.exec(formattedContent)) !== null) {
+        testMatches++;
+      }
+      
+      console.log(`🔍 Pattern ${i + 1} found ${testMatches} matches`);
+      
+      if (testMatches > 0) {
+        questionPattern = patterns[i];
+        break;
+      }
     }
+
+    // Now count with the selected pattern
+    const tempPattern = new RegExp(questionPattern.source, questionPattern.flags);
+    
+    while ((tempMatch = tempPattern.exec(formattedContent)) !== null) {
+      totalQuestions++;
+      const userAnswer = tempMatch[3];
+      const correctAnswer = tempMatch[4];
+      console.log(`🔍 Question ${totalQuestions}: User=${userAnswer}, Correct=${correctAnswer}`);
+      if (userAnswer === correctAnswer) {
+        correctAnswers++;
+      }
+    }
+    
+    console.log(`🔍 Final count: ${totalQuestions} questions, ${correctAnswers} correct`);
   }
 
   // Add performance summary if we have questions
@@ -2114,7 +2240,7 @@ export default function AIMentorAgent(): JSX.Element {
       }
 
       // Format the feedback for better UI display
-      const formattedFeedback = formatQuizFeedback(feedbackContent);
+      const formattedFeedback = formatQuizFeedback(feedbackContent, quizData, quizAnswers);
       addMessage("mentor", formattedFeedback, "quiz_feedback");
 
       // Generate summary - handle direct webhook response
@@ -2129,7 +2255,7 @@ export default function AIMentorAgent(): JSX.Element {
       }
 
       // Format the summary for better UI display
-      const formattedSummary = formatQuizFeedback(summaryContent);
+      const formattedSummary = formatQuizFeedback(summaryContent, quizData, quizAnswers);
       addMessage("mentor", formattedSummary, "quiz_summary");
       setCurrentStage("quiz_summary");
 

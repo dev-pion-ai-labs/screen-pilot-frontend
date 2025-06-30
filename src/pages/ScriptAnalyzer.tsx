@@ -56,7 +56,7 @@ interface AnalysisProgress {
   message: string
 }
 
-export const ScriptAnalyzer = () => {
+export default function ScriptAnalyzer() {
   const { user } = useAuth()
   const [analyses, setAnalyses] = useState<ScriptAnalysis[]>([])
   const [selectedAnalysis, setSelectedAnalysis] = useState<ScriptAnalysis | null>(null)

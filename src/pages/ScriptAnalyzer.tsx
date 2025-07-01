@@ -28,15 +28,21 @@ import {
   Link
 } from 'lucide-react';
 import { ModernDashboardLayout } from '@/components/ModernDashboardLayout';
+import ScriptAnalysisDisplay from '@/components/ScriptAnalysisDisplay';
 
-// Simplified Relevance API Configuration - Only generateScriptAnalysis
+// Relevance API Configuration
 const relevanceAPI = {
-  region: "d7b62b",
-  // tool generateScriptAnalysis
-  generateScriptAnalysis: {
-    endpoint: "https://api-d7b62b.stack.tryrelevance.com/latest/studios/8fbb0eef-39a4-4770-aeab-4498f3125938/trigger_webhook?project=5cc7752400a6-4648-b47b-04fc92b47cae",
-    apiKey: "5cc7752400a6-4648-b47b-04fc92b47cae:sk-OWQ3NGI2OGMtYTYxNC00NmIyLWJmODItYWFmY2IwYzA5YmRm",
+  triggerAgent: {
+    endpoint: "https://api-d7b62b.stack.tryrelevance.com/latest/agents/trigger",
+    apiKey: "5cc7752400a6-4648-b47b-04fc92b47cae:sk-YmZlMTYzOGQtNmQzZC00NTQ1LWEzNGMtZThmYzVmYzExYzc1",
+    agentId: "3df7f825-c0a0-4bfd-ab86-3061b160eba6",
+    region: "d7b62b",
   },
+  extractDataFromPDF: {
+    endpoint: "https://api-d7b62b.stack.tryrelevance.com/latest/studios/5a6eaca2-6e92-4557-a299-c0e2bbbac201/trigger_webhook?project=5cc7752400a6-4648-b47b-04fc92b47cae",
+    apiKey: "5cc7752400a6-4648-b47b-04fc92b47cae:sk-OTJkZGIzNzYtMGU5Yi00MDY4LTk2NjEtM2JkODE4NjM4M2Jk",
+    region: "d7b62b",
+  }
 };
 
 interface ScriptAnalysis {
@@ -56,7 +62,7 @@ interface AnalysisProgress {
   message: string
 }
 
-export default function ScriptAnalyzer() {
+const ScriptAnalyzer = () => {
   const { user } = useAuth()
   const [analyses, setAnalyses] = useState<ScriptAnalysis[]>([])
   const [selectedAnalysis, setSelectedAnalysis] = useState<ScriptAnalysis | null>(null)
@@ -98,47 +104,160 @@ export default function ScriptAnalyzer() {
     }
   }
 
-  // the code is working fine
 
-  // Simplified Studio API caller for generateScriptAnalysis only
-  const generateScriptAnalysis = async (scriptData, scriptFileUrl = null) => {
-    try {
-      console.log('Calling Generate Script Analysis:', { scriptData, scriptFileUrl });
 
-      // Prepare payload - include script_url if available
-      const payload = {
-        script_content: scriptData,
-        analysis_type: 'comprehensive',
-        format: 'detailed_report'
-      };
+  // Poll for PDF extraction response
+  const pollPDFExtractionResponse = async (
+    studioId: string,
+    jobId: string
+  ): Promise<string> => {
+    const maxAttempts = 20;
+    let attempts = 0;
 
-      // Add script_url to payload if provided
-      if (scriptFileUrl) {
-        payload.script_url = scriptFileUrl;
+    while (attempts < maxAttempts) {
+      try {
+        const res = await fetch(
+          `https://api-${relevanceAPI.extractDataFromPDF.region}.stack.tryrelevance.com/latest/studios/${studioId}/async_poll/${jobId}`,
+          {
+            headers: {
+              Authorization: relevanceAPI.extractDataFromPDF.apiKey
+            }
+          }
+        );
+
+        if (!res.ok) throw new Error(`Polling failed: ${res.status}`);
+
+        const status = await res.json();
+        console.log(`PDF Polling attempt ${attempts + 1}:`, status);
+
+        for (const update of status.updates || []) {
+          if (update.type === "chain-success" && update.output) {
+            let content = "";
+            if (update.output.output && update.output.output.answer)
+              content = update.output.output.answer;
+            else if (typeof update.output === "string")
+              content = update.output;
+            else if (update.output.answer && typeof update.output.answer === "string")
+              content = update.output.answer;
+            else
+              content = JSON.stringify(update.output, null, 2);
+
+            return content;
+          }
+          if (update.type === "chain-error")
+            throw new Error(update.error || "PDF extraction failed");
+        }
+
+        attempts++;
+        await new Promise((res) => setTimeout(res, 3000));
+
+      } catch (error) {
+        console.error(`PDF polling attempt ${attempts + 1} failed:`, error);
+        attempts++;
+        if (attempts >= maxAttempts) throw error;
+        await new Promise((res) => setTimeout(res, 3000));
       }
+    }
 
-      const response = await fetch(relevanceAPI.generateScriptAnalysis.endpoint, {
+    throw new Error("PDF extraction timed out");
+  };
+
+  // Trigger Agent Analysis with polling
+  const triggerScriptAnalysis = async (scriptTitle: string, scriptUrl: string) => {
+    try {
+      if (!scriptUrl) throw new Error('No script file URL provided to agent.');
+      const message = `Script Title: ${scriptTitle}\nScript File URL: ${scriptUrl}\nPlease analyze this script and provide a detailed report in JSON.`;
+      const payload = {
+        message: { role: 'user', content: message },
+        agent_id: relevanceAPI.triggerAgent.agentId,
+      };
+      const response = await fetch(relevanceAPI.triggerAgent.endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': relevanceAPI.generateScriptAnalysis.apiKey,
+          Authorization: relevanceAPI.triggerAgent.apiKey,
         },
         body: JSON.stringify(payload),
       });
-
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Generate Script Analysis failed (${response.status}): ${errorText}`);
+        throw new Error(`Agent trigger failed (${response.status}): ${errorText}`);
       }
-
       const result = await response.json();
-      console.log('Generate Script Analysis Response:', result);
-      return result;
-      
+      if (result?.job_info?.studio_id && result?.job_info?.job_id) {
+        return await pollAgentResponse(
+          result.job_info.studio_id,
+          result.job_info.job_id
+        );
+      }
+      throw new Error('AI Agent did not return job info');
     } catch (error) {
-      console.error('Generate Script Analysis Error:', error);
+      console.error('Agent Trigger Error:', error);
       throw error;
     }
+  };
+
+  // Poll for Agent response
+  const pollAgentResponse = async (
+    studioId: string,
+    jobId: string
+  ): Promise<any> => {
+    const maxAttempts = 20;
+    let attempts = 0;
+
+    while (attempts < maxAttempts) {
+      try {
+        const res = await fetch(
+          `https://api-${relevanceAPI.triggerAgent.region}.stack.tryrelevance.com/latest/studios/${studioId}/async_poll/${jobId}`,
+          {
+            headers: {
+              Authorization: relevanceAPI.triggerAgent.apiKey
+            }
+          }
+        );
+
+        if (!res.ok) throw new Error(`Polling failed: ${res.status}`);
+
+        const status = await res.json();
+        console.log(`Agent polling attempt ${attempts + 1}:`, status);
+
+        for (const update of status.updates || []) {
+          if (update.type === "chain-success" && update.output) {
+            let content = "";
+            if (update.output.output && update.output.output.answer)
+              content = update.output.output.answer;
+            else if (typeof update.output === "string")
+              content = update.output;
+            else if (update.output.answer && typeof update.output.answer === "string")
+              content = update.output.answer;
+            else
+              content = JSON.stringify(update.output, null, 2);
+
+            // Try to parse JSON in response
+            try {
+              return typeof content === "string" && content.startsWith("{")
+                ? JSON.parse(content)
+                : { raw: content };
+            } catch {
+              return { raw: content };
+            }
+          }
+          if (update.type === "chain-error")
+            throw new Error(update.error || "AI evaluation failed");
+        }
+
+        attempts++;
+        await new Promise((res) => setTimeout(res, 3000));
+
+      } catch (error) {
+        console.error(`Agent polling attempt ${attempts + 1} failed:`, error);
+        attempts++;
+        if (attempts >= maxAttempts) throw error;
+        await new Promise((res) => setTimeout(res, 3000));
+      }
+    }
+
+    throw new Error("AI evaluation timed out");
   };
 
   const uploadFileToSupabase = async (file: File): Promise<string> => {
@@ -146,7 +265,7 @@ export default function ScriptAnalyzer() {
       // Generate unique filename
       const fileExt = file.name.split('.').pop();
       const fileName = `${user?.id}/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-      
+
       // Upload to Supabase storage
       const { data, error } = await supabase.storage
         .from('scripts')
@@ -192,7 +311,6 @@ export default function ScriptAnalyzer() {
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'text/plain'
     ];
-    
     if (!allowedTypes.includes(file.type)) {
       toast({
         title: "Unsupported file type",
@@ -204,34 +322,19 @@ export default function ScriptAnalyzer() {
 
     setIsUploading(true);
     setUploadProgress(0);
-    
     try {
       setUploadProgress(20);
-      
       // Upload file to Supabase storage
       const uploadedUrl = await uploadFileToSupabase(file);
-      setUploadProgress(60);
-      
-      // For text files, also extract content for preview
-      let extractedText = '';
-      if (file.type === 'text/plain') {
-        extractedText = await file.text();
-        setScriptContent(extractedText);
-      }
-      
       setUploadProgress(80);
-      
-      // Update UI state
       setScriptTitle(file.name.replace(/\.[^/.]+$/, ''));
       setScriptUrl(uploadedUrl);
       setUploadProgress(100);
-
       toast({
         title: "File uploaded successfully",
         description: `File uploaded: ${file.name}`,
         variant: "default"
       });
-
     } catch (error) {
       console.error('Error uploading file:', error);
       toast({
@@ -242,8 +345,6 @@ export default function ScriptAnalyzer() {
     } finally {
       setIsUploading(false);
       setTimeout(() => setUploadProgress(0), 2000);
-      
-      // Clear file input
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -260,10 +361,10 @@ export default function ScriptAnalyzer() {
       return;
     }
 
-    if (!scriptContent.trim() && !scriptUrl) {
+    if (!scriptUrl) {
       toast({
-        title: "Missing Script",
-        description: "Please provide script content or upload a file",
+        title: "Missing Script File",
+        description: "Please upload a script file to analyze.",
         variant: "destructive"
       });
       return;
@@ -271,14 +372,14 @@ export default function ScriptAnalyzer() {
 
     setAnalyzing(true);
     setAnalysisProgress({ step: 'initializing', progress: 10, message: 'Preparing script analysis...' });
-    
+
     try {
       // Save the script analysis to database first
       const analysisData = {
         user_id: user?.id,
         title: scriptTitle,
-        script_content: scriptContent,
-        script_url: scriptUrl || null,
+        script_content: '', // No content, only file
+        script_url: scriptUrl,
         analysis_result: null
       };
 
@@ -290,82 +391,49 @@ export default function ScriptAnalyzer() {
 
       if (dbError) throw new Error(`Database error: ${dbError.message}`);
 
-      setAnalysisProgress({ step: 'analyzing', progress: 30, message: 'Analyzing script with AI...' });
+      setAnalysisProgress({ step: 'processing', progress: 40, message: 'Agent processing script file...' });
 
-      // Call only the generateScriptAnalysis tool
+      // Trigger the agent with only the script_url
       let analysisResult;
       try {
-        // Use script content or URL - the tool will handle extraction internally
-        const inputData = scriptContent.trim() || scriptUrl;
-        analysisResult = await generateScriptAnalysis(inputData, scriptUrl);
-        
-        setAnalysisProgress({ step: 'complete', progress: 100, message: 'Analysis complete!' });
-        
+        analysisResult = await triggerScriptAnalysis(scriptTitle, scriptUrl);
+        setAnalysisProgress({ step: 'completing', progress: 90, message: 'Finalizing analysis results...' });
       } catch (apiError) {
-        console.error('Studio API error:', apiError);
-        
-        // Create fallback analysis
-        analysisResult = {
-          summary: "Script analysis completed with basic assessment due to API limitations",
-          themes: ["Character development", "Plot structure", "Dialogue"],
-          suggestions: ["Consider strengthening the second act", "Develop supporting characters further"],
-          strengths: ["Strong character development", "Engaging dialogue", "Clear narrative structure"],
-          improvements: ["Pacing could be improved", "Some plot points need clarification"],
-          overall_score: Math.floor(Math.random() * 20) + 70,
-          genre_analysis: "Drama/Thriller",
-          target_audience: "General Audience",
-          technical_notes: ["Standard screenplay format", "Proper scene transitions"],
-          estimated_runtime: `${Math.floor(Math.random() * 30) + 90}-${Math.floor(Math.random() * 30) + 110} minutes`,
-          api_fallback: true,
-          error_details: apiError.message
-        };
-
+        console.error('Agent API error:', apiError);
         toast({
-          title: "Analysis Completed",
-          description: "Using fallback analysis due to API limitations",
-          variant: "default"
+          title: "Analysis Error",
+          description: apiError instanceof Error ? apiError.message : "Failed to analyze script",
+          variant: "destructive"
         });
+        setAnalyzing(false);
+        setTimeout(() => setAnalysisProgress(null), 2000);
+        return;
       }
 
-      // Format the analysis result
-      const formattedResult = {
-        summary: analysisResult.summary || "Script analysis completed successfully",
-        themes: Array.isArray(analysisResult.themes) ? analysisResult.themes : ["Character development", "Plot structure"],
-        suggestions: Array.isArray(analysisResult.suggestions) ? analysisResult.suggestions : ["Consider strengthening character arcs"],
-        strengths: Array.isArray(analysisResult.strengths) ? analysisResult.strengths : ["Strong narrative voice"],
-        improvements: Array.isArray(analysisResult.improvements) ? analysisResult.improvements : ["Pacing could be improved"],
-        overall_score: analysisResult.overall_score || Math.floor(Math.random() * 30) + 70,
-        genre_analysis: analysisResult.genre_analysis || "Drama",
-        target_audience: analysisResult.target_audience || "General Audience",
-        technical_notes: Array.isArray(analysisResult.technical_notes) ? analysisResult.technical_notes : ["Standard format"],
-        estimated_runtime: analysisResult.estimated_runtime || "90-120 minutes",
-        timestamp: new Date().toISOString(),
-        api_fallback: analysisResult.api_fallback || false,
-        tool_used: 'generateScriptAnalysis'
-      };
-
+      // Save the full agent result as-is
       setAnalysisProgress({ step: 'saving', progress: 95, message: 'Saving analysis results...' });
-
-      // Update with analysis result
       const { error: updateError } = await supabase
         .from('script_analyses')
-        .update({ 
-          analysis_result: formattedResult,
+        .update({
+          analysis_result: analysisResult,
+          script_content: '',
           updated_at: new Date().toISOString()
         })
         .eq('id', dbResult.id);
 
       if (updateError) throw new Error(`Update error: ${updateError.message}`);
 
+      setAnalysisProgress({ step: 'complete', progress: 100, message: 'Analysis complete!' });
+
       toast({
         title: "Analysis Complete",
-        description: "Your script has been analyzed successfully",
+        description: "Your script has been analyzed by the AI agent.",
         variant: "default"
       });
 
       // Refresh the analyses list and select new analysis
       await fetchAnalyses();
-      setSelectedAnalysis({ ...dbResult, analysis_result: formattedResult });
+      setSelectedAnalysis({ ...dbResult, analysis_result: analysisResult, script_content: '' });
 
       // Clear the input form
       setScriptContent('');
@@ -381,7 +449,7 @@ export default function ScriptAnalyzer() {
       });
     } finally {
       setAnalyzing(false);
-      setAnalysisProgress(null);
+      setTimeout(() => setAnalysisProgress(null), 2000);
     }
   }
 
@@ -389,14 +457,14 @@ export default function ScriptAnalyzer() {
     try {
       // Get the analysis to check for script_url
       const analysisToDelete = analyses.find(a => a.id === analysisId);
-      
+
       // Delete from storage if there's a script_url
       if (analysisToDelete?.script_url) {
         try {
           const urlParts = analysisToDelete.script_url.split('/');
           const fileName = urlParts[urlParts.length - 1];
           const filePath = `${user?.id}/${fileName}`;
-          
+
           await supabase.storage
             .from('scripts')
             .remove([filePath]);
@@ -418,7 +486,7 @@ export default function ScriptAnalyzer() {
       }
 
       await fetchAnalyses();
-      
+
       toast({
         title: "Analysis Deleted",
         description: "Script analysis and associated files have been removed",
@@ -446,6 +514,7 @@ export default function ScriptAnalyzer() {
     return <AlertCircle className="h-4 w-4 text-red-600" />
   }
 
+
   if (loading) {
     return (
       <AuthGuard allowedRoles={['student', 'teacher']}>
@@ -470,13 +539,14 @@ export default function ScriptAnalyzer() {
                 Script Analyzer
               </h1>
               <p className="mt-2 text-gray-600">
-                Upload and analyze your scripts with AI-powered analysis
+                Upload and analyze your scripts with AI-powered agent 
               </p>
             </div>
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="text-sm">
                 {analyses.length} Scripts Analyzed
               </Badge>
+              
             </div>
           </div>
 
@@ -528,7 +598,7 @@ export default function ScriptAnalyzer() {
                         {isUploading ? 'Uploading...' : 'Choose File'}
                       </Button>
                       <p className="text-xs text-gray-500 mt-1">
-                        Supports PDF, DOCX, and TXT files (Max 10MB)
+                        Supports PDF file (Max 10MB) 
                       </p>
                       {uploadProgress > 0 && (
                         <div className="mt-2">
@@ -561,7 +631,7 @@ export default function ScriptAnalyzer() {
                       id="content"
                       value={scriptContent}
                       onChange={(e) => setScriptContent(e.target.value)}
-                      placeholder="Paste your script content here..."
+                      placeholder="Paste your script content here... (or will be auto-filled from uploaded PDF)"
                       className="min-h-32 mt-1"
                       disabled={analyzing || isUploading}
                     />
@@ -573,14 +643,14 @@ export default function ScriptAnalyzer() {
                   </div>
 
                   {analysisProgress && (
-                    <Alert>
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                    <Alert className="bg-blue-50 border-blue-200">
+                      <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
                       <AlertDescription>
                         <div className="space-y-2">
-                          <p>{analysisProgress.message}</p>
+                          <p className="text-blue-800">{analysisProgress.message}</p>
                           <Progress value={analysisProgress.progress} className="h-2" />
-                          <div className="text-xs text-gray-600">
-                            Step: {analysisProgress.step} ({analysisProgress.progress}%)
+                          <div className="text-xs text-blue-600">
+                            Progress: {analysisProgress.progress}%
                           </div>
                         </div>
                       </AlertDescription>
@@ -597,12 +667,12 @@ export default function ScriptAnalyzer() {
                     ) : (
                       <Sparkles className="h-4 w-4 mr-2" />
                     )}
-                    {analyzing ? 'Analyzing...' : 'Analyze Script'}
+                    {analyzing ? 'Processing...' : 'Analyze Script'}
                   </Button>
-                  
+
                   {analyzing && (
-                    <div className="text-xs text-gray-600 text-center">
-                      Using AI-powered script analysis tool
+                    <div className="text-xs text-blue-600 text-center bg-blue-50 p-2 rounded">
+                      AI Agent pipeline: {scriptUrl ? 'PDF Extract → ' : ''}Agent Analysis → Generate Report
                     </div>
                   )}
                 </CardContent>
@@ -623,12 +693,12 @@ export default function ScriptAnalyzer() {
                         <div
                           key={analysis.id}
                           className={`p-3 rounded-lg border cursor-pointer transition-all hover:shadow-md ${selectedAnalysis?.id === analysis.id
-                              ? 'bg-blue-50 border-blue-200 shadow-sm'
-                              : 'hover:bg-gray-50'
+                            ? 'bg-blue-50 border-blue-200 shadow-sm'
+                            : 'hover:bg-gray-50'
                             }`}
                         >
                           <div className="flex items-start justify-between">
-                            <div 
+                            <div
                               className="flex-1"
                               onClick={() => setSelectedAnalysis(analysis)}
                             >
@@ -649,9 +719,19 @@ export default function ScriptAnalyzer() {
                                     File
                                   </Badge>
                                 )}
-                                {analysis.analysis_result?.tool_used && (
-                                  <Badge variant="outline" className="text-xs bg-blue-50">
-                                    AI Analysis
+                                {analysis.analysis_result?.agent_processed && (
+                                  <Badge variant="outline" className="text-xs bg-green-50">
+                                    AI Agent
+                                  </Badge>
+                                )}
+                                {analysis.analysis_result?.api_fallback && (
+                                  <Badge variant="outline" className="text-xs bg-yellow-50">
+                                    Fallback
+                                  </Badge>
+                                )}
+                                {analysis.analysis_result?.extracted_content && (
+                                  <Badge variant="outline" className="text-xs bg-purple-50">
+                                    PDF Extracted
                                   </Badge>
                                 )}
                               </div>
@@ -705,111 +785,11 @@ export default function ScriptAnalyzer() {
                                 <Link className="h-4 w-4" />
                               </Button>
                             )}
-                            {selectedAnalysis.analysis_result.tool_used && (
-                              <Badge variant="outline" className="bg-blue-50 text-blue-700">
-                                AI Powered
-                              </Badge>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {getScoreIcon(selectedAnalysis.analysis_result.overall_score)}
-                            <span className={`font-bold ${getScoreColor(selectedAnalysis.analysis_result.overall_score)}`}>
-                              {selectedAnalysis.analysis_result.overall_score}/100
-                            </span>
                           </div>
                         </CardTitle>
                       </CardHeader>
-                      <CardContent className="space-y-4">
-                        {selectedAnalysis.analysis_result.api_fallback && (
-                          <Alert>
-                            <AlertCircle className="h-4 w-4" />
-                            <AlertDescription>
-                              This analysis was generated using fallback methods due to API limitations. 
-                              Results may be less detailed than usual.
-                              {selectedAnalysis.analysis_result.error_details && (
-                                <div className="mt-1 text-xs text-gray-600">
-                                  Error: {selectedAnalysis.analysis_result.error_details}
-                                </div>
-                              )}
-                            </AlertDescription>
-                          </Alert>
-                        )}
-
-                        <div>
-                          <h4 className="font-medium mb-2">Summary</h4>
-                          <p className="text-gray-700">
-                            {selectedAnalysis.analysis_result.summary}
-                          </p>
-                        </div>
-
-                        <Separator />
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <h4 className="font-medium mb-2 text-green-700">Strengths</h4>
-                            <ul className="list-disc list-inside space-y-1 text-sm text-gray-700">
-                              {selectedAnalysis.analysis_result.strengths?.map((strength: string, index: number) => (
-                                <li key={index}>{strength}</li>
-                              ))}
-                            </ul>
-                          </div>
-
-                          <div>
-                            <h4 className="font-medium mb-2 text-orange-700">Areas for Improvement</h4>
-                            <ul className="list-disc list-inside space-y-1 text-sm text-gray-700">
-                              {selectedAnalysis.analysis_result.improvements?.map((improvement: string, index: number) => (
-                                <li key={index}>{improvement}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        </div>
-
-                        <Separator />
-
-                        <div>
-                          <h4 className="font-medium mb-2">Key Themes</h4>
-                          <div className="flex flex-wrap gap-2">
-                            {selectedAnalysis.analysis_result.themes?.map((theme: string, index: number) => (
-                              <Badge key={index} variant="secondary">{theme}</Badge>
-                            ))}
-                          </div>
-                        </div>
-
-                        <Separator />
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <h4 className="font-medium mb-2">Genre</h4>
-                            <Badge variant="outline">
-                              {new Date(selectedAnalysis.analysis_result.timestamp || selectedAnalysis.updated_at).toLocaleDateString()}
-                            </Badge>
-                          </div>
-                        </div>
-
-                        <Separator />
-
-                        <div>
-                          <h4 className="font-medium mb-2">Suggestions</h4>
-                          <ul className="list-disc list-inside space-y-1 text-gray-700">
-                            {selectedAnalysis.analysis_result.suggestions?.map((suggestion: string, index: number) => (
-                              <li key={index}>{suggestion}</li>
-                            ))}
-                          </ul>
-                        </div>
-
-                        {selectedAnalysis.analysis_result.technical_notes && selectedAnalysis.analysis_result.technical_notes.length > 0 && (
-                          <>
-                            <Separator />
-                            <div>
-                              <h4 className="font-medium mb-2">Technical Notes</h4>
-                              <ul className="list-disc list-inside space-y-1 text-gray-700">
-                                {selectedAnalysis.analysis_result.technical_notes.map((note: string, index: number) => (
-                                  <li key={index}>{note}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          </>
-                        )}
+                      <CardContent>
+                        <ScriptAnalysisDisplay analysisResult={selectedAnalysis.analysis_result} />
                       </CardContent>
                     </Card>
                   )}
@@ -825,11 +805,11 @@ export default function ScriptAnalyzer() {
                       Upload a new script or select a previous analysis to get started.
                     </p>
                     <div className="space-y-2 text-sm text-gray-500">
-                      <p>• Upload PDF, DOCX, or TXT files</p>
-                      <p>• Get AI-powered script analysis</p>
-                      <p>• Comprehensive feedback and suggestions</p>
-                      <p>• Track your writing progress over time</p>
-                      <p>• Files are securely stored in cloud storage</p>
+                      <p>• Upload PDF file</p>
+                      
+                      <p>• Get AI-powered agent analysis</p>
+                      
+                      
                     </div>
                   </div>
                 </Card>
@@ -837,44 +817,12 @@ export default function ScriptAnalyzer() {
             </div>
           </div>
 
-          {/* Bottom Stats */}
-          {analyses.length > 0 && (
-            <Card className="bg-gradient-to-r from-blue-50 to-indigo-50">
-              <CardContent className="pt-6">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-center">
-                  <div>
-                    <div className="text-2xl font-bold text-blue-600">{analyses.length}</div>
-                    <div className="text-sm text-gray-600">Scripts Analyzed</div>
-                  </div>
-                  <div>
-                    <div className="text-2xl font-bold text-purple-600">
-                      {analyses.filter(a => a.analysis_result?.overall_score).length > 0 ? Math.round(
-                        analyses
-                          .filter(a => a.analysis_result?.overall_score)
-                          .reduce((acc, a) => acc + a.analysis_result.overall_score, 0) /
-                        analyses.filter(a => a.analysis_result?.overall_score).length
-                      ) : 0}
-                    </div>
-                    <div className="text-sm text-gray-600">Avg. Score</div>
-                  </div>
-                  <div>
-                    <div className="text-2xl font-bold text-orange-600">
-                      {analyses.filter(a => a.script_url).length}
-                    </div>
-                    <div className="text-sm text-gray-600">Files Uploaded</div>
-                  </div>
-                  <div>
-                    <div className="text-2xl font-bold text-green-600">
-                      {analyses.filter(a => a.analysis_result?.tool_used === 'generateScriptAnalysis').length}
-                    </div>
-                    <div className="text-sm text-gray-600">AI Analyses</div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+
         </div>
       </ModernDashboardLayout>
     </AuthGuard>
   )
 }
+
+export default ScriptAnalyzer
+

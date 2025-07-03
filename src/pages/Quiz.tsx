@@ -1551,6 +1551,12 @@ export default function AIMentorAgent(): JSX.Element {
     // Remove "Would you like help" section and everything after it
     formattedText = formattedText.replace(/Would you like help.*$/s, '');
     
+    // Remove "You can learn more using this knowledge source" section and everything after it
+    formattedText = formattedText.replace(/You can learn more using this knowledge source.*$/s, '');
+    
+    // Remove "Help Prompt:" section and everything after it
+    formattedText = formattedText.replace(/Help Prompt:.*$/s, '');
+    
     // Clean up extra whitespace and normalize line breaks
     formattedText = formattedText.replace(/\r\n/g, '\n');
     formattedText = formattedText.replace(/\r/g, '\n');

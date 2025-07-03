@@ -125,11 +125,11 @@ const AI_MENTOR_AGENT_CONFIG = {
   quiz: {
     "Semester 1": {
       endpoint:
-        "https://vijiteshnaik.app.n8n.cloud/webhook/f9303923-e4c7-4790-b667-b765b823eccb/chat",
+        "https://vijiteshnaik.app.n8n.cloud/webhook/97354b0e-7edd-46f3-b80f-49fbd3e0150c/chat",
     },
     "Semester 2": {
       endpoint:
-        "https://vijiteshnaik.app.n8n.cloud/webhook/f9303923-e4c7-4790-b667-b765b823eccb/chat",
+        "https://vijiteshnaik.app.n8n.cloud/webhook/97354b0e-7edd-46f3-b80f-49fbd3e0150c/chat",
     },
   },
 };
@@ -1382,15 +1382,87 @@ export default function AIMentorAgent(): JSX.Element {
 
       console.log("Quiz generation response:", result);
 
+      // Check if result.output is already a parsed array of questions
+      if (Array.isArray(result.output)) {
+        console.log("📋 Output is already an array:", result.output);
+        return {
+          success: true,
+          questions: result.output,
+        };
+      }
+
       // Handle n8n response - check for output content
       if (result.output) {
-        // Parse the text content to extract quiz questions
-        const questions = parseQuizFromText(result.output);
-        if (questions && questions.length > 0) {
-          return {
-            success: true,
-            questions: questions,
-          };
+        console.log("🎯 Raw quiz output:", result.output);
+        console.log("🔍 Output type:", typeof result.output);
+        
+        // Check if output is already an object (not string)
+        if (typeof result.output === 'object' && result.output.all_questions) {
+          console.log("📋 Output is already parsed object:", result.output);
+          const parsedOutput = result.output;
+          
+          if (parsedOutput.all_questions && Array.isArray(parsedOutput.all_questions)) {
+            const questions = parsedOutput.all_questions.map((q: any, index: number) => ({
+              id: index + 1,
+              question: q.question,
+              options: q.options || [],
+              correctAnswer: q.options && q.correct_option_id !== undefined 
+                ? q.options[q.correct_option_id] 
+                : undefined
+            }));
+            
+            console.log("✅ Converted questions from object:", questions);
+            
+            return {
+              success: true,
+              questions: questions,
+            };
+          }
+        }
+        
+        // If it's a string, try to parse as JSON
+        if (typeof result.output === 'string') {
+          try {
+            // Clean up the string - remove markdown code blocks
+            let cleanOutput = result.output.trim();
+            
+            // Remove ```json and ``` wrappers
+            cleanOutput = cleanOutput.replace(/^```json\s*/, '');
+            cleanOutput = cleanOutput.replace(/\s*```$/, '');
+            cleanOutput = cleanOutput.trim();
+            
+            console.log("🧹 Cleaned output:", cleanOutput);
+            
+            const parsedOutput = JSON.parse(cleanOutput);
+            console.log("📋 Parsed JSON output:", parsedOutput);
+            
+            // Check if it has all_questions array
+            if (parsedOutput.all_questions && Array.isArray(parsedOutput.all_questions)) {
+              const questions = parsedOutput.all_questions.map((q: any, index: number) => ({
+                id: index + 1,
+                question: q.question,
+                options: q.options || [],
+                correctAnswer: q.options && q.correct_option_id !== undefined 
+                  ? q.options[q.correct_option_id] 
+                  : undefined
+              }));
+              
+              console.log("✅ Converted questions from JSON:", questions);
+              
+              return {
+                success: true,
+                questions: questions,
+              };
+            }
+          } catch (e) {
+            console.log("❌ JSON parse failed:", e);
+            console.log("❌ Raw output that failed:", result.output);
+            
+            return {
+              success: false,
+              error: "Quiz response format is invalid - not proper JSON",
+            };
+          }
         }
       }
 

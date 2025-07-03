@@ -1538,6 +1538,8 @@ export default function AIMentorAgent(): JSX.Element {
     let formattedText = text;
     
     // Remove code language indicators and artifacts
+    formattedText = formattedText.replace(/```vbnet\s*/g, '');
+    formattedText = formattedText.replace(/```\s*/g, '');
     formattedText = formattedText.replace(/^vbnet\s*$/gm, '');
     formattedText = formattedText.replace(/^Copy\s*$/gm, '');
     formattedText = formattedText.replace(/^Edit\s*$/gm, '');
@@ -1554,80 +1556,43 @@ export default function AIMentorAgent(): JSX.Element {
     formattedText = formattedText.replace(/\r/g, '\n');
     formattedText = formattedText.replace(/^\s+|\s+$/g, '');
     
-    // Remove any existing markdown formatting
-    formattedText = formattedText.replace(/^#{1,6}\s*/gm, '');  // Remove # headers
-    formattedText = formattedText.replace(/\*\*([^*]+)\*\*/g, '$1');  // Remove ** bold **
-    formattedText = formattedText.replace(/\*([^*]+)\*/g, '$1');     // Remove * italic *
-    formattedText = formattedText.replace(/^[-*+]\s+/gm, '- ');      // Normalize bullets to -
-    formattedText = formattedText.replace(/^---+$/gm, '');          // Remove horizontal rules
+    console.log("🧹 After basic cleanup:", formattedText);
     
-    console.log("🧹 After cleanup:", formattedText);
+    // Just return the cleaned text with proper line breaks, preserving emojis and structure
+    const lines = formattedText.split('\n');
+    const cleanedLines: string[] = [];
     
-    // Split into sections and clean them up
-    const sections = formattedText.split(/(?=^(?:Subtopic|What is it about|Study Guide|Key Concepts|Pro Tips|Reference Materials))/gm);
-    
-    const formattedSections: string[] = [];
-    
-    for (const section of sections) {
-      if (!section.trim()) continue;
+    for (const line of lines) {
+      const trimmedLine = line.trim();
+      if (!trimmedLine) {
+        cleanedLines.push('');
+        continue;
+      }
       
-      const lines = section.split('\n').filter(line => line.trim());
-      if (lines.length === 0) continue;
+      // Keep emojis and format properly
+      if (trimmedLine.includes('📖') || trimmedLine.includes('📚') || trimmedLine.includes('💡') || trimmedLine.includes('⭐')) {
+        cleanedLines.push(trimmedLine);
+        continue;
+      }
       
-      const firstLine = lines[0].trim();
+      // Handle bullet points starting with - 
+      if (trimmedLine.startsWith('-')) {
+        cleanedLines.push(trimmedLine);
+        continue;
+      }
       
-      // Handle different section types - NO MARKDOWN
-      if (firstLine.startsWith('Subtopic:')) {
-        formattedSections.push(firstLine);
-        formattedSections.push('');
+      // Handle numbered items like "1.", "2.", etc.
+      if (trimmedLine.match(/^\d+\./)) {
+        cleanedLines.push(`- ${trimmedLine}`);
+        continue;
       }
-      else if (firstLine.includes('What is it about')) {
-        formattedSections.push(firstLine);
-        formattedSections.push('');
-        // Add the content paragraphs
-        const content = lines.slice(1).join(' ').trim();
-        if (content) {
-          formattedSections.push(content);
-          formattedSections.push('');
-        }
-      }
-      else if (firstLine.includes('Study Guide') || firstLine.includes('Key Concepts') || firstLine.includes('Pro Tips') || firstLine.includes('Reference Materials')) {
-        formattedSections.push(firstLine);
-        formattedSections.push('');
-        
-        // Process content for these sections
-        for (let i = 1; i < lines.length; i++) {
-          const line = lines[i].trim();
-          if (!line) continue;
-          
-          // Clean up any remaining formatting and add as simple bullet
-          let cleanLine = line.replace(/^-\s*/, '').trim();
-          
-          // Make text between first : and second : bold (like "Focus on:")
-          cleanLine = cleanLine.replace(/^([^:]+:)\s*(.*)/, '**$1** $2');
-          
-          // Add bullet on new line
-          formattedSections.push('-');
-          formattedSections.push(cleanLine);
-        }
-        formattedSections.push('');
-      }
-      else {
-        // Regular content - just clean it
-        const cleanSection = section.trim().replace(/\*\*([^*]+)\*\*/g, '$1');
-        formattedSections.push(cleanSection);
-        formattedSections.push('');
-      }
+      
+      // Regular lines
+      cleanedLines.push(trimmedLine);
     }
     
-    // Join and clean up final formatting
-    let finalText = formattedSections.join('\n');
-    
-    // Final cleanup - remove any remaining markdown EXCEPT bold for keys
-    finalText = finalText.replace(/\*([^*]+)\*/g, '$1');     // Remove any remaining italic
-    finalText = finalText.replace(/^#{1,6}\s*/gm, '');       // Remove any remaining headers
-    finalText = finalText.replace(/^---+$/gm, '');           // Remove any remaining rules
-    // Keep **text** bold for the key labels like "Focus on:", "Study with:", etc.
+    // Join everything back together
+    let finalText = cleanedLines.join('\n');
     
     // Clean up excessive blank lines
     finalText = finalText.replace(/\n{3,}/g, '\n\n');

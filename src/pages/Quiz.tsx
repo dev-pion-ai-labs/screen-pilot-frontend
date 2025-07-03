@@ -2089,16 +2089,9 @@ export default function AIMentorAgent(): JSX.Element {
       `handleQuizAnswer called with questionId: ${questionId}, selectedAnswer: "${selectedAnswer}"`
     );
 
-    // Updated correct answers based on the film analysis quiz
-    const correctAnswers: { [key: number]: string } = {
-      1: "C", // Film analysis interpretation of visual and narrative elements
-      2: "C", // Mise-en-scène establishes setting and mood
-      3: "C", // Climax is NOT in Act I (it's in Act III)
-      4: "B", // Plot point changes direction of story
-      5: "B", // Central moral problem is main obstacle
-    };
-
-    const isCorrect = correctAnswers[questionId] === selectedAnswer;
+    // Find the current question to get the correct answer
+    const currentQuestion = quizData?.questions.find(q => q.id === questionId);
+    const isCorrect = currentQuestion?.correctAnswer === selectedAnswer;
 
     const newAnswer: QuizAnswer = {
       questionId,
@@ -2107,6 +2100,9 @@ export default function AIMentorAgent(): JSX.Element {
     };
 
     console.log("Storing answer:", newAnswer);
+    console.log("Question correct answer:", currentQuestion?.correctAnswer);
+    console.log("User selected:", selectedAnswer);
+    console.log("Is correct:", isCorrect);
 
     setQuizAnswers((prev) => {
       const filtered = prev.filter((a) => a.questionId !== questionId);
@@ -2245,12 +2241,12 @@ export default function AIMentorAgent(): JSX.Element {
               <Button
                 key={idx}
                 variant={
-                  userAnswer?.selectedAnswer === option.charAt(0)
+                  userAnswer?.selectedAnswer === option
                     ? "default"
                     : "outline"
                 }
                 className="w-full text-left justify-start h-auto py-3 px-4"
-                onClick={() => handleQuizAnswer(question.id, option.charAt(0))}
+                onClick={() => handleQuizAnswer(question.id, option)}
               >
                 {option}
               </Button>

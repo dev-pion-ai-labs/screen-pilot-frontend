@@ -1541,7 +1541,7 @@ export default function AIMentorAgent(): JSX.Element {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ subtopic: topicSelection.subTopic || "" }),
+      body: JSON.stringify({ chatInput: topicSelection.subTopic || "" }),
     });
 
     if (!response.ok) {
@@ -1589,7 +1589,7 @@ export default function AIMentorAgent(): JSX.Element {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ subtopic: topicSelection.subTopic || "" }),
+      body: JSON.stringify({ chatInput: topicSelection.subTopic || "" }),
     });
 
     if (!response.ok) {

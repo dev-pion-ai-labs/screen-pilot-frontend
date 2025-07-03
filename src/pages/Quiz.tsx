@@ -1332,11 +1332,17 @@ export default function AIMentorAgent(): JSX.Element {
         // Find the corresponding question in allQuestions
         const matchingQuestion = allQuestions[index];
         if (matchingQuestion && matchingQuestion.Correct_answer_explanation) {
+          // Clean the explanation text
+          const cleanExplanation = matchingQuestion.Correct_answer_explanation
+            .replace(/【.*?】/g, '') // Remove citation markers
+            .replace(/\s+/g, ' ') // Clean multiple spaces
+            .trim();
+          
           wrongAnswers.push(
-            `**${question.question}**\n` +
-            `Your answer: ${userAnswer.selectedAnswer}\n` +
-            `Correct answer: ${question.correctAnswer}\n` +
-            `Explanation: ${matchingQuestion.Correct_answer_explanation}\n`
+            `**🤔 ${question.question}**\n\n` +
+            `❌ **Your answer:** ${userAnswer.selectedAnswer}\n` +
+            `✅ **Correct answer:** ${question.correctAnswer}\n` +
+            `💡 **Explanation:** ${cleanExplanation}\n`
           );
         }
       }
@@ -1346,46 +1352,33 @@ export default function AIMentorAgent(): JSX.Element {
     const totalQuestions = quizData?.questions.length || 0;
     const score = Math.round((correctCount / totalQuestions) * 100);
     
-    let feedback = `# Quiz Feedback for ${topicSelection.subTopic}\n\n`;
-    feedback += `**Your Score: ${correctCount}/${totalQuestions} (${score}%)**\n\n`;
+    // Create beautiful header with emojis
+    let feedback = `🎓 **Quiz Results: ${topicSelection.subTopic}**\n\n`;
     
-    if (wrongAnswers.length > 0) {
-      feedback += `## Areas for Improvement\n\n`;
-      feedback += wrongAnswers.join('\n---\n\n');
+    // Score section with visual indicators
+    if (score >= 80) {
+      feedback += `🎉 **Excellent! Your Score: ${correctCount}/${totalQuestions} (${score}%)**\n\n`;
+    } else if (score >= 60) {
+      feedback += `👍 **Good Job! Your Score: ${correctCount}/${totalQuestions} (${score}%)**\n\n`;
+    } else if (score >= 40) {
+      feedback += `💪 **Keep Going! Your Score: ${correctCount}/${totalQuestions} (${score}%)**\n\n`;
     } else {
-      feedback += `🎉 **Perfect Score!** You answered all questions correctly.\n\n`;
+      feedback += `📚 **Learning Opportunity! Your Score: ${correctCount}/${totalQuestions} (${score}%)**\n\n`;
     }
     
-    feedback += `\n**Keep up the great work!** Continue practicing to master ${topicSelection.subTopic}.`;
+    if (wrongAnswers.length > 0) {
+      feedback += `🔍 **Areas for Improvement:**\n\n`;
+      feedback += wrongAnswers.join('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n');
+    } else {
+      feedback += `🎆 **Perfect Score!** You answered all questions correctly! Amazing work!\n\n`;
+    }
+    
+    feedback += `\n🎯 **Keep up the fantastic work!** Continue practicing to master **${topicSelection.subTopic}**.\n\n`;
+    feedback += `💡 **Tip:** Review the explanations above and practice similar questions to improve your understanding.`;
     
     return feedback;
   };
 
-  // Generate summary from quiz questions when n8n returns questions instead of summary
-  const generateSummaryFromQuestions = (allQuestions: any[]): string => {
-    const correctCount = quizAnswers.filter((a) => a.isCorrect).length;
-    const totalQuestions = quizData?.questions.length || 0;
-    const score = Math.round((correctCount / totalQuestions) * 100);
-    
-    let summary = `# Quiz Summary\n\n`;
-    summary += `**Final Score: ${correctCount}/${totalQuestions} (${score}%)**\n\n`;
-    
-    if (score >= 80) {
-      summary += `🎉 **Excellent work!** You have a strong understanding of ${topicSelection.subTopic}.\n\n`;
-    } else if (score >= 60) {
-      summary += `👍 **Good effort!** You have a solid foundation in ${topicSelection.subTopic}.\n\n`;
-    } else {
-      summary += `📚 **Keep studying!** There's room for improvement in ${topicSelection.subTopic}.\n\n`;
-    }
-    
-    summary += `**Next Steps:**\n`;
-    summary += `• Review the explanations provided in the feedback\n`;
-    summary += `• Practice more questions on ${topicSelection.subTopic}\n`;
-    summary += `• Focus on the concepts you found challenging\n\n`;
-    summary += `**Great job completing this quiz!** 🎯`;
-    
-    return summary;
-  };
 
   // API Functions
   const callMentorAgent = async (message: string): Promise<unknown> => {

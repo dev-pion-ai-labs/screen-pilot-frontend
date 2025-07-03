@@ -1321,6 +1321,72 @@ export default function AIMentorAgent(): JSX.Element {
     setSessionProgress(progressMap[currentStage]);
   }, [currentStage]);
 
+  // Generate feedback from quiz questions when n8n returns questions instead of feedback
+  const generateFeedbackFromQuestions = (allQuestions: any[]): string => {
+    const wrongAnswers: string[] = [];
+    
+    // Find questions where user answered incorrectly
+    quizData?.questions.forEach((question, index) => {
+      const userAnswer = quizAnswers.find((a) => a.questionId === question.id);
+      if (userAnswer && !userAnswer.isCorrect) {
+        // Find the corresponding question in allQuestions
+        const matchingQuestion = allQuestions[index];
+        if (matchingQuestion && matchingQuestion.Correct_answer_explanation) {
+          wrongAnswers.push(
+            `**${question.question}**\n` +
+            `Your answer: ${userAnswer.selectedAnswer}\n` +
+            `Correct answer: ${question.correctAnswer}\n` +
+            `Explanation: ${matchingQuestion.Correct_answer_explanation}\n`
+          );
+        }
+      }
+    });
+    
+    const correctCount = quizAnswers.filter((a) => a.isCorrect).length;
+    const totalQuestions = quizData?.questions.length || 0;
+    const score = Math.round((correctCount / totalQuestions) * 100);
+    
+    let feedback = `# Quiz Feedback for ${topicSelection.subTopic}\n\n`;
+    feedback += `**Your Score: ${correctCount}/${totalQuestions} (${score}%)**\n\n`;
+    
+    if (wrongAnswers.length > 0) {
+      feedback += `## Areas for Improvement\n\n`;
+      feedback += wrongAnswers.join('\n---\n\n');
+    } else {
+      feedback += `🎉 **Perfect Score!** You answered all questions correctly.\n\n`;
+    }
+    
+    feedback += `\n**Keep up the great work!** Continue practicing to master ${topicSelection.subTopic}.`;
+    
+    return feedback;
+  };
+
+  // Generate summary from quiz questions when n8n returns questions instead of summary
+  const generateSummaryFromQuestions = (allQuestions: any[]): string => {
+    const correctCount = quizAnswers.filter((a) => a.isCorrect).length;
+    const totalQuestions = quizData?.questions.length || 0;
+    const score = Math.round((correctCount / totalQuestions) * 100);
+    
+    let summary = `# Quiz Summary\n\n`;
+    summary += `**Final Score: ${correctCount}/${totalQuestions} (${score}%)**\n\n`;
+    
+    if (score >= 80) {
+      summary += `🎉 **Excellent work!** You have a strong understanding of ${topicSelection.subTopic}.\n\n`;
+    } else if (score >= 60) {
+      summary += `👍 **Good effort!** You have a solid foundation in ${topicSelection.subTopic}.\n\n`;
+    } else {
+      summary += `📚 **Keep studying!** There's room for improvement in ${topicSelection.subTopic}.\n\n`;
+    }
+    
+    summary += `**Next Steps:**\n`;
+    summary += `• Review the explanations provided in the feedback\n`;
+    summary += `• Practice more questions on ${topicSelection.subTopic}\n`;
+    summary += `• Focus on the concepts you found challenging\n\n`;
+    summary += `**Great job completing this quiz!** 🎯`;
+    
+    return summary;
+  };
+
   // API Functions
   const callMentorAgent = async (message: string): Promise<unknown> => {
     // Get the appropriate mentor config based on selected semester
@@ -1492,56 +1558,19 @@ export default function AIMentorAgent(): JSX.Element {
       throw new Error(`No configuration found for ${topicSelection.semester}`);
     }
 
-    // Create a proper mapping of questions to answers
-    const questionAnswerPairs =
-      quizData?.questions.map((question) => {
-        const userAnswer = quizAnswers.find(
-          (answer) => answer.questionId === question.id
-        );
+    // Send subtopic as requested
+    const payload = {
+      chatInput: topicSelection.subTopic || ""
+    };
 
-        // Get correct answer for this question
-        const correctAnswers: { [key: number]: string } = {
-          1: "C", // Film analysis interpretation of visual and narrative elements
-          2: "C", // Mise-en-scène establishes setting and mood
-          3: "C", // Climax is NOT in Act I (it's in Act III)
-          4: "B", // Plot point changes direction of story
-          5: "B", // Central moral problem is main obstacle
-        };
+    console.log("📤 Sending quiz feedback payload:", payload);
 
-        const correctAnswer = correctAnswers[question.id] || "A";
-
-        // Ensure we have a valid user answer
-        const selectedAnswer = userAnswer?.selectedAnswer || "A";
-
-        return {
-          question: question.question || `Question ${question.id}`,
-          user_answer: selectedAnswer,
-          correct_answer: correctAnswer,
-          is_correct: userAnswer?.isCorrect || false,
-        };
-      }) || [];
-
-    if (questionAnswerPairs.length === 0) {
-      throw new Error("No questions found to generate feedback for");
-    }
-
-    // Format question_and_answer as a string as the API expects
-    const questionAndAnswerString = questionAnswerPairs
-      .map(
-        (qa, index) =>
-          `Question ${index + 1}: ${qa.question}\nUser Answer: ${
-            qa.user_answer
-          }\nCorrect Answer: ${qa.correct_answer}\nIs Correct: ${qa.is_correct}`
-      )
-      .join("\n\n");
-
-    // Send subtopic as simple JSON object
     const response = await fetch(semesterConfig.endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ chatInput: topicSelection.subTopic || "" }),
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
@@ -1557,39 +1586,19 @@ export default function AIMentorAgent(): JSX.Element {
       throw new Error(`No configuration found for ${topicSelection.semester}`);
     }
 
-    // Create a proper mapping of questions to answers
-    const questionAnswerPairs =
-      quizData?.questions.map((question) => {
-        const userAnswer = quizAnswers.find(
-          (answer) => answer.questionId === question.id
-        );
+    // Only send subtopic as requested
+    const payload = {
+      chatInput: topicSelection.subTopic || ""
+    };
 
-        // Get correct answer for this question
-        const correctAnswers: { [key: number]: string } = {
-          1: "C", // Film analysis interpretation of visual and narrative elements
-          2: "C", // Mise-en-scène establishes setting and mood
-          3: "C", // Climax is NOT in Act I (it's in Act III)
-          4: "B", // Plot point changes direction of story
-          5: "B", // Central moral problem is main obstacle
-        };
+    console.log("📤 Sending quiz summary payload:", payload);
 
-        const correctAnswer = correctAnswers[question.id] || "A";
-
-        return {
-          question: question.question || "",
-          user_answer: userAnswer?.selectedAnswer || "",
-          correct_answer: correctAnswer,
-          is_correct: userAnswer?.isCorrect || false,
-        };
-      }) || [];
-
-    // Send subtopic as simple JSON object
     const response = await fetch(semesterConfig.endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ chatInput: topicSelection.subTopic || "" }),
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
@@ -2141,35 +2150,38 @@ export default function AIMentorAgent(): JSX.Element {
     setCurrentStage("quiz_feedback");
 
     try {
-      // Generate feedback - handle direct webhook response
-      const feedbackResponse = await callAnswerFeedbackTool();
+      // Generate quiz result - single API call
+      const quizResponse = await callAnswerFeedbackTool();
 
-      let feedbackContent = "Here's your quiz feedback:";
-      const feedbackResp = feedbackResponse as QuizResponse;
-      if (feedbackResp.answer) {
-        feedbackContent = feedbackResp.answer;
-      } else if (feedbackResp.output) {
-        feedbackContent = feedbackResp.output;
+      console.log("📋 Quiz response:", quizResponse);
+
+      let quizContent = "Here's your quiz result:";
+      const quizResp = quizResponse as any;
+      
+      // Check if response contains quiz questions instead of feedback
+      if (quizResp.output && typeof quizResp.output === 'string') {
+        try {
+          const cleanOutput = quizResp.output.replace(/```json\s*/, '').replace(/\s*```$/, '').trim();
+          const parsedOutput = JSON.parse(cleanOutput);
+          
+          if (parsedOutput.all_questions) {
+            console.log("⚠️ Received quiz questions instead of feedback, extracting correct answer explanations");
+            quizContent = generateFeedbackFromQuestions(parsedOutput.all_questions);
+          } else {
+            quizContent = quizResp.output;
+          }
+        } catch (e) {
+          quizContent = quizResp.output;
+        }
+      } else if (quizResp.answer) {
+        quizContent = quizResp.answer;
+      } else if (quizResp.output) {
+        quizContent = quizResp.output;
       }
 
-      // Format the feedback for better UI display
-      const formattedFeedback = formatQuizFeedback(feedbackContent);
-      addMessage("mentor", formattedFeedback, "quiz_feedback");
-
-      // Generate summary - handle direct webhook response
-      const summaryResponse = await callQuizSummaryTool();
-
-      let summaryContent = "Quiz Summary: Great work completing the quiz!";
-      const summaryResp = summaryResponse as QuizResponse;
-      if (summaryResp.answer) {
-        summaryContent = summaryResp.answer;
-      } else if (summaryResp.output) {
-        summaryContent = summaryResp.output;
-      }
-
-      // Format the summary for better UI display
-      const formattedSummary = formatQuizFeedback(summaryContent);
-      addMessage("mentor", formattedSummary, "quiz_summary");
+      // Format and display the result once
+      const formattedResult = formatQuizFeedback(quizContent);
+      addMessage("mentor", formattedResult, "quiz_summary");
       setCurrentStage("quiz_summary");
 
       const score = calculateQuizScore();

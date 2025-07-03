@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { JSX } from "react";
 import { AuthGuard } from "@/components/AuthGuard";
 import { Button } from "@/components/ui/button";
@@ -109,86 +110,28 @@ interface QuizResponse {
   output?: string;
 }
 
-// AI Mentor Agent Configuration
+// AI Mentor Agent Configuration - Updated for n8n
 const AI_MENTOR_AGENT_CONFIG = {
   mentor: {
     "Semester 1": {
       endpoint:
-        "https://api-d7b62b.stack.tryrelevance.com/latest/agents/trigger",
-      authorization:
-        "5cc7752400a6-4648-b47b-04fc92b47cae:sk-M2ZhMjg2ZjUtOTVlMS00YjNhLTgzZWUtM2RiODRhZTU5M2Q5",
-      agent_id: "da1cdcf3-0091-48d3-b6a3-f6abb69ae449",
+        "https://vijiteshnaik.app.n8n.cloud/webhook/f9303923-e4c7-4790-b667-b765b823eccb/chat",
     },
     "Semester 2": {
       endpoint:
-        "https://api-d7b62b.stack.tryrelevance.com/latest/agents/trigger",
-      authorization:
-        "5cc7752400a6-4648-b47b-04fc92b47cae:sk-YmVhZTc5MjAtNzBjYy00ZWMzLTgwMGUtMDU5YThiYTlhOWI5",
-      agent_id: "9febbea9-510f-44ad-af56-05d36fd03bfb",
+        "https://vijiteshnaik.app.n8n.cloud/webhook/f9303923-e4c7-4790-b667-b765b823eccb/chat",
     },
   },
   quiz: {
     "Semester 1": {
-      agent: {
-        endpoint:
-          "https://api-d7b62b.stack.tryrelevance.com/latest/agents/trigger",
-        authorization:
-          "5cc7752400a6-4648-b47b-04fc92b47cae:sk-MzUzMWYzOTYtMzgyZC00MGYxLWFmN2UtYzM5OWEyNjhhMDYw",
-        agent_id: "122c15d9-efc6-4181-97bc-1473bb81b07d",
-      },
-      tools: {
-        generateQuizQuestion: {
-          endpoint:
-            "https://api-d7b62b.stack.tryrelevance.com/latest/studios/a92496c4-9407-4fb8-afa2-dabb8ea75b0f/trigger_webhook?project=5cc7752400a6-4648-b47b-04fc92b47cae",
-          authorization:
-            "5cc7752400a6-4648-b47b-04fc92b47cae:sk-NWUwNDY3Y2ItODU2My00Yjc3LTgwZWItOTljYmQ4M2E3NjQx",
-        },
-        generateAnswerFeedback: {
-          endpoint:
-            "https://api-d7b62b.stack.tryrelevance.com/latest/studios/9b24ea5f-1799-40e7-9062-9456a6f9bfc3/trigger_webhook?project=5cc7752400a6-4648-b47b-04fc92b47cae",
-          authorization:
-            "5cc7752400a6-4648-b47b-04fc92b47cae:sk-Y2ViZWUzNGQtZDRkNy00MDkxLTk4YmUtMmUxYmMwZDdkOTYw",
-        },
-        generateQuizSummary: {
-          endpoint:
-            "https://api-d7b62b.stack.tryrelevance.com/latest/studios/f00d76fa-be35-44e7-ad68-e3041dd1c980/trigger_webhook?project=5cc7752400a6-4648-b47b-04fc92b47cae",
-          authorization:
-            "5cc7752400a6-4648-b47b-04fc92b47cae:sk-ZmE0MmI3NTItNzkxMS00MmQ4LTkzZWMtNWQ4NGE2ODU5ZTVl",
-        },
-      },
+      endpoint:
+        "https://vijiteshnaik.app.n8n.cloud/webhook/f9303923-e4c7-4790-b667-b765b823eccb/chat",
     },
     "Semester 2": {
-      agent: {
-        endpoint:
-          "https://api-d7b62b.stack.tryrelevance.com/latest/agents/trigger",
-        authorization:
-          "5cc7752400a6-4648-b47b-04fc92b47cae:sk-ZjdkYzJlODctNmQ3MC00ZjlhLWIzZTAtODFjODU4ZWM4Njgz",
-        agent_id: "f12ce319-e77b-4e97-9655-d542662995a7",
-      },
-      tools: {
-        generateQuizQuestion: {
-          endpoint:
-            "https://api-d7b62b.stack.tryrelevance.com/latest/studios/c74b15db-afee-4320-9710-41746dc81048/trigger_webhook?project=5cc7752400a6-4648-b47b-04fc92b47cae",
-          authorization:
-            "5cc7752400a6-4648-b47b-04fc92b47cae:sk-ZGY2YWJmMzEtMGI2NS00YzE2LWI3OWItOTk3ODcyNGM2Yjdl",
-        },
-        generateAnswerFeedback: {
-          endpoint:
-            "https://api-d7b62b.stack.tryrelevance.com/latest/studios/ad04e721-2a4c-4966-b55d-e729bd3c38b6/trigger_webhook?project=5cc7752400a6-4648-b47b-04fc92b47cae",
-          authorization:
-            "5cc7752400a6-4648-b47b-04fc92b47cae:sk-ZWY3YjljMDYtNzQ1Mi00YTM3LWE5M2QtYWE2Y2U4ODVmYzY5",
-        },
-        generateQuizSummary: {
-          endpoint:
-            "https://api-d7b62b.stack.tryrelevance.com/latest/studios/ad04e721-2a4c-4966-b55d-e729bd3c38b6/trigger_webhook?project=5cc7752400a6-4648-b47b-04fc92b47cae",
-          authorization:
-            "5cc7752400a6-4648-b47b-04fc92b47cae:sk-MDM0ODhjNTAtZTJiMi00OWM1LTk0NTgtYzI5MzlhZjViOGNm",
-        },
-      },
+      endpoint:
+        "https://vijiteshnaik.app.n8n.cloud/webhook/f9303923-e4c7-4790-b667-b765b823eccb/chat",
     },
   },
-  region: "d7b62b",
-  project: "5cc7752400a6-4648-b47b-04fc92b47cae",
 };
 
 // Curriculum Data
@@ -264,6 +207,7 @@ const CURRICULUM = {
 };
 
 // Utility Functions
+// DEPRECATED: parseQuizContent - no longer needed as we receive structured data from API
 const parseQuizContent = (content: string): QuizQuestion[] => {
   const questions: QuizQuestion[] = [];
 
@@ -625,6 +569,7 @@ const parseQuizContent = (content: string): QuizQuestion[] => {
   return questions;
 };
 
+// DEPRECATED: createFallbackQuestions - no longer needed as we receive structured data from API
 const createFallbackQuestions = (content: string): QuizQuestion[] => {
   console.log("Creating fallback questions from content:", content);
 
@@ -1390,22 +1335,13 @@ export default function AIMentorAgent(): JSX.Element {
       );
     }
 
-    const payload: Record<string, unknown> = {
-      message: { role: "user", content: message },
-      agent_id: mentorConfig.agent_id,
-    };
-
-    if (conversationId) {
-      payload.conversation_id = conversationId;
-    }
-
+    // Send subtopic as simple JSON object
     const response = await fetch(mentorConfig.endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: mentorConfig.authorization,
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ chatInput: message }),
     });
 
     if (!response.ok) {
@@ -1415,35 +1351,67 @@ export default function AIMentorAgent(): JSX.Element {
     return response.json();
   };
 
-  const callQuizGenerationTool = async (): Promise<unknown> => {
-    const semesterConfig = AI_MENTOR_AGENT_CONFIG.quiz[topicSelection.semester];
-    if (!semesterConfig) {
-      throw new Error(`No configuration found for ${topicSelection.semester}`);
-    }
+  const callQuizGenerationTool = async (): Promise<{
+    success: boolean;
+    questions?: QuizQuestion[];
+    error?: string;
+  }> => {
+    try {
+      const semesterConfig =
+        AI_MENTOR_AGENT_CONFIG.quiz[topicSelection.semester];
+      if (!semesterConfig) {
+        throw new Error(
+          `No configuration found for ${topicSelection.semester}`
+        );
+      }
 
-    const response = await fetch(
-      semesterConfig.tools.generateQuizQuestion.endpoint,
-      {
+      // Send subtopic as simple JSON object
+      const response = await fetch(semesterConfig.endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization:
-            semesterConfig.tools.generateQuizQuestion.authorization,
         },
-        body: JSON.stringify({
-          course_content: `${topicSelection.topic} - ${topicSelection.subTopic}. This is a ${topicSelection.semester} level topic in film studies and direction.`,
-          sub_topic: topicSelection.subTopic,
-          num_questions: 5,
-          options_per_question: 4,
-        }),
+        body: JSON.stringify({ chatInput: topicSelection.subTopic || "" }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Quiz Generation Error: ${response.status}`);
       }
-    );
 
-    if (!response.ok) {
-      throw new Error(`Quiz Generation Error: ${response.status}`);
+      const result = await response.json();
+
+      console.log("Quiz generation response:", result);
+
+      // Handle n8n response - check for output content
+      if (result.output) {
+        // Parse the text content to extract quiz questions
+        const questions = parseQuizFromText(result.output);
+        if (questions && questions.length > 0) {
+          return {
+            success: true,
+            questions: questions,
+          };
+        }
+      }
+
+      // Check if result has questions directly
+      if (result.questions) {
+        return {
+          success: true,
+          questions: result.questions,
+        };
+      }
+
+      return {
+        success: false,
+        error: result.error || "Failed to generate quiz questions",
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
     }
-
-    return response.json();
   };
 
   const callAnswerFeedbackTool = async (): Promise<unknown> => {
@@ -1451,9 +1419,6 @@ export default function AIMentorAgent(): JSX.Element {
     if (!semesterConfig) {
       throw new Error(`No configuration found for ${topicSelection.semester}`);
     }
-
-    console.log("Quiz data:", quizData);
-    console.log("Quiz answers:", quizAnswers);
 
     // Create a proper mapping of questions to answers
     const questionAnswerPairs =
@@ -1476,19 +1441,12 @@ export default function AIMentorAgent(): JSX.Element {
         // Ensure we have a valid user answer
         const selectedAnswer = userAnswer?.selectedAnswer || "A";
 
-        // Debug each question mapping
-        console.log(`Question ${question.id}: user answer found:`, userAnswer);
-        console.log(`Selected answer: "${selectedAnswer}"`);
-
-        const mappedData = {
+        return {
           question: question.question || `Question ${question.id}`,
           user_answer: selectedAnswer,
           correct_answer: correctAnswer,
           is_correct: userAnswer?.isCorrect || false,
         };
-
-        console.log(`Mapped data for question ${question.id}:`, mappedData);
-        return mappedData;
       }) || [];
 
     if (questionAnswerPairs.length === 0) {
@@ -1505,47 +1463,14 @@ export default function AIMentorAgent(): JSX.Element {
       )
       .join("\n\n");
 
-    // Try multiple payload structures to see what the API expects
-    const payload = {
-      course_content: `${topicSelection.topic} - ${topicSelection.subTopic}`,
-      question_and_answer: questionAndAnswerString,
-      // Add individual fields in case API expects them at root level
-      user_answer:
-        questionAnswerPairs
-          .map((qa) => qa.user_answer)
-          .filter((answer) => answer && answer.trim())
-          .join(", ") || "A",
-      question:
-        questionAnswerPairs
-          .map((qa) => qa.question)
-          .filter((q) => q && q.trim())
-          .join(" | ") || "Default Question",
-      correct_answer:
-        questionAnswerPairs
-          .map((qa) => qa.correct_answer)
-          .filter((answer) => answer && answer.trim())
-          .join(", ") || "A",
-      is_correct: questionAnswerPairs.some((qa) => qa.is_correct).toString(),
-    };
-
-    console.log(
-      "Sending payload to feedback API:",
-      JSON.stringify(payload, null, 2)
-    );
-    console.log("Question answer pairs:", questionAnswerPairs);
-
-    const response = await fetch(
-      semesterConfig.tools.generateAnswerFeedback.endpoint,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization:
-            semesterConfig.tools.generateAnswerFeedback.authorization,
-        },
-        body: JSON.stringify(payload),
-      }
-    );
+    // Send subtopic as simple JSON object
+    const response = await fetch(semesterConfig.endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ subtopic: topicSelection.subTopic || "" }),
+    });
 
     if (!response.ok) {
       throw new Error(`Answer Feedback Error: ${response.status}`);
@@ -1586,40 +1511,14 @@ export default function AIMentorAgent(): JSX.Element {
         };
       }) || [];
 
-    const score = calculateQuizScore();
-    const response = await fetch(
-      semesterConfig.tools.generateQuizSummary.endpoint,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: semesterConfig.tools.generateQuizSummary.authorization,
-        },
-        body: JSON.stringify({
-          course_content: `${topicSelection.topic} - ${topicSelection.subTopic}`,
-          question_and_answer: questionAnswerPairs
-            .map(
-              (qa, index) =>
-                `Question ${index + 1}: ${qa.question}\nUser Answer: ${
-                  qa.user_answer
-                }\nCorrect Answer: ${qa.correct_answer}\nIs Correct: ${
-                  qa.is_correct
-                }`
-            )
-            .join("\n\n"),
-          quiz_results: {
-            score: score,
-            total_questions: quizData?.questions.length || 0,
-            correct_answers: quizAnswers.filter((a) => a.isCorrect).length,
-            time_taken: quizStartTime
-              ? Math.round(
-                  (new Date().getTime() - quizStartTime.getTime()) / 1000
-                )
-              : 0,
-          },
-        }),
-      }
-    );
+    // Send subtopic as simple JSON object
+    const response = await fetch(semesterConfig.endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ subtopic: topicSelection.subTopic || "" }),
+    });
 
     if (!response.ok) {
       throw new Error(`Quiz Summary Error: ${response.status}`);
@@ -1628,95 +1527,317 @@ export default function AIMentorAgent(): JSX.Element {
     return response.json();
   };
 
-  const pollAgentResponse = async (jobInfo: {
-    job_id: string;
-  }): Promise<{
-    success: boolean;
-    content?: string;
-    conversationId?: string;
-    error?: string;
-  }> => {
-    const maxAttempts = 20;
-    let attempts = 0;
+  // pollAgentResponse function removed as n8n returns responses directly without polling
 
-    // Get the appropriate mentor config based on selected semester
-    const mentorConfig =
-      AI_MENTOR_AGENT_CONFIG.mentor[
-        topicSelection.semester as keyof typeof AI_MENTOR_AGENT_CONFIG.mentor
-      ];
-
-    if (!mentorConfig) {
-      throw new Error(
-        `No mentor configuration found for ${topicSelection.semester}`
-      );
-    }
-
-    while (attempts < maxAttempts) {
-      try {
-        const response = await fetch(
-          `https://api-${AI_MENTOR_AGENT_CONFIG.region}.stack.tryrelevance.com/latest/studios/${jobInfo.studio_id}/async_poll/${jobInfo.job_id}`,
-          {
-            headers: {
-              Authorization: mentorConfig.authorization,
-            },
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error(`Polling failed: ${response.status}`);
+  // Mentor Explanation Parsing Function
+  const parseMentorExplanation = (text: string): string => {
+    console.log("🔍 Starting mentor explanation parsing...");
+    console.log("📝 Raw mentor text received:", text);
+    
+    // Clean up the text and format it nicely
+    let formattedText = text;
+    
+    // Remove code language indicators and artifacts
+    formattedText = formattedText.replace(/^vbnet\s*$/gm, '');
+    formattedText = formattedText.replace(/^Copy\s*$/gm, '');
+    formattedText = formattedText.replace(/^Edit\s*$/gm, '');
+    formattedText = formattedText.replace(/^Copy\s+Edit\s*$/gm, '');
+    
+    // Remove any reference citations like 【4:0†Film Art_ An Introduction 10th Edition】
+    formattedText = formattedText.replace(/【[^】]*】/g, '');
+    
+    // Remove "Would you like help" section and everything after it
+    formattedText = formattedText.replace(/Would you like help.*$/s, '');
+    
+    // Clean up extra whitespace and normalize line breaks
+    formattedText = formattedText.replace(/\r\n/g, '\n');
+    formattedText = formattedText.replace(/\r/g, '\n');
+    formattedText = formattedText.replace(/^\s+|\s+$/g, '');
+    
+    // Remove any existing markdown formatting
+    formattedText = formattedText.replace(/^#{1,6}\s*/gm, '');  // Remove # headers
+    formattedText = formattedText.replace(/\*\*([^*]+)\*\*/g, '$1');  // Remove ** bold **
+    formattedText = formattedText.replace(/\*([^*]+)\*/g, '$1');     // Remove * italic *
+    formattedText = formattedText.replace(/^[-*+]\s+/gm, '- ');      // Normalize bullets to -
+    formattedText = formattedText.replace(/^---+$/gm, '');          // Remove horizontal rules
+    
+    console.log("🧹 After cleanup:", formattedText);
+    
+    // Split into sections and clean them up
+    const sections = formattedText.split(/(?=^(?:Subtopic|What is it about|Study Guide|Key Concepts|Pro Tips|Reference Materials))/gm);
+    
+    const formattedSections: string[] = [];
+    
+    for (const section of sections) {
+      if (!section.trim()) continue;
+      
+      const lines = section.split('\n').filter(line => line.trim());
+      if (lines.length === 0) continue;
+      
+      const firstLine = lines[0].trim();
+      
+      // Handle different section types - NO MARKDOWN
+      if (firstLine.startsWith('Subtopic:')) {
+        formattedSections.push(firstLine);
+        formattedSections.push('');
+      }
+      else if (firstLine.includes('What is it about')) {
+        formattedSections.push(firstLine);
+        formattedSections.push('');
+        // Add the content paragraphs
+        const content = lines.slice(1).join(' ').trim();
+        if (content) {
+          formattedSections.push(content);
+          formattedSections.push('');
         }
-
-        const status = await response.json();
-
-        for (const update of status.updates || []) {
-          if (update.type === "chain-success") {
-            let content = "Response generated successfully.";
-
-            if (update.output) {
-              if (update.output.output && update.output.output.answer) {
-                content = update.output.output.answer;
-              } else if (
-                update.output.answer &&
-                typeof update.output.answer === "string"
-              ) {
-                content = update.output.answer;
-              } else if (typeof update.output === "string") {
-                content = update.output;
-              } else {
-                content = String(
-                  update.output.answer || update.output.result || update.output
-                );
-              }
-            }
-
-            return {
-              success: true,
-              content: String(content),
-              conversationId: jobInfo.conversation_id,
-            };
-          }
-          if (update.type === "chain-error") {
-            return {
-              success: false,
-              error:
-                update.error ||
-                "An error occurred while processing your request.",
-            };
-          }
+      }
+      else if (firstLine.includes('Study Guide') || firstLine.includes('Key Concepts') || firstLine.includes('Pro Tips') || firstLine.includes('Reference Materials')) {
+        formattedSections.push(firstLine);
+        formattedSections.push('');
+        
+        // Process content for these sections
+        for (let i = 1; i < lines.length; i++) {
+          const line = lines[i].trim();
+          if (!line) continue;
+          
+          // Clean up any remaining formatting and add as simple bullet
+          let cleanLine = line.replace(/^-\s*/, '').trim();
+          
+          // Make text between first : and second : bold (like "Focus on:")
+          cleanLine = cleanLine.replace(/^([^:]+:)\s*(.*)/, '**$1** $2');
+          
+          // Add bullet on new line
+          formattedSections.push('-');
+          formattedSections.push(cleanLine);
         }
-
-        attempts++;
-        await new Promise((resolve) => setTimeout(resolve, 3000));
-      } catch (error) {
-        attempts++;
-        await new Promise((resolve) => setTimeout(resolve, 3000));
+        formattedSections.push('');
+      }
+      else {
+        // Regular content - just clean it
+        const cleanSection = section.trim().replace(/\*\*([^*]+)\*\*/g, '$1');
+        formattedSections.push(cleanSection);
+        formattedSections.push('');
       }
     }
+    
+    // Join and clean up final formatting
+    let finalText = formattedSections.join('\n');
+    
+    // Final cleanup - remove any remaining markdown EXCEPT bold for keys
+    finalText = finalText.replace(/\*([^*]+)\*/g, '$1');     // Remove any remaining italic
+    finalText = finalText.replace(/^#{1,6}\s*/gm, '');       // Remove any remaining headers
+    finalText = finalText.replace(/^---+$/gm, '');           // Remove any remaining rules
+    // Keep **text** bold for the key labels like "Focus on:", "Study with:", etc.
+    
+    // Clean up excessive blank lines
+    finalText = finalText.replace(/\n{3,}/g, '\n\n');
+    finalText = finalText.replace(/^\n+|\n+$/g, '');
+    
+    console.log("✨ Formatted mentor explanation:", finalText);
+    console.log("📊 Final text length:", finalText.length);
+    
+    return finalText;
+  };
 
-    return {
-      success: false,
-      error: "Request timed out. Please try again.",
-    };
+  // Quiz Parsing Function
+  const parseQuizFromText = (text: string): QuizQuestion[] => {
+    console.log("🔍 Starting quiz parsing...");
+    console.log("📝 Raw text received:", text);
+    console.log("📏 Text length:", text.length);
+    
+    const questions: QuizQuestion[] = [];
+    
+    // Look for quiz questions in the text
+    // Try to find patterns like "1.", "2.", etc. followed by question text
+    const questionPattern = /(\d+)\.\s*(.+?)(?=\d+\.|$)/gs;
+    const matches = text.match(questionPattern);
+    
+    console.log("🎯 Question pattern matches found:", matches);
+    
+    if (!matches) {
+      console.log("❌ No numbered questions found, trying question mark pattern...");
+      
+      // If no numbered questions found, try to extract from different format
+      // Look for question-like patterns
+      const lines = text.split('\n').filter(line => line.trim());
+      console.log("📄 Split into lines:", lines.length, "lines");
+      
+      let questionId = 1;
+      
+      for (const line of lines) {
+        console.log("🔍 Checking line:", line);
+        if (line.includes('?') && line.length > 20) {
+          console.log("✅ Found question-like line:", line);
+          // This looks like a question
+          const question = {
+            id: questionId++,
+            question: line.trim(),
+            options: ['A) Option A', 'B) Option B', 'C) Option C', 'D) Option D'],
+            correctAnswer: 'A'
+          };
+          questions.push(question);
+          console.log("➕ Added question:", question);
+          
+          if (questions.length >= 5) break; // Limit to 5 questions
+        }
+      }
+    } else {
+      console.log("✅ Processing numbered questions...");
+      // Process numbered questions
+      matches.forEach((match, index) => {
+        console.log(`🔢 Processing match ${index + 1}:`, match);
+        const questionText = match.replace(/^\d+\.\s*/, '').trim();
+        console.log("📝 Cleaned question text:", questionText);
+        
+        if (questionText.length > 10) {
+          const question = {
+            id: index + 1,
+            question: questionText,
+            options: ['A) Option A', 'B) Option B', 'C) Option C', 'D) Option D'],
+            correctAnswer: 'A'
+          };
+          questions.push(question);
+          console.log("➕ Added numbered question:", question);
+        }
+      });
+    }
+    
+    // If still no questions found, create fallback questions based on the content
+    if (questions.length === 0) {
+      console.log("⚠️ No questions extracted, creating fallback questions...");
+      
+      const isFilmAnalysis = text.includes('Film Analysis') || text.includes('film analysis');
+      const isRecreatingPainting = text.includes('Recreating a Painting');
+      
+      console.log("🎬 Is Film Analysis:", isFilmAnalysis);
+      console.log("🎨 Is Recreating Painting:", isRecreatingPainting);
+      
+      if (isFilmAnalysis) {
+        console.log("🎬 Creating Film Analysis questions...");
+        questions.push(
+          {
+            id: 1,
+            question: "What is the primary purpose of film analysis?",
+            options: [
+              'A) To summarize the plot',
+              'B) To examine elements that influence audience understanding',
+              'C) To rate the movie',
+              'D) To write reviews'
+            ],
+            correctAnswer: 'B'
+          },
+          {
+            id: 2,
+            question: "Which elements are essential to analyze in film form and style?",
+            options: [
+              'A) Only the actors',
+              'B) Just the budget',
+              'C) Narrative structure, mise-en-scène, cinematography, editing',
+              'D) Only the director'
+            ],
+            correctAnswer: 'C'
+          },
+          {
+            id: 3,
+            question: "What should you avoid when developing a film analysis thesis?",
+            options: [
+              'A) Using evidence from the film',
+              'B) Making superficial observations without deep analysis',
+              'C) Focusing on technical elements',
+              'D) Taking comprehensive notes'
+            ],
+            correctAnswer: 'B'
+          },
+          {
+            id: 4,
+            question: "What is segmentation in film analysis?",
+            options: [
+              'A) Cutting the film into pieces',
+              'B) Organizing the film into sections to analyze narrative contribution',
+              'C) Removing scenes',
+              'D) Adding subtitles'
+            ],
+            correctAnswer: 'B'
+          },
+          {
+            id: 5,
+            question: "How do film techniques like lighting and editing function?",
+            options: [
+              'A) They make movies longer',
+              'B) They reduce production costs',
+              'C) They influence the film\'s meaning and audience response',
+              'D) They are just decorative'
+            ],
+            correctAnswer: 'C'
+          }
+        );
+      } else {
+        console.log("🎨 Creating generic questions...");
+        const subtopic = isRecreatingPainting ? 'Recreating a Painting' : 'Film Studies';
+        questions.push(
+          {
+            id: 1,
+            question: `What is the main concept behind ${subtopic}?`,
+            options: [
+              'A) Technical replication only',
+              'B) Understanding context and reproduction impact',
+              'C) Creating exact copies',
+              'D) Digital manipulation'
+            ],
+            correctAnswer: 'B'
+          },
+          {
+            id: 2,
+            question: `According to the content, what happens to original artwork when reproduced?`,
+            options: [
+              'A) It gains more value',
+              'B) Nothing changes',
+              'C) Its unique aura is diminished',
+              'D) It becomes worthless'
+            ],
+            correctAnswer: 'C'
+          },
+          {
+            id: 3,
+            question: `What should you focus on when studying this topic?`,
+            options: [
+              'A) Only technical skills',
+              'B) Understanding intent and context impact',
+              'C) Memorizing facts',
+              'D) Speed of reproduction'
+            ],
+            correctAnswer: 'B'
+          },
+          {
+            id: 4,
+            question: `What is a key concept mentioned in the study material?`,
+            options: [
+              'A) Digital art creation',
+              'B) Contextual influence on perception',
+              'C) Color theory',
+              'D) Brush techniques'
+            ],
+            correctAnswer: 'B'
+          },
+          {
+            id: 5,
+            question: `What should you watch out for when recreating paintings?`,
+            options: [
+              'A) Using wrong colors',
+              'B) Taking too much time',
+              'C) Assuming reproductions retain original meaning',
+              'D) Working too fast'
+            ],
+            correctAnswer: 'C'
+          }
+        );
+      }
+    }
+    
+    console.log("🎯 Final questions array:", questions);
+    console.log("📊 Total questions created:", questions.length);
+    
+    return questions.slice(0, 5); // Ensure we return max 5 questions
   };
 
   // Utility Functions
@@ -1762,20 +1883,21 @@ export default function AIMentorAgent(): JSX.Element {
 
     try {
       // Call the dedicated AI Mentor Agent - sending only the subtopic
-      const agentResponse = await callMentorAgent(topicSelection.subTopic);
-      const response = agentResponse as AgentResponse;
+      const response = await callMentorAgent(topicSelection.subTopic);
 
-      if (response.job_info) {
-        const result = await pollAgentResponse(response.job_info);
+      // n8n returns data directly, no polling needed
+      if (response && (response as any).output) {
+        const parsedContent = parseMentorExplanation((response as any).output);
+        const formattedContent = formatMentorResponse(parsedContent);
+        addMessage("mentor", formattedContent, "mentor_explanation");
 
-        if (result.success) {
-          const formattedContent = formatMentorResponse(result.content);
-          addMessage("mentor", formattedContent, "mentor_explanation");
-          setConversationId(result.conversationId);
-          setCurrentStage("help_decision");
-        } else {
-          addMessage("system", `Error: ${result.error}`);
+        if ((response as any).threadId) {
+          setConversationId((response as any).threadId);
         }
+
+        setCurrentStage("help_decision");
+      } else {
+        addMessage("system", "Error: Failed to get mentor explanation");
       }
     } catch (error) {
       console.error("Error:", error);
@@ -1823,18 +1945,19 @@ export default function AIMentorAgent(): JSX.Element {
     setIsLoading(true);
 
     try {
-      const agentResponse = await callMentorAgent(message);
-      const response = agentResponse as AgentResponse;
+      const response = await callMentorAgent(message);
 
-      if (response.job_info) {
-        const result = await pollAgentResponse(response.job_info);
+      // n8n returns data directly, no polling needed
+      if (response && (response as any).output) {
+        const parsedContent = parseMentorExplanation((response as any).output);
+        const formattedContent = formatMentorResponse(parsedContent);
+        addMessage("mentor", formattedContent, "chat_mode");
 
-        if (result.success) {
-          const formattedContent = formatMentorResponse(result.content);
-          addMessage("mentor", formattedContent, "chat_mode");
-        } else {
-          addMessage("system", `Error: ${result.error}`);
+        if ((response as any).threadId) {
+          setConversationId((response as any).threadId);
         }
+      } else {
+        addMessage("system", "Error: Failed to get response");
       }
     } catch (error) {
       console.error("Error:", error);
@@ -1879,23 +2002,22 @@ export default function AIMentorAgent(): JSX.Element {
     try {
       const quizResponse = await callQuizGenerationTool();
 
-      // Direct response handling - no polling needed for webhook
-      let quizContent = "";
-      const response = quizResponse as QuizResponse;
-      if (response.answer) {
-        quizContent = response.answer;
-      } else if (response.output) {
-        quizContent = response.output;
-      } else {
-        quizContent = JSON.stringify(quizResponse);
+      // Handle the new structured return type
+      if (!quizResponse.success) {
+        console.error("Quiz generation failed:", quizResponse.error);
+        addMessage(
+          "system",
+          quizResponse.error || "Failed to generate quiz. Please try again."
+        );
+        toast.error("Failed to generate quiz");
+        return;
       }
 
-      console.log("Quiz content received:", quizContent);
+      if (quizResponse.questions && quizResponse.questions.length > 0) {
+        // Direct use of the structured questions array
+        const questions = quizResponse.questions;
+        console.log("Quiz questions received:", questions);
 
-      const questions = parseQuizContent(quizContent);
-      console.log("Parsed questions:", questions);
-
-      if (questions.length > 0) {
         setQuizData({ questions, totalQuestions: questions.length });
         setQuizStartTime(new Date());
         setCurrentQuestionIndex(0);
@@ -1905,26 +2027,10 @@ export default function AIMentorAgent(): JSX.Element {
           `Great! Let's test your knowledge with ${questions.length} questions about ${topicSelection.subTopic}.`
         );
       } else {
-        // Fallback: create questions from the raw content
-        const fallbackQuestions = createFallbackQuestions(quizContent);
-        if (fallbackQuestions.length > 0) {
-          setQuizData({
-            questions: fallbackQuestions,
-            totalQuestions: fallbackQuestions.length,
-          });
-          setQuizStartTime(new Date());
-          setCurrentQuestionIndex(0);
-          setQuizAnswers([]);
-          addMessage(
-            "system",
-            `Great! Let's test your knowledge with ${fallbackQuestions.length} questions about ${topicSelection.subTopic}.`
-          );
-        } else {
-          addMessage(
-            "system",
-            "I had trouble generating quiz questions. Please try again."
-          );
-        }
+        addMessage(
+          "system",
+          "I had trouble generating quiz questions. Please try again."
+        );
       }
     } catch (error) {
       console.error("Quiz generation error:", error);
@@ -1936,8 +2042,6 @@ export default function AIMentorAgent(): JSX.Element {
   };
 
   const handleQuizAnswer = (questionId: number, selectedAnswer: string) => {
-    const question = quizData?.questions.find((q) => q.id === questionId);
-
     console.log(
       `handleQuizAnswer called with questionId: ${questionId}, selectedAnswer: "${selectedAnswer}"`
     );

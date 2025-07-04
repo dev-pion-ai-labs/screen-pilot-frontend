@@ -13,7 +13,14 @@ import {
     Star,
     TrendingUp,
     Zap,
-    BookOpen
+    BookOpen,
+    Award,
+    Users,
+    MessageSquare,
+    BarChart3,
+    Brain,
+    Book,
+    Quote
 } from 'lucide-react';
 
 const ScriptAnalysisDisplay = ({ analysisResult }) => {
@@ -27,7 +34,8 @@ const ScriptAnalysisDisplay = ({ analysisResult }) => {
                 const cleaned = result.raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
                 return JSON.parse(cleaned);
             } catch (e) {
-                return null;
+                // If JSON parsing fails, return the raw text for markdown processing
+                return { rawText: result.raw };
             }
         }
 
@@ -36,23 +44,151 @@ const ScriptAnalysisDisplay = ({ analysisResult }) => {
             return result;
         }
 
-        // If it's a string, try to parse it
+        // If it's a string, try to parse it as JSON first, then fall back to markdown
         if (typeof result === 'string') {
             try {
                 const cleaned = result.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
                 return JSON.parse(cleaned);
             } catch (e) {
-                return null;
+                // If JSON parsing fails, return the raw text for markdown processing
+                return { rawText: result };
             }
         }
 
         return null;
     };
 
+    // Helper function to parse markdown-style text
+    const parseMarkdownAnalysis = (text) => {
+        if (!text) return null;
+
+        const lines = text.split('\n');
+        const result = {
+            title: '',
+            submittedIdea: '',
+            overallVerdict: '',
+            sections: [],
+            scorecard: {},
+            recommendations: [],
+            mentorNote: ''
+        };
+
+        let currentSection = null;
+        let currentContent = [];
+        let isInScorecard = false;
+        let isInRecommendations = false;
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+
+            // Extract title
+            if (line.startsWith('📘 Script Title:') || line.startsWith('Script Title:')) {
+                result.title = line.replace(/📘 Script Title:\s*"?([^"]*)"?/, '$1').replace(/Script Title:\s*/, '');
+                continue;
+            }
+
+            // Extract submitted idea
+            if (line.startsWith('🎯 Submitted Idea:') || line.startsWith('Submitted Idea:')) {
+                result.submittedIdea = line.replace(/🎯 Submitted Idea:\s*/, '').replace(/Submitted Idea:\s*/, '');
+                continue;
+            }
+
+            // Extract overall verdict/assessment
+            if (line.startsWith('🧠 OVERALL VERDICT:') || line.startsWith('OVERALL ASSESSMENT:')) {
+                let verdictText = '';
+                for (let j = i + 1; j < lines.length; j++) {
+                    const nextLine = lines[j].trim();
+                    if (nextLine.startsWith('🔍') || nextLine.startsWith('---') || nextLine.startsWith('DETAILED EVALUATION:')) {
+                        break;
+                    }
+                    if (nextLine) {
+                        verdictText += nextLine + ' ';
+                    }
+                }
+                result.overallVerdict = verdictText.trim();
+                continue;
+            }
+
+            // Handle sections (numbered items)
+            if (line.match(/^\d+\.\s*\*\*(.+?)\*\*/) || line.match(/^\d+\.\s*(.+?)$/)) {
+                // Save previous section
+                if (currentSection) {
+                    currentSection.content = currentContent.join('\n').trim();
+                    result.sections.push(currentSection);
+                }
+
+                // Start new section
+                const sectionTitle = line.replace(/^\d+\.\s*\*\*(.+?)\*\*.*/, '$1').replace(/^\d+\.\s*(.+?)$/, '$1');
+                currentSection = {
+                    title: sectionTitle,
+                    content: ''
+                };
+                currentContent = [];
+                continue;
+            }
+
+            // Handle scorecard
+            if (line.includes('📊 SCORECARD') || line.includes('SCORECARD')) {
+                isInScorecard = true;
+                continue;
+            }
+
+            if (isInScorecard && line.includes('|') && !line.includes('---')) {
+                const parts = line.split('|').map(p => p.trim()).filter(p => p);
+                if (parts.length >= 2) {
+                    const category = parts[0];
+                    const score = parts[1];
+                    if (category && score && category !== 'Category' && score !== 'Score') {
+                        result.scorecard[category] = score;
+                    }
+                }
+                continue;
+            }
+
+            // Handle recommendations
+            if (line.includes('🛠️') && line.includes('RECOMMENDATIONS') || line.includes('RECOMMENDATIONS:')) {
+                isInRecommendations = true;
+                isInScorecard = false;
+                continue;
+            }
+
+            if (isInRecommendations && line.startsWith('-')) {
+                result.recommendations.push(line.substring(1).trim());
+                continue;
+            }
+
+            // Handle mentor's note
+            if (line.includes('🎓') && line.includes('Mentor\'s Note') || line.includes('MENTOR\'S NOTE:')) {
+                let mentorText = '';
+                for (let j = i + 1; j < lines.length; j++) {
+                    const nextLine = lines[j].trim();
+                    if (nextLine.startsWith('>')) {
+                        mentorText += nextLine.substring(1).trim() + ' ';
+                    } else if (nextLine.startsWith('"') && nextLine.endsWith('"')) {
+                        mentorText += nextLine.substring(1, nextLine.length - 1) + ' ';
+                    }
+                }
+                result.mentorNote = mentorText.trim();
+                continue;
+            }
+
+            // Add content to current section
+            if (currentSection && line && !line.startsWith('---') && !isInScorecard && !isInRecommendations) {
+                currentContent.push(line);
+            }
+        }
+
+        // Don't forget the last section
+        if (currentSection) {
+            currentSection.content = currentContent.join('\n').trim();
+            result.sections.push(currentSection);
+        }
+
+        return result;
+    };
+
     const analysis = parseAnalysisData(analysisResult);
-
-    console.log("ANALYSIS", analysis)
-
+    
     if (!analysis) {
         return (
             <Card>
@@ -64,13 +200,234 @@ const ScriptAnalysisDisplay = ({ analysisResult }) => {
         );
     }
 
-    const { title, analysis: analysisData, conclusion, script_title } = analysis;
-
-    // Get the display title
-    const displayTitle = title || script_title || 'Script Analysis';
+    // Check if we have markdown-style text data
+    const markdownData = analysis.rawText ? parseMarkdownAnalysis(analysis.rawText) : null;
 
     // Section configurations with icons and colors
     const sectionConfigs = {
+        'Concept & Originality': {
+            icon: Lightbulb,
+            color: 'purple',
+            bgColor: 'bg-purple-50',
+            borderColor: 'border-purple-200'
+        },
+        'Structure & Pacing': {
+            icon: BookOpen,
+            color: 'blue',
+            bgColor: 'bg-blue-50',
+            borderColor: 'border-blue-200'
+        },
+        'Character Development': {
+            icon: Users,
+            color: 'green',
+            bgColor: 'bg-green-50',
+            borderColor: 'border-green-200'
+        },
+        'Characters': {
+            icon: Users,
+            color: 'green',
+            bgColor: 'bg-green-50',
+            borderColor: 'border-green-200'
+        },
+        'Dialogue Quality': {
+            icon: MessageSquare,
+            color: 'orange',
+            bgColor: 'bg-orange-50',
+            borderColor: 'border-orange-200'
+        },
+        'Dialogue & Language': {
+            icon: MessageSquare,
+            color: 'orange',
+            bgColor: 'bg-orange-50',
+            borderColor: 'border-orange-200'
+        },
+        'Dialogue': {
+            icon: MessageSquare,
+            color: 'orange',
+            bgColor: 'bg-orange-50',
+            borderColor: 'border-orange-200'
+        },
+        'Theme & Message': {
+            icon: Target,
+            color: 'indigo',
+            bgColor: 'bg-indigo-50',
+            borderColor: 'border-indigo-200'
+        },
+        'Formatting & Professionalism': {
+            icon: FileText,
+            color: 'gray',
+            bgColor: 'bg-gray-50',
+            borderColor: 'border-gray-200'
+        },
+        'Formatting & Academic Standard': {
+            icon: FileText,
+            color: 'gray',
+            bgColor: 'bg-gray-50',
+            borderColor: 'border-gray-200'
+        },
+        'Market Readiness': {
+            icon: TrendingUp,
+            color: 'emerald',
+            bgColor: 'bg-emerald-50',
+            borderColor: 'border-emerald-200'
+        },
+        'Relevance & Contextual Application': {
+            icon: Brain,
+            color: 'teal',
+            bgColor: 'bg-teal-50',
+            borderColor: 'border-teal-200'
+        },
+        // Default fallback
+        default: {
+            icon: BookOpen,
+            color: 'blue',
+            bgColor: 'bg-blue-50',
+            borderColor: 'border-blue-200'
+        }
+    };
+
+    const getSectionConfig = (title) => {
+        return sectionConfigs[title] || sectionConfigs.default;
+    };
+
+    // Render markdown-style analysis
+    if (markdownData) {
+        return (
+            <div className="space-y-6">
+                {/* Header */}
+                <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+                    <CardHeader>
+                        <CardTitle className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Star className="h-6 w-6 text-blue-600" />
+                                <span className="text-xl text-blue-900">
+                                    {markdownData.title || 'Script Analysis'}
+                                </span>
+                            </div>
+                            <Badge variant="outline" className="bg-white text-blue-700 border-blue-300">
+                                AI Analysis Complete
+                            </Badge>
+                        </CardTitle>
+                        {markdownData.submittedIdea && (
+                            <p className="text-blue-700 mt-2 text-sm">
+                                <strong>Submitted Idea:</strong> {markdownData.submittedIdea}
+                            </p>
+                        )}
+                    </CardHeader>
+                </Card>
+
+                {/* Overall Verdict */}
+                {markdownData.overallVerdict && (
+                    <Card className="border-emerald-200 bg-emerald-50">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2 text-emerald-700">
+                                <Award className="h-5 w-5" />
+                                Overall Assessment
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-emerald-800 leading-relaxed">
+                                {markdownData.overallVerdict}
+                            </p>
+                        </CardContent>
+                    </Card>
+                )}
+
+                {/* Analysis Sections */}
+                {markdownData.sections.map((section, index) => {
+                    const config = getSectionConfig(section.title);
+                    const IconComponent = config.icon;
+                    
+                    return (
+                        <Card key={index} className={`${config.borderColor} ${config.bgColor}`}>
+                            <CardHeader className="pb-3">
+                                <CardTitle className={`flex items-center gap-2 text-${config.color}-700`}>
+                                    <IconComponent className={`h-5 w-5 text-${config.color}-600`} />
+                                    {section.title}
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="prose prose-sm max-w-none">
+                                    <div className="text-gray-700 leading-relaxed whitespace-pre-line">
+                                        {section.content}
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    );
+                })}
+
+                {/* Scorecard */}
+                {Object.keys(markdownData.scorecard).length > 0 && (
+                    <Card className="border-yellow-200 bg-yellow-50">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2 text-yellow-700">
+                                <BarChart3 className="h-5 w-5" />
+                                Scorecard
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {Object.entries(markdownData.scorecard).map(([category, score]) => (
+                                    <div key={category} className="flex justify-between items-center p-3 bg-white rounded-lg border">
+                                        <span className="font-medium text-gray-700">{category}</span>
+                                        <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
+                                            {score}
+                                        </Badge>
+                                    </div>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
+
+                {/* Recommendations */}
+                {markdownData.recommendations.length > 0 && (
+                    <Card className="border-orange-200 bg-orange-50">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2 text-orange-700">
+                                <Lightbulb className="h-5 w-5" />
+                                Recommendations
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <ul className="space-y-2">
+                                {markdownData.recommendations.map((rec, index) => (
+                                    <li key={index} className="flex items-start gap-2">
+                                        <span className="text-orange-500 mt-1">💡</span>
+                                        <span className="text-orange-800 text-sm">{rec}</span>
+                                    </li>
+                                ))}
+                            </ul>
+                        </CardContent>
+                    </Card>
+                )}
+
+                {/* Mentor's Note */}
+                {markdownData.mentorNote && (
+                    <Card className="border-violet-200 bg-violet-50">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2 text-violet-700">
+                                <Quote className="h-5 w-5" />
+                                Mentor's Note
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <blockquote className="text-violet-800 leading-relaxed italic border-l-4 border-violet-300 pl-4">
+                                {markdownData.mentorNote}
+                            </blockquote>
+                        </CardContent>
+                    </Card>
+                )}
+            </div>
+        );
+    }
+
+    // Original structured JSON rendering logic
+    const { title, analysis: analysisData, conclusion, script_title } = analysis;
+    const displayTitle = title || script_title || 'Script Analysis';
+
+    const originalSectionConfigs = {
         structure_and_organization: {
             title: 'Structure & Organization',
             icon: BookOpen,
@@ -109,7 +466,7 @@ const ScriptAnalysisDisplay = ({ analysisResult }) => {
     };
 
     const renderSection = (sectionKey, sectionData) => {
-        const config = sectionConfigs[sectionKey];
+        const config = originalSectionConfigs[sectionKey];
         if (!config || !sectionData) return null;
 
         const IconComponent = config.icon;
@@ -255,13 +612,11 @@ const ScriptAnalysisDisplay = ({ analysisResult }) => {
                 </Card>
             )}
 
-            {/* Dynamically render any other top-level fields (arrays, strings, etc.) */}
+            {/* Dynamically render any other top-level fields */}
             {Object.entries(analysis)
-                .filter(([key]) => key !== 'analysis' && key !== 'conclusion' && key !== 'title' && key !== 'script_title')
+                .filter(([key]) => key !== 'analysis' && key !== 'conclusion' && key !== 'title' && key !== 'script_title' && key !== 'rawText')
                 .map(([key, value]) => {
-                    // Render arrays as bulleted lists with a nice title
                     if (Array.isArray(value)) {
-                        // Convert key to Title Case for display
                         const title = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
                         return (
                             <Card key={key} className="border-blue-200 bg-blue-50">
@@ -281,7 +636,6 @@ const ScriptAnalysisDisplay = ({ analysisResult }) => {
                             </Card>
                         );
                     }
-                    // Render strings/numbers as a simple info card
                     if (typeof value === 'string' || typeof value === 'number') {
                         const title = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
                         return (
@@ -298,25 +652,8 @@ const ScriptAnalysisDisplay = ({ analysisResult }) => {
                             </Card>
                         );
                     }
-                    // For objects, skip (already handled by 'analysis')
                     return null;
                 })}
-
-            {/* Raw Data Fallback (for debugging) */}
-            {/* {process.env.NODE_ENV === 'development' && (
-                <Card className="border-gray-200">
-                    <CardHeader>
-                        <CardTitle className="text-sm text-gray-600">Raw Analysis Data (Debug)</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <ScrollArea className="h-32">
-                            <pre className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
-                                {JSON.stringify(analysis, null, 2)}
-                            </pre>
-                        </ScrollArea>
-                    </CardContent>
-                </Card>
-            )} */}
         </div>
     );
 };

@@ -30,20 +30,10 @@ import {
 import { ModernDashboardLayout } from '@/components/ModernDashboardLayout';
 import ScriptAnalysisDisplay from '@/components/ScriptAnalysisDisplay';
 
-// Relevance API Configuration
-const relevanceAPI = {
-  triggerAgent: {
-    endpoint: "https://api-d7b62b.stack.tryrelevance.com/latest/agents/trigger",
-    apiKey: "5cc7752400a6-4648-b47b-04fc92b47cae:sk-YmZlMTYzOGQtNmQzZC00NTQ1LWEzNGMtZThmYzVmYzExYzc1",
-    agentId: "3df7f825-c0a0-4bfd-ab86-3061b160eba6",
-    region: "d7b62b",
-  },
-  extractDataFromPDF: {
-    endpoint: "https://api-d7b62b.stack.tryrelevance.com/latest/studios/5a6eaca2-6e92-4557-a299-c0e2bbbac201/trigger_webhook?project=5cc7752400a6-4648-b47b-04fc92b47cae",
-    apiKey: "5cc7752400a6-4648-b47b-04fc92b47cae:sk-OTJkZGIzNzYtMGU5Yi00MDY4LTk2NjEtM2JkODE4NjM4M2Jk",
-    region: "d7b62b",
-  }
-};
+
+
+
+const N8N_SCRIPT_ANALYZER_ENDPOINT = "https://vijiteshnaik.app.n8n.cloud/webhook/4dd12417-e6e1-4dd7-a431-c9e031136a40";
 
 interface ScriptAnalysis {
   id: string
@@ -54,6 +44,7 @@ interface ScriptAnalysis {
   created_at: string
   updated_at: string
   user_id: string
+  type: string
 }
 
 interface AnalysisProgress {
@@ -62,10 +53,20 @@ interface AnalysisProgress {
   message: string
 }
 
+
+const SCRIPT_TYPES = [
+  { value: "assignment", label: "Assignment" },
+  { value: "documentary", label: "Documentary" },
+  { value: "shortfilm", label: "Short Film" },
+  { value: "feature film", label: "Feature Film" },
+  { value: "episodic content", label: "Episodic Content" }
+];
+
 const ScriptAnalyzer = () => {
   const { user } = useAuth()
   const [analyses, setAnalyses] = useState<ScriptAnalysis[]>([])
   const [selectedAnalysis, setSelectedAnalysis] = useState<ScriptAnalysis | null>(null)
+  const [scriptType, setScriptType] = useState(SCRIPT_TYPES[0].value);
   const [loading, setLoading] = useState(true)
   const [analyzing, setAnalyzing] = useState(false)
   const [scriptContent, setScriptContent] = useState('')
@@ -106,76 +107,44 @@ const ScriptAnalyzer = () => {
 
 
 
-  // Poll for PDF extraction response
-  const pollPDFExtractionResponse = async (
-    studioId: string,
-    jobId: string
-  ): Promise<string> => {
+  // Async polling for n8n job status (if your n8n workflow returns jobId and needs polling)
+  const pollN8nJobResult = async (jobId) => {
     const maxAttempts = 20;
     let attempts = 0;
-
     while (attempts < maxAttempts) {
       try {
-        const res = await fetch(
-          `https://api-${relevanceAPI.extractDataFromPDF.region}.stack.tryrelevance.com/latest/studios/${studioId}/async_poll/${jobId}`,
-          {
-            headers: {
-              Authorization: relevanceAPI.extractDataFromPDF.apiKey
-            }
-          }
-        );
-
-        if (!res.ok) throw new Error(`Polling failed: ${res.status}`);
-
-        const status = await res.json();
-        console.log(`PDF Polling attempt ${attempts + 1}:`, status);
-
-        for (const update of status.updates || []) {
-          if (update.type === "chain-success" && update.output) {
-            let content = "";
-            if (update.output.output && update.output.output.answer)
-              content = update.output.output.answer;
-            else if (typeof update.output === "string")
-              content = update.output;
-            else if (update.output.answer && typeof update.output.answer === "string")
-              content = update.output.answer;
-            else
-              content = JSON.stringify(update.output, null, 2);
-
-            return content;
-          }
-          if (update.type === "chain-error")
-            throw new Error(update.error || "PDF extraction failed");
-        }
-
+        const pollRes = await fetch(`${N8N_SCRIPT_ANALYZER_ENDPOINT}/status/${jobId}`);
+        if (!pollRes.ok) throw new Error('Polling failed');
+        const status = await pollRes.json();
+        if (status.status === "completed") return status.result;
+        if (status.status === "error") throw new Error(status.error);
         attempts++;
-        await new Promise((res) => setTimeout(res, 3000));
-
-      } catch (error) {
-        console.error(`PDF polling attempt ${attempts + 1} failed:`, error);
+        await new Promise(r => setTimeout(r, 3000));
+      } catch (e) {
         attempts++;
-        if (attempts >= maxAttempts) throw error;
-        await new Promise((res) => setTimeout(res, 3000));
+        await new Promise(r => setTimeout(r, 3000));
       }
     }
-
-    throw new Error("PDF extraction timed out");
+    throw new Error("Timed out waiting for script analysis result.");
   };
 
+
+
   // Trigger Agent Analysis with polling
-  const triggerScriptAnalysis = async (scriptTitle: string, scriptUrl: string) => {
+  
+  const triggerScriptAnalysis = async (scriptTitle: string, scriptUrl: string, scriptType: string) => {
     try {
       if (!scriptUrl) throw new Error('No script file URL provided to agent.');
-      const message = `Script Title: ${scriptTitle}\nScript File URL: ${scriptUrl}\nPlease analyze this script and provide a detailed report in JSON.`;
       const payload = {
-        message: { role: 'user', content: message },
-        agent_id: relevanceAPI.triggerAgent.agentId,
+        "Type": scriptType,
+        "file_url": scriptUrl
       };
-      const response = await fetch(relevanceAPI.triggerAgent.endpoint, {
+      console.log("payload",payload);
+      
+      const response = await fetch(N8N_SCRIPT_ANALYZER_ENDPOINT, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: relevanceAPI.triggerAgent.apiKey,
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify(payload),
       });
@@ -184,81 +153,20 @@ const ScriptAnalyzer = () => {
         throw new Error(`Agent trigger failed (${response.status}): ${errorText}`);
       }
       const result = await response.json();
-      if (result?.job_info?.studio_id && result?.job_info?.job_id) {
-        return await pollAgentResponse(
-          result.job_info.studio_id,
-          result.job_info.job_id
-        );
+      // If n8n returns a jobId, poll for result
+      if (result.jobId) {
+        return await pollN8nJobResult(result.jobId);
       }
-      throw new Error('AI Agent did not return job info');
+      // else assume result is already in response
+      return result.result || result.output || result;
     } catch (error) {
       console.error('Agent Trigger Error:', error);
       throw error;
     }
   };
 
-  // Poll for Agent response
-  const pollAgentResponse = async (
-    studioId: string,
-    jobId: string
-  ): Promise<any> => {
-    const maxAttempts = 20;
-    let attempts = 0;
 
-    while (attempts < maxAttempts) {
-      try {
-        const res = await fetch(
-          `https://api-${relevanceAPI.triggerAgent.region}.stack.tryrelevance.com/latest/studios/${studioId}/async_poll/${jobId}`,
-          {
-            headers: {
-              Authorization: relevanceAPI.triggerAgent.apiKey
-            }
-          }
-        );
 
-        if (!res.ok) throw new Error(`Polling failed: ${res.status}`);
-
-        const status = await res.json();
-        console.log(`Agent polling attempt ${attempts + 1}:`, status);
-
-        for (const update of status.updates || []) {
-          if (update.type === "chain-success" && update.output) {
-            let content = "";
-            if (update.output.output && update.output.output.answer)
-              content = update.output.output.answer;
-            else if (typeof update.output === "string")
-              content = update.output;
-            else if (update.output.answer && typeof update.output.answer === "string")
-              content = update.output.answer;
-            else
-              content = JSON.stringify(update.output, null, 2);
-
-            // Try to parse JSON in response
-            try {
-              return typeof content === "string" && content.startsWith("{")
-                ? JSON.parse(content)
-                : { raw: content };
-            } catch {
-              return { raw: content };
-            }
-          }
-          if (update.type === "chain-error")
-            throw new Error(update.error || "AI evaluation failed");
-        }
-
-        attempts++;
-        await new Promise((res) => setTimeout(res, 3000));
-
-      } catch (error) {
-        console.error(`Agent polling attempt ${attempts + 1} failed:`, error);
-        attempts++;
-        if (attempts >= maxAttempts) throw error;
-        await new Promise((res) => setTimeout(res, 3000));
-      }
-    }
-
-    throw new Error("AI evaluation timed out");
-  };
 
   const uploadFileToSupabase = async (file: File): Promise<string> => {
     try {
@@ -370,6 +278,15 @@ const ScriptAnalyzer = () => {
       return;
     }
 
+    if (!scriptType) {
+      toast({
+        title: "Missing Script Type",
+        description: "Please select script type.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setAnalyzing(true);
     setAnalysisProgress({ step: 'initializing', progress: 10, message: 'Preparing script analysis...' });
 
@@ -378,6 +295,7 @@ const ScriptAnalyzer = () => {
       const analysisData = {
         user_id: user?.id,
         title: scriptTitle,
+        type: scriptType,
         script_content: '', // No content, only file
         script_url: scriptUrl,
         analysis_result: null
@@ -396,7 +314,7 @@ const ScriptAnalyzer = () => {
       // Trigger the agent with only the script_url
       let analysisResult;
       try {
-        analysisResult = await triggerScriptAnalysis(scriptTitle, scriptUrl);
+        analysisResult = await triggerScriptAnalysis(scriptTitle, scriptUrl, scriptType);
         setAnalysisProgress({ step: 'completing', progress: 90, message: 'Finalizing analysis results...' });
       } catch (apiError) {
         console.error('Agent API error:', apiError);
@@ -539,14 +457,14 @@ const ScriptAnalyzer = () => {
                 Script Analyzer
               </h1>
               <p className="mt-2 text-gray-600">
-                Upload and analyze your scripts with AI-powered agent 
+                Upload and analyze your scripts with AI-powered agent
               </p>
             </div>
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="text-sm">
                 {analyses.length} Scripts Analyzed
               </Badge>
-              
+
             </div>
           </div>
 
@@ -571,6 +489,21 @@ const ScriptAnalyzer = () => {
                       className="mt-1"
                       disabled={analyzing || isUploading}
                     />
+                  </div>
+                  {/* NEW: Script Type Dropdown */}
+                  <div>
+                    <Label htmlFor="scriptType">Type of Script</Label>
+                    <select
+                      id="scriptType"
+                      value={scriptType}
+                      onChange={e => setScriptType(e.target.value)}
+                      className="mt-1 w-full border rounded px-2 py-2 text-gray-900"
+                      disabled={analyzing || isUploading}
+                    >
+                      {SCRIPT_TYPES.map(option => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
                   </div>
 
                   <div>
@@ -598,7 +531,7 @@ const ScriptAnalyzer = () => {
                         {isUploading ? 'Uploading...' : 'Choose File'}
                       </Button>
                       <p className="text-xs text-gray-500 mt-1">
-                        Supports PDF file (Max 10MB) 
+                        Supports PDF file (Max 10MB)
                       </p>
                       {uploadProgress > 0 && (
                         <div className="mt-2">
@@ -789,7 +722,8 @@ const ScriptAnalyzer = () => {
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <ScriptAnalysisDisplay analysisResult={selectedAnalysis.analysis_result} />
+                      <ScriptAnalysisDisplay analysisResult={selectedAnalysis.analysis_result} />
+
                       </CardContent>
                     </Card>
                   )}
@@ -806,10 +740,10 @@ const ScriptAnalyzer = () => {
                     </p>
                     <div className="space-y-2 text-sm text-gray-500">
                       <p>• Upload PDF file</p>
-                      
+
                       <p>• Get AI-powered agent analysis</p>
-                      
-                      
+
+
                     </div>
                   </div>
                 </Card>

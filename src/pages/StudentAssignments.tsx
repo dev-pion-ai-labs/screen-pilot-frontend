@@ -1716,7 +1716,7 @@ export default function StudentAssignments() {
                                           <div className="flex items-center justify-between mb-2">
                                             <div className="flex items-center gap-2">
                                               <span className="font-medium text-gray-800 text-sm">
-                                                {item.criterion}
+                                                {item.criterion?.replace(/\*\*/g, '') || item.criterion}
                                               </span>
                                               {item.weightage && (
                                                 <Badge className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white border-0 text-xs">

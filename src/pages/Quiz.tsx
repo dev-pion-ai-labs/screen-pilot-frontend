@@ -148,7 +148,7 @@ const CURRICULUM = {
     "Visual Storytelling and Collaboration": [
       "Introduction to visual storytelling (Composition, Cutting, Closeup, Continuity, Camera Angle)",
       "Recreating a Painting",
-      "Collaboration with Camera, Edit, Sound",
+      "Collaboration with Camera, Edit and Sound",
       "Turning Actualities into Stories (Observation Writing)",
       "Trip to a Closed Public Space (e.g. Library, Museum)",
       "Trip to an open public space (e.g. Park, Market place, Bus stop)",
@@ -1580,8 +1580,9 @@ export default function AIMentorAgent(): JSX.Element {
 
     // Send subtopic as requested
     const payload = {
-      chatInput: topicSelection.subTopic || "",
-    };
+  chatInput: (topicSelection.subTopic || "").toString().toLowerCase(),
+};
+
 
     console.log("📤 Sending quiz feedback payload:", payload);
 
@@ -1608,8 +1609,9 @@ export default function AIMentorAgent(): JSX.Element {
 
     // Only send subtopic as requested
     const payload = {
-      chatInput: topicSelection.subTopic || "",
-    };
+  chatInput: (topicSelection.subTopic || "").toString().toLowerCase(),
+};
+
 
     console.log("📤 Sending quiz summary payload:", payload);
 

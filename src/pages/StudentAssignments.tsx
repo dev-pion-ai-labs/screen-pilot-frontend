@@ -1730,14 +1730,10 @@ export default function StudentAssignments() {
                                                   (item.score / item.maxScore) * 100
                                                 )}`}
                                               >
-                                                {item.isGraded === false ? 'Not Graded' : item.score}
+                                                {item.isGraded === false ? 'Not Graded' : `${item.score}%`}
                                               </span>
                                             </div>
                                           </div>
-                                          <Progress
-                                            value={item.isGraded === false ? 0 : (item.score / item.maxScore) * 100}
-                                            className={`mb-2 h-2 ${item.isGraded === false ? 'opacity-30' : ''}`}
-                                          />
                                           <p className="text-xs text-gray-700">
                                             {item.assessment}
                                           </p>

@@ -111,6 +111,7 @@ function parseAIFeedback(aiResult: any) {
 
   let parsed = aiResult;
   let rawText = "";
+  let totalScore = null;
 
   // Handle the new N8N response format
   if (aiResult?.output) {
@@ -156,33 +157,58 @@ function parseAIFeedback(aiResult: any) {
   }
 
   // Parse the new format with markdown table
-  if (rawText && rawText.includes("## 📊 Rubric-Based Scoring")) {
+  if (rawText && (rawText.includes("## 📊 Rubric-Based Scoring") || rawText.includes("📊 **Rubric-Based Scoring") || rawText.includes(":bar_chart: **Rubric-Based Scoring"))) {
     console.log("[AI Feedback] Parsing new N8N format with rubric table");
     
-    // Extract total score from the table
-    const totalMatch = rawText.match(/\|\s*\*\*Total\*\*\s*\|\s*\d+\s*\|\s*(\d+)\s*\|/);
-    const totalScore = totalMatch ? parseInt(totalMatch[1]) : null;
+    // Extract total score from the table - handle both numbers and XX
+    const totalMatchNumeric = rawText.match(/\|\s*\*\*Total\*\*\s*\|\s*\d+\s*\|\s*(\d+)\s*\|/);
+    if (totalMatchNumeric) {
+      totalScore = parseInt(totalMatchNumeric[1]);
+      console.log("✅ Found Total AI Grade (numeric):", totalScore);
+    } else {
+      const totalMatchXX = rawText.match(/\|\s*\*\*Total\*\*\s*\|\s*\d+\s*\|\s*(XX)\s*\|/);
+      if (totalMatchXX) {
+        console.log("⚠️ Total score is XX (not graded yet)");
+        totalScore = null;
+      }
+    }
     
     // Extract individual criteria scores and comments
     const rubricItems = [];
-    const criteriaMatches = rawText.matchAll(/\|\s*([^|]+?)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*([^|]+?)\s*\|/g);
+    const criteriaMatches = rawText.matchAll(/\|\s*([^|]+?)\s*\|\s*(\d+|XX)\s*\|\s*(\d+|XX)\s*\|\s*([^|]+?)\s*\|/g);
     
-    for (const match of criteriaMatches) {
+    console.log("🔍 All table matches found:", Array.from(criteriaMatches));
+    const criteriaMatches2 = rawText.matchAll(/\|\s*([^|]+?)\s*\|\s*(\d+|XX)\s*\|\s*(\d+|XX)\s*\|\s*([^|]+?)\s*\|/g);
+    
+    for (const match of criteriaMatches2) {
       const criterion = match[1].trim();
-      const weightage = parseInt(match[2]);
-      const score = parseInt(match[3]);
+      const weightageStr = match[2].trim();
+      const scoreStr = match[3].trim();
       const comment = match[4].trim();
       
+      // Parse values, handling XX as 0 for display purposes
+      const weightage = weightageStr === "XX" ? 0 : parseInt(weightageStr);
+      const score = scoreStr === "XX" ? 0 : parseInt(scoreStr);
+      
+      console.log("🔍 Processing row:", { criterion, weightage, score, comment });
+      
       // Skip the header row and total row
-      if (criterion !== "Criteria" && criterion !== "**Total**") {
+      if (criterion !== "Criteria" && criterion !== "**Total**" && 
+          !criterion.toLowerCase().includes("criteria")) {
         rubricItems.push({
           criterion,
           weightage,
           score,
-          comment
+          comment,
+          isGraded: scoreStr !== "XX" // Track if this item is actually graded
         });
+        console.log("✅ Added rubric item:", { criterion, weightage, score, isGraded: scoreStr !== "XX" });
+      } else {
+        console.log("⏭️ Skipped row:", criterion);
       }
     }
+    
+    console.log("📊 Final rubric items:", rubricItems);
     
     // Extract feedback sections - handle both new and old formats
     let summaryFeedback = "";
@@ -257,6 +283,36 @@ function parseAIFeedback(aiResult: any) {
     };
   }
 
+  // NEW: Add parsing for Summary Feedback and Lecturer's Guidance (if not already parsed above)
+  if (rawText && !parsed["Constructive Feedback"]?.Strengths) {
+    console.log("[AI Feedback] Trying to parse Summary Feedback sections");
+    
+    // Extract Summary Feedback
+    const summaryMatch = rawText.match(/🧾 \*\*Summary Feedback\*\*:\s*\n([\s\S]+?)(?=🎓|$)/u);
+    if (summaryMatch) {
+      const summaryText = summaryMatch[1].trim();
+      console.log("✅ Found Summary Feedback:", summaryText);
+      
+      if (!parsed["Constructive Feedback"]) {
+        parsed["Constructive Feedback"] = {};
+      }
+      parsed["Constructive Feedback"].Strengths = summaryText;
+    }
+    
+    // Extract Lecturer's Guidance
+    const guidanceMatch = rawText.match(/🎓 \*\*Lecturer's Guidance\*\*:\s*\n([\s\S]+?)(?=$)/u);
+    if (guidanceMatch) {
+      const guidanceText = guidanceMatch[1].trim();
+      console.log("✅ Found Lecturer's Guidance:", guidanceText);
+      
+      if (!parsed["Constructive Feedback"]) {
+        parsed["Constructive Feedback"] = {};
+      }
+      parsed["Constructive Feedback"]["Areas for Improvement"] = guidanceText;
+      parsed["Constructive Feedback"].Recommendations = guidanceText;
+    }
+  }
+
   const get = (obj: any, path: string, fallback: any = null) =>
     path
       .split(".")
@@ -266,7 +322,7 @@ function parseAIFeedback(aiResult: any) {
       );
 
   const result = {
-    ai_grade: String(get(parsed, "Score") || ""),
+    ai_grade: String(get(parsed, "Score") || totalScore || ""),
     ai_overall_grade: get(parsed, "Overall Grade") || "",
     ai_strengths: get(parsed, "Constructive Feedback.Strengths") || "",
     ai_areas_for_improvement:
@@ -470,6 +526,109 @@ const formatAssignmentDescription = (description: string) => {
       }
       const content = trimmedLine.replace(/^\d+\.\s*/, "");
       listItems.push(content);
+    }
+    // Check if it's a table row (contains | characters)
+    else if (trimmedLine.includes("|") && trimmedLine.split("|").length > 2) {
+      // Save any pending content
+      if (currentParagraph.length > 0) {
+        elements.push(
+          <p
+            key={`para-${elements.length}`}
+            className="text-gray-700 leading-relaxed mb-4"
+          >
+            {formatInlineText(currentParagraph.join(" "))}
+          </p>
+        );
+        currentParagraph = [];
+      }
+      if (inList && listItems.length > 0) {
+        // End any pending list
+        if (listType === "bullet") {
+          elements.push(
+            <ul
+              key={`ul-${elements.length}`}
+              className="list-disc pl-6 space-y-2 mb-4"
+            >
+              {listItems.map((item, i) => (
+                <li key={i} className="text-gray-700">
+                  {formatInlineText(item)}
+                </li>
+              ))}
+            </ul>
+          );
+        } else {
+          elements.push(
+            <ol
+              key={`ol-${elements.length}`}
+              className="list-decimal pl-6 space-y-2 mb-4"
+            >
+              {listItems.map((item, i) => (
+                <li key={i} className="text-gray-700">
+                  {formatInlineText(item)}
+                </li>
+              ))}
+            </ol>
+          );
+        }
+        listItems = [];
+        inList = false;
+      }
+
+      // Parse table - collect all table rows starting from current line
+      const tableRows = [];
+      let currentLineIndex = index;
+      
+      // Check if this is a header separator line (contains only |, -, and spaces)
+      const isHeaderSeparator = trimmedLine.match(/^[\|\-\s]+$/);
+      
+      // Start collecting table rows from current position
+      while (currentLineIndex < lines.length) {
+        const tableLine = lines[currentLineIndex].trim();
+        if (tableLine.includes("|") && tableLine.split("|").length > 2) {
+          // Skip header separator lines
+          if (!tableLine.match(/^[\|\-\s]+$/)) {
+            const cells = tableLine.split("|").map(cell => cell.trim()).filter(cell => cell);
+            if (cells.length > 0) {
+              tableRows.push(cells);
+            }
+          }
+          currentLineIndex++;
+        } else {
+          break;
+        }
+      }
+      
+      // Skip the lines we've already processed
+      lines.splice(index + 1, currentLineIndex - index - 1);
+      
+      if (tableRows.length > 0) {
+        elements.push(
+          <div key={`table-${elements.length}`} className="mb-6 overflow-x-auto">
+            <table className="min-w-full bg-white border border-gray-300 rounded-lg shadow-sm">
+              <thead className="bg-gradient-to-r from-blue-50 to-indigo-50">
+                <tr>
+                  {tableRows[0].map((header, i) => (
+                    <th key={i} className="px-4 py-3 text-left text-sm font-semibold text-gray-800 border-b border-gray-300">
+                      {formatInlineText(header)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {tableRows.slice(1).map((row, rowIndex) => (
+                  <tr key={rowIndex} className={rowIndex % 2 === 0 ? "bg-gray-50" : "bg-white"}>
+                    {row.map((cell, cellIndex) => (
+                      <td key={cellIndex} className="px-4 py-3 text-sm text-gray-700 border-b border-gray-200">
+                        {formatInlineText(cell)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      }
     }
     // Empty line - might signal end of list or paragraph
     else if (trimmedLine === "") {
@@ -1557,7 +1716,7 @@ export default function StudentAssignments() {
                                           <div className="flex items-center justify-between mb-2">
                                             <div className="flex items-center gap-2">
                                               <span className="font-medium text-gray-800 text-sm">
-                                                {item.criterion}
+                                                {item.criterion?.replace(/\*\*/g, '') || item.criterion}
                                               </span>
                                               {item.weightage && (
                                                 <Badge className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white border-0 text-xs">
@@ -1567,21 +1726,14 @@ export default function StudentAssignments() {
                                             </div>
                                             <div className="flex items-center gap-2">
                                               <span
-                                                className={`text-sm font-bold ${getGradeColor(
+                                                className={`text-sm font-bold ${item.isGraded === false ? 'text-gray-400' : getGradeColor(
                                                   (item.score / item.maxScore) * 100
                                                 )}`}
                                               >
-                                                {item.score}
-                                              </span>
-                                              <span className="text-gray-500 text-sm">
-                                                / {item.maxScore}
+                                                {item.isGraded === false ? 'Not Graded' : `${item.score}%`}
                                               </span>
                                             </div>
                                           </div>
-                                          <Progress
-                                            value={(item.score / item.maxScore) * 100}
-                                            className="mb-2 h-2"
-                                          />
                                           <p className="text-xs text-gray-700">
                                             {item.assessment}
                                           </p>
@@ -1721,44 +1873,50 @@ export default function StudentAssignments() {
                                 return feedbackData.strengths ||
                                   feedbackData.areasForImprovement ||
                                   feedbackData.recommendations ? (
-                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                  <div className="space-y-4">
                                     {feedbackData.strengths && (
-                                      <div className="bg-white/60 rounded-lg p-3">
-                                        <div className="flex items-center gap-2 mb-2">
-                                          <CheckCircle className="w-4 h-4 text-green-600" />
-                                          <h6 className="font-semibold text-green-700 text-sm">
-                                            Strengths
+                                      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200 shadow-sm">
+                                        <div className="flex items-center gap-3 mb-3">
+                                          <div className="p-2 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-lg">
+                                            <CheckCircle className="w-4 h-4 text-white" />
+                                          </div>
+                                          <h6 className="font-bold text-blue-800 text-sm">
+                                            📝 Summary Feedback
                                           </h6>
                                         </div>
-                                        <p className="text-xs text-gray-700">
+                                        <p className="text-sm text-gray-800 leading-relaxed">
                                           {feedbackData.strengths}
                                         </p>
                                       </div>
                                     )}
 
                                     {feedbackData.areasForImprovement && (
-                                      <div className="bg-white/60 rounded-lg p-3">
-                                        <div className="flex items-center gap-2 mb-2">
-                                          <AlertCircle className="w-4 h-4 text-orange-600" />
-                                          <h6 className="font-semibold text-orange-700 text-sm">
-                                            Areas for Improvement
+                                      <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-xl p-4 border border-orange-200 shadow-sm">
+                                        <div className="flex items-center gap-3 mb-3">
+                                          <div className="p-2 bg-gradient-to-r from-orange-500 to-amber-500 rounded-lg">
+                                            <AlertCircle className="w-4 h-4 text-white" />
+                                          </div>
+                                          <h6 className="font-bold text-orange-800 text-sm">
+                                            🎯 Areas for Improvement
                                           </h6>
                                         </div>
-                                        <p className="text-xs text-gray-700">
+                                        <p className="text-sm text-gray-800 leading-relaxed">
                                           {feedbackData.areasForImprovement}
                                         </p>
                                       </div>
                                     )}
 
                                     {feedbackData.recommendations && (
-                                      <div className="bg-white/60 rounded-lg p-3">
-                                        <div className="flex items-center gap-2 mb-2">
-                                          <Star className="w-4 h-4 text-purple-600" />
-                                          <h6 className="font-semibold text-purple-700 text-sm">
-                                            Recommendations
+                                      <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-4 border border-purple-200 shadow-sm">
+                                        <div className="flex items-center gap-3 mb-3">
+                                          <div className="p-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg">
+                                            <Star className="w-4 h-4 text-white" />
+                                          </div>
+                                          <h6 className="font-bold text-purple-800 text-sm">
+                                            ⭐ Recommendations
                                           </h6>
                                         </div>
-                                        <p className="text-xs text-gray-700">
+                                        <p className="text-sm text-gray-800 leading-relaxed">
                                           {feedbackData.recommendations}
                                         </p>
                                       </div>

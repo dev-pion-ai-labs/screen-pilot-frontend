@@ -208,6 +208,44 @@ const TeacherAssignment = () => {
   };
 
   const handleOpenSubmission = (submission: Submission) => {
+    console.log("🔍 TEACHER VIEW - RAW SUBMISSION DATA:", JSON.stringify(submission, null, 2));
+    console.log("📝 SUBMISSION TYPE:", typeof submission);
+    console.log("🎯 SUBMISSION KEYS:", Object.keys(submission || {}));
+    console.log("📊 AI FEEDBACK RAW:", submission.ai_feedback);
+    console.log("💾 AI EVALUATION RAW:", submission.ai_evaluation);
+    console.log("🔍 AI FEEDBACK TYPE:", typeof submission.ai_feedback);
+    console.log("💾 AI EVALUATION TYPE:", typeof submission.ai_evaluation);
+    console.log("📋 SUBMISSION BREAKDOWN:", {
+      id: submission.id,
+      studentId: submission.student_id,
+      studentName: submission.profiles?.full_name,
+      hasAiFeedback: !!submission.ai_feedback,
+      hasAiEvaluation: !!submission.ai_evaluation,
+      hasAiStrengths: !!submission.ai_strengths,
+      hasAiAreasForImprovement: !!submission.ai_areas_for_improvement,
+      hasAiRecommendations: !!submission.ai_recommendations,
+      aiGrade: submission.ai_grade,
+      teacherGrade: submission.teacher_grade,
+      status: submission.status,
+      submissionDate: submission.submission_date
+    });
+    
+    // Try to parse ai_feedback if it's a string
+    if (submission.ai_feedback && typeof submission.ai_feedback === 'string') {
+      try {
+        const parsedFeedback = JSON.parse(submission.ai_feedback);
+        console.log("✅ PARSED AI FEEDBACK:", JSON.stringify(parsedFeedback, null, 2));
+        console.log("🔍 PARSED FEEDBACK KEYS:", Object.keys(parsedFeedback || {}));
+        if (parsedFeedback.rawText) {
+          console.log("📄 RAW TEXT CONTENT:", parsedFeedback.rawText);
+          console.log("🧾 SUMMARY FEEDBACK CHECK:", parsedFeedback.rawText.includes('🧾 **Summary Feedback**'));
+          console.log("🎓 LECTURER'S GUIDANCE CHECK:", parsedFeedback.rawText.includes('🎓 **Lecturer\'s Guidance**'));
+        }
+      } catch (e) {
+        console.error("❌ FAILED TO PARSE AI FEEDBACK:", e);
+      }
+    }
+    
     setViewSubmission(submission);
     setGradeInput(submission.teacher_grade?.toString() || "");
     setFeedbackInput(submission.teacher_feedback || "");
@@ -869,6 +907,19 @@ const TeacherAssignment = () => {
                     const parseRubricFromSubmission = (submission: any) => {
                       console.log('🔍 Parsing detailed submission:', submission);
                       
+                      // First check if we have rubric items directly in ai_evaluation
+                      if (submission.ai_evaluation?.["Rubric Items"]) {
+                        console.log('✅ Found Rubric Items in ai_evaluation:', submission.ai_evaluation["Rubric Items"]);
+                        return submission.ai_evaluation["Rubric Items"];
+                      }
+                      
+                      // Then check ai_feedback
+                      if (submission.ai_feedback?.["Rubric Items"]) {
+                        console.log('✅ Found Rubric Items in ai_feedback:', submission.ai_feedback["Rubric Items"]);
+                        return submission.ai_feedback["Rubric Items"];
+                      }
+                      
+                      // Fallback to parsing from rawText if needed
                       let feedbackData = null;
                       let rawText = '';
                       
@@ -1002,31 +1053,26 @@ const TeacherAssignment = () => {
                               <div className="flex items-center justify-between mb-3">
                                 <div className="flex items-center gap-2">
                                   <h4 className="font-bold text-gray-900">
-                                    {item.criterion}
+                                    {item.criterion?.replace(/\*\*/g, '') || item.criterion}
                                   </h4>
-                                  {item.percentage && (
+                                  {(item.percentage || item.weightage) && (
                                     <Badge className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white border-0 text-xs">
-                                      {item.percentage}
+                                      {item.percentage || item.weightage}%
                                     </Badge>
                                   )}
                                 </div>
                                 <div className="flex items-center gap-2">
                                   <span
-                                    className={`text-lg font-bold ${getGradeColor(
-                                      (item.score / item.maxScore) * 100
+                                    className={`text-lg font-bold ${item.isGraded === false ? 'text-gray-400' : getGradeColor(
+                                      (item.score / (item.maxScore || item.weightage || 20)) * 100
                                     )}`}
                                   >
-                                    {item.score}
+                                    {item.isGraded === false ? 'Not Graded' : `${item.score}%`}
                                   </span>
-                                  <span className="text-gray-500">/ {item.maxScore}</span>
                                 </div>
                               </div>
-                              <Progress
-                                value={(item.score / item.maxScore) * 100}
-                                className="mb-3"
-                              />
                               <p className="text-sm text-gray-700">
-                                {item.assessment}
+                                {item.assessment || item.comment}
                               </p>
                             </div>
                           ))}
@@ -1074,13 +1120,34 @@ const TeacherAssignment = () => {
                             // Parse from rawText if structured data not available
                             const rawText = feedbackData.rawText;
                             
-                            const strengthsMatch = rawText.match(/\*\*Strengths\*\*: ([^*]+?)(?=\n\*\*|$)/);
-                            const areasMatch = rawText.match(/\*\*Areas for Improvement\*\*: ([^*]+?)(?=\n\*\*|$)/);
-                            const recommendationsMatch = rawText.match(/\*\*Recommendations\*\*: ([^*]+?)(?=\n\*\*|$)/);
+                            // NEW: Try parsing Summary Feedback and Lecturer's Guidance sections first
+                            const summaryMatch = rawText.match(/🧾 \*\*Summary Feedback\*\*:\s*\n([\s\S]+?)(?=🎓|$)/u);
+                            if (summaryMatch) {
+                              strengths = summaryMatch[1].trim();
+                              console.log("✅ Found Summary Feedback in teacher view:", strengths);
+                            }
                             
-                            strengths = strengthsMatch ? strengthsMatch[1].trim() : "";
-                            areasForImprovement = areasMatch ? areasMatch[1].trim() : "";
-                            recommendations = recommendationsMatch ? recommendationsMatch[1].trim() : "";
+                            const guidanceMatch = rawText.match(/🎓 \*\*Lecturer's Guidance\*\*:\s*\n([\s\S]+?)(?=$)/u);
+                            if (guidanceMatch) {
+                              const lecturerGuidance = guidanceMatch[1].trim();
+                              console.log("✅ Found Lecturer's Guidance in teacher view:", lecturerGuidance);
+                              areasForImprovement = lecturerGuidance;
+                              recommendations = lecturerGuidance;
+                            }
+                            
+                            // Fallback to old patterns if new ones not found
+                            if (!strengths) {
+                              const strengthsMatch = rawText.match(/\*\*Strengths\*\*: ([^*]+?)(?=\n\*\*|$)/);
+                              strengths = strengthsMatch ? strengthsMatch[1].trim() : "";
+                            }
+                            if (!areasForImprovement) {
+                              const areasMatch = rawText.match(/\*\*Areas for Improvement\*\*: ([^*]+?)(?=\n\*\*|$)/);
+                              areasForImprovement = areasMatch ? areasMatch[1].trim() : "";
+                            }
+                            if (!recommendations) {
+                              const recommendationsMatch = rawText.match(/\*\*Recommendations\*\*: ([^*]+?)(?=\n\*\*|$)/);
+                              recommendations = recommendationsMatch ? recommendationsMatch[1].trim() : "";
+                            }
                           }
                         } catch (e) {
                           console.warn('❌ Failed to parse ai_feedback JSON:', e);
@@ -1139,39 +1206,45 @@ const TeacherAssignment = () => {
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                          <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4">
-                            <div className="flex items-center gap-2 mb-3">
-                              <CheckCircle className="w-5 h-5 text-green-600" />
-                              <h4 className="font-bold text-green-700">
-                                Strengths
+                        <div className="space-y-4">
+                          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200 shadow-sm">
+                            <div className="flex items-center gap-3 mb-3">
+                              <div className="p-2 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-lg">
+                                <CheckCircle className="w-4 h-4 text-white" />
+                              </div>
+                              <h4 className="font-bold text-blue-800 text-sm">
+                                📝 Summary Feedback
                               </h4>
                             </div>
-                            <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                            <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
                               {feedbackData.strengths}
                             </p>
                           </div>
 
-                          <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4">
-                            <div className="flex items-center gap-2 mb-3">
-                              <AlertTriangle className="w-5 h-5 text-orange-600" />
-                              <h4 className="font-bold text-orange-700">
-                                Areas for Improvement
+                          <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-xl p-4 border border-orange-200 shadow-sm">
+                            <div className="flex items-center gap-3 mb-3">
+                              <div className="p-2 bg-gradient-to-r from-orange-500 to-amber-500 rounded-lg">
+                                <AlertTriangle className="w-4 h-4 text-white" />
+                              </div>
+                              <h4 className="font-bold text-orange-800 text-sm">
+                                🎯 Areas for Improvement
                               </h4>
                             </div>
-                            <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                            <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
                               {feedbackData.areasForImprovement}
                             </p>
                           </div>
 
-                          <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4">
-                            <div className="flex items-center gap-2 mb-3">
-                              <Star className="w-5 h-5 text-purple-600" />
-                              <h4 className="font-bold text-purple-700">
-                                Recommendations
+                          <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-4 border border-purple-200 shadow-sm">
+                            <div className="flex items-center gap-3 mb-3">
+                              <div className="p-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg">
+                                <Star className="w-4 h-4 text-white" />
+                              </div>
+                              <h4 className="font-bold text-purple-800 text-sm">
+                                ⭐ Recommendations
                               </h4>
                             </div>
-                            <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                            <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
                               {feedbackData.recommendations}
                             </p>
                           </div>

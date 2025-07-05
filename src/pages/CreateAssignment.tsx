@@ -40,6 +40,7 @@ import { format } from "date-fns"
 import { ModernDashboardLayout } from "@/components/ModernDashboardLayout"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
+import AssignmentDisplay from "@/components/AssignmentDisplay"
 
 // Semester syllabus data
 const semester1Syllabus = { 
@@ -533,6 +534,8 @@ const generateAssignment = async (isRevision = false) => {
       agentResponse.content ||
       agentResponse.answer ||
       "No assignment content generated";
+
+      console.log("📋 Assignment Content..........:", assignmentContent);
 
     const newAssignment = {
       title: subtopicToUse,
@@ -1177,7 +1180,7 @@ const generateAssignment = async (isRevision = false) => {
                     Generated Assignment Content
                   </h4>
                   <div className="prose max-w-none text-gray-700 text-sm leading-relaxed whitespace-pre-wrap bg-gray-50 rounded-lg p-4">
-                    {currentAssignment.content}
+                    <AssignmentDisplay content={currentAssignment.content} />
                   </div>
                 </div>
 
@@ -1392,7 +1395,7 @@ const generateAssignment = async (isRevision = false) => {
                     Final Assignment Content
                   </h4>
                   <div className="prose max-w-none text-gray-700 text-sm leading-relaxed whitespace-pre-wrap bg-gray-50 rounded-lg p-4 max-h-60 overflow-y-auto">
-                    {currentAssignment.content}
+                    <AssignmentDisplay content={currentAssignment.content} />
                   </div>
                 </div>
 

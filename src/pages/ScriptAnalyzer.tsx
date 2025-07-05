@@ -722,7 +722,7 @@ const ScriptAnalyzer = () => {
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
-                      <ScriptAnalysisDisplay analysisResult={selectedAnalysis.analysis_result} />
+                      <ScriptAnalysisDisplay analysisResult={selectedAnalysis.analysis_result} type={selectedAnalysis.type} />
 
                       </CardContent>
                     </Card>

@@ -1726,20 +1726,17 @@ export default function StudentAssignments() {
                                             </div>
                                             <div className="flex items-center gap-2">
                                               <span
-                                                className={`text-sm font-bold ${getGradeColor(
+                                                className={`text-sm font-bold ${item.isGraded === false ? 'text-gray-400' : getGradeColor(
                                                   (item.score / item.maxScore) * 100
                                                 )}`}
                                               >
-                                                {item.score}
-                                              </span>
-                                              <span className="text-gray-500 text-sm">
-                                                / {item.maxScore}
+                                                {item.isGraded === false ? 'Not Graded' : item.score}
                                               </span>
                                             </div>
                                           </div>
                                           <Progress
-                                            value={(item.score / item.maxScore) * 100}
-                                            className="mb-2 h-2"
+                                            value={item.isGraded === false ? 0 : (item.score / item.maxScore) * 100}
+                                            className={`mb-2 h-2 ${item.isGraded === false ? 'opacity-30' : ''}`}
                                           />
                                           <p className="text-xs text-gray-700">
                                             {item.assessment}

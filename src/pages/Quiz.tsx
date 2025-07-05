@@ -143,21 +143,21 @@ const CURRICULUM = {
       "Case studies of filmmakers and their approach",
       "Case studies of filmmakers in historical perspective",
       "Writing Actuality Report",
-      "Film Diary (Thoughts, stories, scenes, photos)",
+      "Film Diary (Analysis of films, director and scripts, thoughts, ideas/stories,scenes, photographs)",
     ],
     "Visual Storytelling and Collaboration": [
-      "Intro to Visual Storytelling (Composition, Cutting, Camera)",
+      "Introduction to visual storytelling (Composition, Cutting, Closeup, Continuity, Camera Angle)",
       "Recreating a Painting",
       "Collaboration with Camera, Edit, Sound",
       "Turning Actualities into Stories (Observation Writing)",
       "Trip to a Closed Public Space (e.g. Library, Museum)",
-      "Trip to an Open Public Space (e.g. Park, Market)",
+      "Trip to an open public space (e.g. Park, Market place, Bus stop)",
     ],
     "Principles of Continuity": [
-      "Decoupage (cutting scripts & visual planning)",
+      "Decoupage (cutting scripts and planning visual for cinematic connection) and Continuity",
       "Aspects of Continuity",
       "Time and Space in Films",
-      "Scene Analysis (Classical Hollywood & Contemporary)",
+      "Scene analysis of Classical Hollywood films and contemporary films",
     ],
     "Concept and Ideation": [
       "Research",
@@ -165,43 +165,51 @@ const CURRICULUM = {
       "Developing a Concept",
       "Use of VFX Elements",
       "Oral Narrative Skills",
-      "Creative Writing (Memoir, Descriptive)",
+      "Creative Writing (Personal Memoir, Descriptive Writing)",
       "Reading and Analysis of Short Stories",
     ],
     "Theories and Formats of Scriptwriting": [
       "History of Storytelling",
       "Screenplay Writing – Overview and Process",
       "Elements of a Screenplay",
-      "Premise, Plot, Treatment, Characters",
+      "Premise, Plot, Treatment, Characters, Conflict",
       "Screenwriting Software",
-      "Introduction to Story Structures (3-act, 5-act)",
-      "Creating Simple Screenplays (3-act structure)",
+      "Introductions to Story structures  - I (Three-Act Structure, 5 Act Structure)",
+      "Creating simple screenplays using 3 act structure",
     ],
   },
   "Semester 2": {
-    "Advanced Direction Techniques": [
-      "Advanced Camera Movements",
-      "Working with Actors",
-      "Set Management",
-      "Location Planning",
+    "Staging and Blocking": [
+      "Understanding the concept of staging and blocking",
+      "Types of staging and blocking",
+      "Usage of props and space",
+      "I, A, L, C, S patterns",
+      "Blocking for VFX",
     ],
-    "Advanced Visual Storytelling": [
-      "Color Theory in Film",
-      "Advanced Composition",
-      "Lighting Techniques",
-      "Sound Design Integration",
+    "Working with Actors": [
+      "Staging a scene with actors",
+      "Exercise on Improvisation",
+      "Styles of acting",
+      "Difference between stage and film acting",
+      "Working with Virtual/Digital Actors : Possibilities and Limitations",
     ],
-    "Post-Production and Editing": [
-      "Non-linear Editing",
-      "Color Grading",
-      "Sound Mixing",
-      "VFX Integration",
+    "Scene Analysis": [
+      "Dialogue – Acting - Composition-Staging and Blocking along with use of Visualization tools like",
+      "Traditional/Digital Storyboards and AI tools for mood boards",
     ],
-    "Advanced Scriptwriting": [
-      "Character Development",
-      "Dialogue Writing",
-      "Genre-specific Writing",
-      "Adaptation Techniques",
+    "Dialogue writing and Story Structures": [
+      "Dialogue, monologue and conversation",
+      "Types of dialogue",
+      "Writing effective dialogue",
+      "Dialogue through observation",
+      "Dialogue in a situation",
+      "Story Structures II (Hero’s Journey, Dan Harmon Story Circle)",
+      "Creating effective story conflicts",
+    ],
+    "Rhythm and Pace": [
+      "Usage of Edit, Sound and BGM from Director’s Point of View",
+      "Tonalities of Dialogue",
+      "Space and Action Dynamics",
     ],
   },
 };
@@ -1324,7 +1332,7 @@ export default function AIMentorAgent(): JSX.Element {
   // Generate feedback from quiz questions when n8n returns questions instead of feedback
   const generateFeedbackFromQuestions = (allQuestions: any[]): string => {
     const wrongAnswers: string[] = [];
-    
+
     // Find questions where user answered incorrectly
     quizData?.questions.forEach((question, index) => {
       const userAnswer = quizAnswers.find((a) => a.questionId === question.id);
@@ -1333,28 +1341,28 @@ export default function AIMentorAgent(): JSX.Element {
         const matchingQuestion = allQuestions[index];
         if (matchingQuestion && matchingQuestion.Correct_answer_explanation) {
           // Clean the explanation text
-          const cleanExplanation = matchingQuestion.Correct_answer_explanation
-            .replace(/【.*?】/g, '') // Remove citation markers
-            .replace(/\s+/g, ' ') // Clean multiple spaces
-            .trim();
-          
+          const cleanExplanation =
+            matchingQuestion.Correct_answer_explanation.replace(/【.*?】/g, "") // Remove citation markers
+              .replace(/\s+/g, " ") // Clean multiple spaces
+              .trim();
+
           wrongAnswers.push(
             `**🤔 ${question.question}**\n\n` +
-            `❌ **Your answer:** ${userAnswer.selectedAnswer}\n` +
-            `✅ **Correct answer:** ${question.correctAnswer}\n` +
-            `💡 **Explanation:** ${cleanExplanation}\n`
+              `❌ **Your answer:** ${userAnswer.selectedAnswer}\n` +
+              `✅ **Correct answer:** ${question.correctAnswer}\n` +
+              `💡 **Explanation:** ${cleanExplanation}\n`
           );
         }
       }
     });
-    
+
     const correctCount = quizAnswers.filter((a) => a.isCorrect).length;
     const totalQuestions = quizData?.questions.length || 0;
     const score = Math.round((correctCount / totalQuestions) * 100);
-    
+
     // Create beautiful header with emojis
     let feedback = `🎓 **Quiz Results: ${topicSelection.subTopic}**\n\n`;
-    
+
     // Score section with visual indicators
     if (score >= 80) {
       feedback += `🎉 **Excellent! Your Score: ${correctCount}/${totalQuestions} (${score}%)**\n\n`;
@@ -1365,20 +1373,21 @@ export default function AIMentorAgent(): JSX.Element {
     } else {
       feedback += `📚 **Learning Opportunity! Your Score: ${correctCount}/${totalQuestions} (${score}%)**\n\n`;
     }
-    
+
     if (wrongAnswers.length > 0) {
       feedback += `🔍 **Areas for Improvement:**\n\n`;
-      feedback += wrongAnswers.join('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n');
+      feedback += wrongAnswers.join(
+        "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+      );
     } else {
       feedback += `🎆 **Perfect Score!** You answered all questions correctly! Amazing work!\n\n`;
     }
-    
+
     feedback += `\n🎯 **Keep up the fantastic work!** Continue practicing to master **${topicSelection.subTopic}**.\n\n`;
     feedback += `💡 **Tip:** Review the explanations above and practice similar questions to improve your understanding.`;
-    
+
     return feedback;
   };
-
 
   // API Functions
   const callMentorAgent = async (message: string): Promise<unknown> => {
@@ -1454,60 +1463,72 @@ export default function AIMentorAgent(): JSX.Element {
       if (result.output) {
         console.log("🎯 Raw quiz output:", result.output);
         console.log("🔍 Output type:", typeof result.output);
-        
+
         // Check if output is already an object (not string)
-        if (typeof result.output === 'object' && result.output.all_questions) {
+        if (typeof result.output === "object" && result.output.all_questions) {
           console.log("📋 Output is already parsed object:", result.output);
           const parsedOutput = result.output;
-          
-          if (parsedOutput.all_questions && Array.isArray(parsedOutput.all_questions)) {
-            const questions = parsedOutput.all_questions.map((q: any, index: number) => ({
-              id: index + 1,
-              question: q.question,
-              options: q.options || [],
-              correctAnswer: q.options && q.correct_option_id !== undefined 
-                ? q.options[q.correct_option_id] 
-                : undefined
-            }));
-            
+
+          if (
+            parsedOutput.all_questions &&
+            Array.isArray(parsedOutput.all_questions)
+          ) {
+            const questions = parsedOutput.all_questions.map(
+              (q: any, index: number) => ({
+                id: index + 1,
+                question: q.question,
+                options: q.options || [],
+                correctAnswer:
+                  q.options && q.correct_option_id !== undefined
+                    ? q.options[q.correct_option_id]
+                    : undefined,
+              })
+            );
+
             console.log("✅ Converted questions from object:", questions);
-            
+
             return {
               success: true,
               questions: questions,
             };
           }
         }
-        
+
         // If it's a string, try to parse as JSON
-        if (typeof result.output === 'string') {
+        if (typeof result.output === "string") {
           try {
             // Clean up the string - remove markdown code blocks
             let cleanOutput = result.output.trim();
-            
+
             // Remove ```json and ``` wrappers
-            cleanOutput = cleanOutput.replace(/^```json\s*/, '');
-            cleanOutput = cleanOutput.replace(/\s*```$/, '');
+            cleanOutput = cleanOutput.replace(/^```json\s*/, "");
+            cleanOutput = cleanOutput.replace(/\s*```$/, "");
             cleanOutput = cleanOutput.trim();
-            
+
             console.log("🧹 Cleaned output:", cleanOutput);
-            
+
             const parsedOutput = JSON.parse(cleanOutput);
             console.log("📋 Parsed JSON output:", parsedOutput);
-            
+
             // Check if it has all_questions array
-            if (parsedOutput.all_questions && Array.isArray(parsedOutput.all_questions)) {
-              const questions = parsedOutput.all_questions.map((q: any, index: number) => ({
-                id: index + 1,
-                question: q.question,
-                options: q.options || [],
-                correctAnswer: q.options && q.correct_option_id !== undefined 
-                  ? q.options[q.correct_option_id] 
-                  : undefined
-              }));
-              
+            if (
+              parsedOutput.all_questions &&
+              Array.isArray(parsedOutput.all_questions)
+            ) {
+              const questions = parsedOutput.all_questions.map(
+                (q: any, index: number) => ({
+                  id: index + 1,
+                  question: q.question,
+                  options: q.options || [],
+                  correctAnswer:
+                    q.options && q.correct_option_id !== undefined
+                      ? q.options[q.correct_option_id]
+                      : undefined,
+                })
+              );
+
               console.log("✅ Converted questions from JSON:", questions);
-              
+
               return {
                 success: true,
                 questions: questions,
@@ -1516,7 +1537,7 @@ export default function AIMentorAgent(): JSX.Element {
           } catch (e) {
             console.log("❌ JSON parse failed:", e);
             console.log("❌ Raw output that failed:", result.output);
-            
+
             return {
               success: false,
               error: "Quiz response format is invalid - not proper JSON",
@@ -1553,7 +1574,7 @@ export default function AIMentorAgent(): JSX.Element {
 
     // Send subtopic as requested
     const payload = {
-      chatInput: topicSelection.subTopic || ""
+      chatInput: topicSelection.subTopic || "",
     };
 
     console.log("📤 Sending quiz feedback payload:", payload);
@@ -1581,7 +1602,7 @@ export default function AIMentorAgent(): JSX.Element {
 
     // Only send subtopic as requested
     const payload = {
-      chatInput: topicSelection.subTopic || ""
+      chatInput: topicSelection.subTopic || "",
     };
 
     console.log("📤 Sending quiz summary payload:", payload);
@@ -1607,80 +1628,88 @@ export default function AIMentorAgent(): JSX.Element {
   const parseMentorExplanation = (text: string): string => {
     console.log("🔍 Starting mentor explanation parsing...");
     console.log("📝 Raw mentor text received:", text);
-    
+
     // Clean up the text and format it nicely
     let formattedText = text;
-    
+
     // Remove code language indicators and artifacts
-    formattedText = formattedText.replace(/```vbnet\s*/g, '');
-    formattedText = formattedText.replace(/```\s*/g, '');
-    formattedText = formattedText.replace(/^vbnet\s*$/gm, '');
-    formattedText = formattedText.replace(/^Copy\s*$/gm, '');
-    formattedText = formattedText.replace(/^Edit\s*$/gm, '');
-    formattedText = formattedText.replace(/^Copy\s+Edit\s*$/gm, '');
-    
+    formattedText = formattedText.replace(/```vbnet\s*/g, "");
+    formattedText = formattedText.replace(/```\s*/g, "");
+    formattedText = formattedText.replace(/^vbnet\s*$/gm, "");
+    formattedText = formattedText.replace(/^Copy\s*$/gm, "");
+    formattedText = formattedText.replace(/^Edit\s*$/gm, "");
+    formattedText = formattedText.replace(/^Copy\s+Edit\s*$/gm, "");
+
     // Remove any reference citations like 【4:0†Film Art_ An Introduction 10th Edition】
-    formattedText = formattedText.replace(/【[^】]*】/g, '');
-    
+    formattedText = formattedText.replace(/【[^】]*】/g, "");
+
     // Remove "Would you like help" section and everything after it
-    formattedText = formattedText.replace(/Would you like help.*$/s, '');
-    
+    formattedText = formattedText.replace(/Would you like help.*$/s, "");
+
     // Remove "You can learn more using this knowledge source" section and everything after it
-    formattedText = formattedText.replace(/You can learn more using this knowledge source.*$/s, '');
-    
+    formattedText = formattedText.replace(
+      /You can learn more using this knowledge source.*$/s,
+      ""
+    );
+
     // Remove "Help Prompt:" section and everything after it
-    formattedText = formattedText.replace(/Help Prompt:.*$/s, '');
-    
+    formattedText = formattedText.replace(/Help Prompt:.*$/s, "");
+
     // Clean up extra whitespace and normalize line breaks
-    formattedText = formattedText.replace(/\r\n/g, '\n');
-    formattedText = formattedText.replace(/\r/g, '\n');
-    formattedText = formattedText.replace(/^\s+|\s+$/g, '');
-    
+    formattedText = formattedText.replace(/\r\n/g, "\n");
+    formattedText = formattedText.replace(/\r/g, "\n");
+    formattedText = formattedText.replace(/^\s+|\s+$/g, "");
+
     console.log("🧹 After basic cleanup:", formattedText);
-    
+
     // Just return the cleaned text with proper line breaks, preserving emojis and structure
-    const lines = formattedText.split('\n');
+    const lines = formattedText.split("\n");
     const cleanedLines: string[] = [];
-    
+
     for (const line of lines) {
       const trimmedLine = line.trim();
       if (!trimmedLine) {
-        cleanedLines.push('');
+        cleanedLines.push("");
         continue;
       }
-      
+
       // Keep emojis and format properly
-      if (trimmedLine.includes('📖') || trimmedLine.includes('📚') || trimmedLine.includes('💡') || trimmedLine.includes('⭐')) {
+      if (
+        trimmedLine.includes("📖") ||
+        trimmedLine.includes("📚") ||
+        trimmedLine.includes("💡") ||
+        trimmedLine.includes("⭐")
+      ) {
         cleanedLines.push(trimmedLine);
         continue;
       }
-      
-      // Handle bullet points starting with - 
-      if (trimmedLine.startsWith('-')) {
+
+      // Handle bullet points starting with -
+      if (trimmedLine.startsWith("-")) {
         cleanedLines.push(trimmedLine);
         continue;
       }
-      
+
       // Handle numbered items like "1.", "2.", etc.
       if (trimmedLine.match(/^\d+\./)) {
         cleanedLines.push(`- ${trimmedLine}`);
         continue;
       }
-      
+
       // Regular lines
       cleanedLines.push(trimmedLine);
     }
-    
+
     // Join everything back together
-    let finalText = cleanedLines.join('\n');
-    
+    let finalText = cleanedLines.join("\n");
+
     // Clean up excessive blank lines
-    finalText = finalText.replace(/\n{3,}/g, '\n\n');
-    finalText = finalText.replace(/^\n+|\n+$/g, '');
-    
+    finalText = finalText.replace(/\n{3,}/g, "\n\n");
+    finalText = finalText.replace(/^\n+|\n+$/g, "");
+
     console.log("✨ Formatted mentor explanation:", finalText);
     console.log("📊 Final text length:", finalText.length);
-    
+
     return finalText;
   };
 
@@ -1689,40 +1718,47 @@ export default function AIMentorAgent(): JSX.Element {
     console.log("🔍 Starting quiz parsing...");
     console.log("📝 Raw text received:", text);
     console.log("📏 Text length:", text.length);
-    
+
     const questions: QuizQuestion[] = [];
-    
+
     // Look for quiz questions in the text
     // Try to find patterns like "1.", "2.", etc. followed by question text
     const questionPattern = /(\d+)\.\s*(.+?)(?=\d+\.|$)/gs;
     const matches = text.match(questionPattern);
-    
+
     console.log("🎯 Question pattern matches found:", matches);
-    
+
     if (!matches) {
-      console.log("❌ No numbered questions found, trying question mark pattern...");
-      
+      console.log(
+        "❌ No numbered questions found, trying question mark pattern..."
+      );
+
       // If no numbered questions found, try to extract from different format
       // Look for question-like patterns
-      const lines = text.split('\n').filter(line => line.trim());
+      const lines = text.split("\n").filter((line) => line.trim());
       console.log("📄 Split into lines:", lines.length, "lines");
-      
+
       let questionId = 1;
-      
+
       for (const line of lines) {
         console.log("🔍 Checking line:", line);
-        if (line.includes('?') && line.length > 20) {
+        if (line.includes("?") && line.length > 20) {
           console.log("✅ Found question-like line:", line);
           // This looks like a question
           const question = {
             id: questionId++,
             question: line.trim(),
-            options: ['A) Option A', 'B) Option B', 'C) Option C', 'D) Option D'],
-            correctAnswer: 'A'
+            options: [
+              "A) Option A",
+              "B) Option B",
+              "C) Option C",
+              "D) Option D",
+            ],
+            correctAnswer: "A",
           };
           questions.push(question);
           console.log("➕ Added question:", question);
-          
+
           if (questions.length >= 5) break; // Limit to 5 questions
         }
       }
@@ -1731,32 +1767,38 @@ export default function AIMentorAgent(): JSX.Element {
       // Process numbered questions
       matches.forEach((match, index) => {
         console.log(`🔢 Processing match ${index + 1}:`, match);
-        const questionText = match.replace(/^\d+\.\s*/, '').trim();
+        const questionText = match.replace(/^\d+\.\s*/, "").trim();
         console.log("📝 Cleaned question text:", questionText);
-        
+
         if (questionText.length > 10) {
           const question = {
             id: index + 1,
             question: questionText,
-            options: ['A) Option A', 'B) Option B', 'C) Option C', 'D) Option D'],
-            correctAnswer: 'A'
+            options: [
+              "A) Option A",
+              "B) Option B",
+              "C) Option C",
+              "D) Option D",
+            ],
+            correctAnswer: "A",
           };
           questions.push(question);
           console.log("➕ Added numbered question:", question);
         }
       });
     }
-    
+
     // If still no questions found, create fallback questions based on the content
     if (questions.length === 0) {
       console.log("⚠️ No questions extracted, creating fallback questions...");
-      
-      const isFilmAnalysis = text.includes('Film Analysis') || text.includes('film analysis');
-      const isRecreatingPainting = text.includes('Recreating a Painting');
-      
+
+      const isFilmAnalysis =
+        text.includes("Film Analysis") || text.includes("film analysis");
+      const isRecreatingPainting = text.includes("Recreating a Painting");
+
       console.log("🎬 Is Film Analysis:", isFilmAnalysis);
       console.log("🎨 Is Recreating Painting:", isRecreatingPainting);
-      
+
       if (isFilmAnalysis) {
         console.log("🎬 Creating Film Analysis questions...");
         questions.push(
@@ -1764,124 +1806,129 @@ export default function AIMentorAgent(): JSX.Element {
             id: 1,
             question: "What is the primary purpose of film analysis?",
             options: [
-              'A) To summarize the plot',
-              'B) To examine elements that influence audience understanding',
-              'C) To rate the movie',
-              'D) To write reviews'
+              "A) To summarize the plot",
+              "B) To examine elements that influence audience understanding",
+              "C) To rate the movie",
+              "D) To write reviews",
             ],
-            correctAnswer: 'B'
+            correctAnswer: "B",
           },
           {
             id: 2,
-            question: "Which elements are essential to analyze in film form and style?",
+            question:
+              "Which elements are essential to analyze in film form and style?",
             options: [
-              'A) Only the actors',
-              'B) Just the budget',
-              'C) Narrative structure, mise-en-scène, cinematography, editing',
-              'D) Only the director'
+              "A) Only the actors",
+              "B) Just the budget",
+              "C) Narrative structure, mise-en-scène, cinematography, editing",
+              "D) Only the director",
             ],
-            correctAnswer: 'C'
+            correctAnswer: "C",
           },
           {
             id: 3,
-            question: "What should you avoid when developing a film analysis thesis?",
+            question:
+              "What should you avoid when developing a film analysis thesis?",
             options: [
-              'A) Using evidence from the film',
-              'B) Making superficial observations without deep analysis',
-              'C) Focusing on technical elements',
-              'D) Taking comprehensive notes'
+              "A) Using evidence from the film",
+              "B) Making superficial observations without deep analysis",
+              "C) Focusing on technical elements",
+              "D) Taking comprehensive notes",
             ],
-            correctAnswer: 'B'
+            correctAnswer: "B",
           },
           {
             id: 4,
             question: "What is segmentation in film analysis?",
             options: [
-              'A) Cutting the film into pieces',
-              'B) Organizing the film into sections to analyze narrative contribution',
-              'C) Removing scenes',
-              'D) Adding subtitles'
+              "A) Cutting the film into pieces",
+              "B) Organizing the film into sections to analyze narrative contribution",
+              "C) Removing scenes",
+              "D) Adding subtitles",
             ],
-            correctAnswer: 'B'
+            correctAnswer: "B",
           },
           {
             id: 5,
-            question: "How do film techniques like lighting and editing function?",
+            question:
+              "How do film techniques like lighting and editing function?",
             options: [
-              'A) They make movies longer',
-              'B) They reduce production costs',
-              'C) They influence the film\'s meaning and audience response',
-              'D) They are just decorative'
+              "A) They make movies longer",
+              "B) They reduce production costs",
+              "C) They influence the film's meaning and audience response",
+              "D) They are just decorative",
             ],
-            correctAnswer: 'C'
+            correctAnswer: "C",
           }
         );
       } else {
         console.log("🎨 Creating generic questions...");
-        const subtopic = isRecreatingPainting ? 'Recreating a Painting' : 'Film Studies';
+        const subtopic = isRecreatingPainting
+          ? "Recreating a Painting"
+          : "Film Studies";
         questions.push(
           {
             id: 1,
             question: `What is the main concept behind ${subtopic}?`,
             options: [
-              'A) Technical replication only',
-              'B) Understanding context and reproduction impact',
-              'C) Creating exact copies',
-              'D) Digital manipulation'
+              "A) Technical replication only",
+              "B) Understanding context and reproduction impact",
+              "C) Creating exact copies",
+              "D) Digital manipulation",
             ],
-            correctAnswer: 'B'
+            correctAnswer: "B",
           },
           {
             id: 2,
             question: `According to the content, what happens to original artwork when reproduced?`,
             options: [
-              'A) It gains more value',
-              'B) Nothing changes',
-              'C) Its unique aura is diminished',
-              'D) It becomes worthless'
+              "A) It gains more value",
+              "B) Nothing changes",
+              "C) Its unique aura is diminished",
+              "D) It becomes worthless",
             ],
-            correctAnswer: 'C'
+            correctAnswer: "C",
           },
           {
             id: 3,
             question: `What should you focus on when studying this topic?`,
             options: [
-              'A) Only technical skills',
-              'B) Understanding intent and context impact',
-              'C) Memorizing facts',
-              'D) Speed of reproduction'
+              "A) Only technical skills",
+              "B) Understanding intent and context impact",
+              "C) Memorizing facts",
+              "D) Speed of reproduction",
             ],
-            correctAnswer: 'B'
+            correctAnswer: "B",
           },
           {
             id: 4,
             question: `What is a key concept mentioned in the study material?`,
             options: [
-              'A) Digital art creation',
-              'B) Contextual influence on perception',
-              'C) Color theory',
-              'D) Brush techniques'
+              "A) Digital art creation",
+              "B) Contextual influence on perception",
+              "C) Color theory",
+              "D) Brush techniques",
             ],
-            correctAnswer: 'B'
+            correctAnswer: "B",
           },
           {
             id: 5,
             question: `What should you watch out for when recreating paintings?`,
             options: [
-              'A) Using wrong colors',
-              'B) Taking too much time',
-              'C) Assuming reproductions retain original meaning',
-              'D) Working too fast'
+              "A) Using wrong colors",
+              "B) Taking too much time",
+              "C) Assuming reproductions retain original meaning",
+              "D) Working too fast",
             ],
-            correctAnswer: 'C'
+            correctAnswer: "C",
           }
         );
       }
     }
-    
+
     console.log("🎯 Final questions array:", questions);
     console.log("📊 Total questions created:", questions.length);
-    
+
     return questions.slice(0, 5); // Ensure we return max 5 questions
   };
 
@@ -2092,7 +2139,9 @@ export default function AIMentorAgent(): JSX.Element {
     );
 
     // Find the current question to get the correct answer
-    const currentQuestion = quizData?.questions.find(q => q.id === questionId);
+    const currentQuestion = quizData?.questions.find(
+      (q) => q.id === questionId
+    );
     const isCorrect = currentQuestion?.correctAnswer === selectedAnswer;
 
     const newAnswer: QuizAnswer = {
@@ -2150,16 +2199,23 @@ export default function AIMentorAgent(): JSX.Element {
 
       let quizContent = "Here's your quiz result:";
       const quizResp = quizResponse as any;
-      
+
       // Check if response contains quiz questions instead of feedback
-      if (quizResp.output && typeof quizResp.output === 'string') {
+      if (quizResp.output && typeof quizResp.output === "string") {
         try {
-          const cleanOutput = quizResp.output.replace(/```json\s*/, '').replace(/\s*```$/, '').trim();
+          const cleanOutput = quizResp.output
+            .replace(/```json\s*/, "")
+            .replace(/\s*```$/, "")
+            .trim();
           const parsedOutput = JSON.parse(cleanOutput);
-          
+
           if (parsedOutput.all_questions) {
-            console.log("⚠️ Received quiz questions instead of feedback, extracting correct answer explanations");
-            quizContent = generateFeedbackFromQuestions(parsedOutput.all_questions);
+            console.log(
+              "⚠️ Received quiz questions instead of feedback, extracting correct answer explanations"
+            );
+            quizContent = generateFeedbackFromQuestions(
+              parsedOutput.all_questions
+            );
           } else {
             quizContent = quizResp.output;
           }
@@ -2246,9 +2302,7 @@ export default function AIMentorAgent(): JSX.Element {
               <Button
                 key={idx}
                 variant={
-                  userAnswer?.selectedAnswer === option
-                    ? "default"
-                    : "outline"
+                  userAnswer?.selectedAnswer === option ? "default" : "outline"
                 }
                 className="w-full text-left justify-start h-auto py-3 px-4"
                 onClick={() => handleQuizAnswer(question.id, option)}

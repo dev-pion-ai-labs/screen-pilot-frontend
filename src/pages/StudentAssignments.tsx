@@ -1484,19 +1484,13 @@ export default function StudentAssignments() {
                               {/* Rubric Breakdown */}
                               {(() => {
                                 const parseRubricFromSubmission = (submission: any) => {
-                                  console.log("🔍 [RUBRIC DEBUG] Full submission object:", submission);
-                                  console.log("🔍 [RUBRIC DEBUG] ai_evaluation:", submission.ai_evaluation);
-                                  console.log("🔍 [RUBRIC DEBUG] ai_feedback:", submission.ai_feedback);
-                                  
                                   // First check if we have rubric items directly in ai_evaluation
                                   if (submission.ai_evaluation?.["Rubric Items"]) {
-                                    console.log("✅ [RUBRIC DEBUG] Found Rubric Items in ai_evaluation");
                                     return submission.ai_evaluation["Rubric Items"];
                                   }
 
                                   // Then check ai_feedback
                                   if (submission.ai_feedback?.["Rubric Items"]) {
-                                    console.log("✅ [RUBRIC DEBUG] Found Rubric Items in ai_feedback");
                                     return submission.ai_feedback["Rubric Items"];
                                   }
 
@@ -1504,24 +1498,17 @@ export default function StudentAssignments() {
                                   let rawText = "";
                                   if (submission.ai_evaluation?.rawText) {
                                     rawText = submission.ai_evaluation.rawText;
-                                    console.log("🔍 [RUBRIC DEBUG] Using rawText from ai_evaluation");
                                   } else if (submission.ai_feedback?.rawText) {
                                     rawText = submission.ai_feedback.rawText;
-                                    console.log("🔍 [RUBRIC DEBUG] Using rawText from ai_feedback");
                                   } else if (typeof submission.ai_evaluation === 'string') {
                                     rawText = submission.ai_evaluation;
-                                    console.log("🔍 [RUBRIC DEBUG] Using ai_evaluation as string");
                                   } else if (typeof submission.ai_feedback === 'string') {
                                     rawText = submission.ai_feedback;
-                                    console.log("🔍 [RUBRIC DEBUG] Using ai_feedback as string");
                                   }
 
                                   if (!rawText) {
-                                    console.log("❌ [RUBRIC DEBUG] No rawText found");
                                     return null;
                                   }
-
-                                  console.log("🔍 [RUBRIC DEBUG] Raw text sample:", rawText.substring(0, 500));
 
                                   // Parse new rubric table format - handle both numeric scores and "XX" placeholders
                                   const rubricItems = [];
@@ -1550,12 +1537,10 @@ export default function StudentAssignments() {
                                     }
                                   }
 
-                                  console.log("🔍 [RUBRIC DEBUG] Parsed rubric items:", rubricItems);
                                   return rubricItems.length > 0 ? rubricItems : null;
                                 };
 
                                 const rubricItems = parseRubricFromSubmission(submission);
-                                console.log("🔍 [RUBRIC DEBUG] Final rubric items to display:", rubricItems);
 
                                 return rubricItems ? (
                                   <div className="mb-4">
@@ -1610,10 +1595,6 @@ export default function StudentAssignments() {
                               {/* AI Feedback Sections */}
                               {(() => {
                                 const getFeedbackData = (submission: any) => {
-                                  console.log("🔍 [FEEDBACK DEBUG] Starting feedback parsing for submission:", submission.id);
-                                  console.log("🔍 [FEEDBACK DEBUG] ai_evaluation:", submission.ai_evaluation);
-                                  console.log("🔍 [FEEDBACK DEBUG] ai_feedback:", submission.ai_feedback);
-                                  
                                   let strengths = "";
                                   let areasForImprovement = "";
                                   let recommendations = "";
@@ -1621,32 +1602,24 @@ export default function StudentAssignments() {
                                   // First try to get data from ai_evaluation
                                   if (submission.ai_evaluation) {
                                     const evalData = submission.ai_evaluation;
-                                    console.log("🔍 [FEEDBACK DEBUG] evalData keys:", Object.keys(evalData));
                                     if (evalData["Constructive Feedback"]) {
-                                      console.log("✅ [FEEDBACK DEBUG] Found Constructive Feedback in ai_evaluation");
                                       const feedback = evalData["Constructive Feedback"];
                                       strengths = feedback.Strengths || "";
                                       areasForImprovement = feedback["Areas for Improvement"] || "";
                                       recommendations = feedback.Recommendations || "";
-                                    } else {
-                                      console.log("❌ [FEEDBACK DEBUG] No Constructive Feedback found in ai_evaluation");
                                     }
                                   }
 
                                   // Fallback to ai_feedback if ai_evaluation doesn't have the data
                                   if (!strengths && !areasForImprovement && !recommendations && submission.ai_feedback) {
-                                    console.log("🔍 [FEEDBACK DEBUG] Trying ai_feedback fallback");
                                     const feedbackData = submission.ai_feedback;
-                                    console.log("🔍 [FEEDBACK DEBUG] feedbackData keys:", Object.keys(feedbackData || {}));
                                     
                                     if (feedbackData["Constructive Feedback"]) {
-                                      console.log("✅ [FEEDBACK DEBUG] Found Constructive Feedback in ai_feedback");
                                       const feedback = feedbackData["Constructive Feedback"];
                                       strengths = feedback.Strengths || "";
                                       areasForImprovement = feedback["Areas for Improvement"] || "";
                                       recommendations = feedback.Recommendations || "";
                                     } else if (feedbackData.rawText) {
-                                      console.log("🔍 [FEEDBACK DEBUG] Parsing from rawText in ai_feedback");
                                       // Parse from rawText using multiple patterns
                                       const rawText = feedbackData.rawText;
 
@@ -1699,7 +1672,6 @@ export default function StudentAssignments() {
 
                                   // Add fallback for direct text parsing if nothing found yet
                                   if (!strengths && !areasForImprovement && !recommendations) {
-                                    console.log("🔍 [FEEDBACK DEBUG] No feedback found, trying direct text parsing");
                                     let directText = "";
                                     if (typeof submission.ai_feedback === 'string') {
                                       directText = submission.ai_feedback;
@@ -1708,20 +1680,16 @@ export default function StudentAssignments() {
                                     }
                                     
                                     if (directText) {
-                                      console.log("🔍 [FEEDBACK DEBUG] Direct text sample:", directText.substring(0, 300));
-                                      
                                       // Try the exact format from the feedback
                                       const summaryMatch = directText.match(/🧾 \*\*Summary Feedback\*\*:\s*\n([\s\S]+?)(?=🎓|$)/u);
                                       if (summaryMatch) {
                                         strengths = summaryMatch[1].trim();
-                                        console.log("✅ [FEEDBACK DEBUG] Found Summary Feedback as strengths");
                                       }
                                       
                                       const guidanceMatch = directText.match(/🎓 \*\*Lecturer's Guidance\*\*:\s*\n([\s\S]+?)(?=$)/u);
                                       if (guidanceMatch) {
                                         areasForImprovement = guidanceMatch[1].trim();
                                         recommendations = guidanceMatch[1].trim();
-                                        console.log("✅ [FEEDBACK DEBUG] Found Lecturer's Guidance as areas/recommendations");
                                       }
 
                                       // Fallback patterns
@@ -1729,7 +1697,6 @@ export default function StudentAssignments() {
                                         const strengthsMatch = directText.match(/\*\s*\*\*Strengths\*\*:\s*([^*]+?)(?=\n\*\s*\*\*|##|$)/s);
                                         if (strengthsMatch) {
                                           strengths = strengthsMatch[1].trim();
-                                          console.log("✅ [FEEDBACK DEBUG] Found strengths in direct text");
                                         }
                                       }
 
@@ -1737,17 +1704,10 @@ export default function StudentAssignments() {
                                         const areasMatch = directText.match(/\*\s*\*\*Areas for Improvement\*\*:\s*([^*]+?)(?=\n\*\s*\*\*|##|$)/s);
                                         if (areasMatch) {
                                           areasForImprovement = areasMatch[1].trim();
-                                          console.log("✅ [FEEDBACK DEBUG] Found areas in direct text");
                                         }
                                       }
                                     }
                                   }
-
-                                  console.log("🔍 [FEEDBACK DEBUG] Final parsed data:", {
-                                    strengths: strengths || "EMPTY",
-                                    areasForImprovement: areasForImprovement || "EMPTY", 
-                                    recommendations: recommendations || "EMPTY"
-                                  });
                                   
                                   return {
                                     strengths: strengths || "",

@@ -156,22 +156,30 @@ function parseAIFeedback(aiResult: any) {
   }
 
   // Parse the new format with markdown table
-  if (rawText && rawText.includes("## 📊 Rubric-Based Scoring")) {
+  if (rawText && (rawText.includes("## 📊 Rubric-Based Scoring") || rawText.includes("📊 **Rubric-Based Scoring") || rawText.includes(":bar_chart: **Rubric-Based Scoring"))) {
     console.log("[AI Feedback] Parsing new N8N format with rubric table");
     
     // Extract total score from the table
     const totalMatch = rawText.match(/\|\s*\*\*Total\*\*\s*\|\s*\d+\s*\|\s*(\d+)\s*\|/);
     const totalScore = totalMatch ? parseInt(totalMatch[1]) : null;
+    if (totalScore) {
+      console.log("✅ Found Total AI Grade:", totalScore);
+    }
     
     // Extract individual criteria scores and comments
     const rubricItems = [];
     const criteriaMatches = rawText.matchAll(/\|\s*([^|]+?)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*([^|]+?)\s*\|/g);
     
-    for (const match of criteriaMatches) {
+    console.log("🔍 All table matches found:", Array.from(criteriaMatches));
+    const criteriaMatches2 = rawText.matchAll(/\|\s*([^|]+?)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*([^|]+?)\s*\|/g);
+    
+    for (const match of criteriaMatches2) {
       const criterion = match[1].trim();
       const weightage = parseInt(match[2]);
       const score = parseInt(match[3]);
       const comment = match[4].trim();
+      
+      console.log("🔍 Processing row:", { criterion, weightage, score, comment });
       
       // Skip the header row and total row
       if (criterion !== "Criteria" && criterion !== "**Total**") {
@@ -181,8 +189,13 @@ function parseAIFeedback(aiResult: any) {
           score,
           comment
         });
+        console.log("✅ Added rubric item:", { criterion, weightage, score });
+      } else {
+        console.log("⏭️ Skipped row:", criterion);
       }
     }
+    
+    console.log("📊 Final rubric items:", rubricItems);
     
     // Extract feedback sections - handle both new and old formats
     let summaryFeedback = "";

@@ -111,6 +111,7 @@ function parseAIFeedback(aiResult: any) {
 
   let parsed = aiResult;
   let rawText = "";
+  let totalScore = null;
 
   // Handle the new N8N response format
   if (aiResult?.output) {
@@ -159,37 +160,49 @@ function parseAIFeedback(aiResult: any) {
   if (rawText && (rawText.includes("## 📊 Rubric-Based Scoring") || rawText.includes("📊 **Rubric-Based Scoring") || rawText.includes(":bar_chart: **Rubric-Based Scoring"))) {
     console.log("[AI Feedback] Parsing new N8N format with rubric table");
     
-    // Extract total score from the table
-    const totalMatch = rawText.match(/\|\s*\*\*Total\*\*\s*\|\s*\d+\s*\|\s*(\d+)\s*\|/);
-    const totalScore = totalMatch ? parseInt(totalMatch[1]) : null;
-    if (totalScore) {
-      console.log("✅ Found Total AI Grade:", totalScore);
+    // Extract total score from the table - handle both numbers and XX
+    const totalMatchNumeric = rawText.match(/\|\s*\*\*Total\*\*\s*\|\s*\d+\s*\|\s*(\d+)\s*\|/);
+    if (totalMatchNumeric) {
+      totalScore = parseInt(totalMatchNumeric[1]);
+      console.log("✅ Found Total AI Grade (numeric):", totalScore);
+    } else {
+      const totalMatchXX = rawText.match(/\|\s*\*\*Total\*\*\s*\|\s*\d+\s*\|\s*(XX)\s*\|/);
+      if (totalMatchXX) {
+        console.log("⚠️ Total score is XX (not graded yet)");
+        totalScore = null;
+      }
     }
     
     // Extract individual criteria scores and comments
     const rubricItems = [];
-    const criteriaMatches = rawText.matchAll(/\|\s*([^|]+?)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*([^|]+?)\s*\|/g);
+    const criteriaMatches = rawText.matchAll(/\|\s*([^|]+?)\s*\|\s*(\d+|XX)\s*\|\s*(\d+|XX)\s*\|\s*([^|]+?)\s*\|/g);
     
     console.log("🔍 All table matches found:", Array.from(criteriaMatches));
-    const criteriaMatches2 = rawText.matchAll(/\|\s*([^|]+?)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*([^|]+?)\s*\|/g);
+    const criteriaMatches2 = rawText.matchAll(/\|\s*([^|]+?)\s*\|\s*(\d+|XX)\s*\|\s*(\d+|XX)\s*\|\s*([^|]+?)\s*\|/g);
     
     for (const match of criteriaMatches2) {
       const criterion = match[1].trim();
-      const weightage = parseInt(match[2]);
-      const score = parseInt(match[3]);
+      const weightageStr = match[2].trim();
+      const scoreStr = match[3].trim();
       const comment = match[4].trim();
+      
+      // Parse values, handling XX as 0 for display purposes
+      const weightage = weightageStr === "XX" ? 0 : parseInt(weightageStr);
+      const score = scoreStr === "XX" ? 0 : parseInt(scoreStr);
       
       console.log("🔍 Processing row:", { criterion, weightage, score, comment });
       
       // Skip the header row and total row
-      if (criterion !== "Criteria" && criterion !== "**Total**") {
+      if (criterion !== "Criteria" && criterion !== "**Total**" && 
+          !criterion.toLowerCase().includes("criteria")) {
         rubricItems.push({
           criterion,
           weightage,
           score,
-          comment
+          comment,
+          isGraded: scoreStr !== "XX" // Track if this item is actually graded
         });
-        console.log("✅ Added rubric item:", { criterion, weightage, score });
+        console.log("✅ Added rubric item:", { criterion, weightage, score, isGraded: scoreStr !== "XX" });
       } else {
         console.log("⏭️ Skipped row:", criterion);
       }
@@ -309,7 +322,7 @@ function parseAIFeedback(aiResult: any) {
       );
 
   const result = {
-    ai_grade: String(get(parsed, "Score") || ""),
+    ai_grade: String(get(parsed, "Score") || totalScore || ""),
     ai_overall_grade: get(parsed, "Overall Grade") || "",
     ai_strengths: get(parsed, "Constructive Feedback.Strengths") || "",
     ai_areas_for_improvement:

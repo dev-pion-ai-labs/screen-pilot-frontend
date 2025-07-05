@@ -1381,7 +1381,7 @@ export default function AIMentorAgent(): JSX.Element {
     }
 
     if (wrongAnswers.length > 0) {
-      feedback += `🔍 **Areas for Improvement:**\n\n`;
+      
       feedback += wrongAnswers.join(
         "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
       );

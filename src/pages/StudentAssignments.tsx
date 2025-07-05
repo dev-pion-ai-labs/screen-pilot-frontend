@@ -1720,7 +1720,7 @@ export default function StudentAssignments() {
                                               </span>
                                               {item.weightage && (
                                                 <Badge className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white border-0 text-xs">
-                                                  {item.weightage}%
+                                                  {item.weightage}
                                                 </Badge>
                                               )}
                                             </div>
@@ -1730,7 +1730,7 @@ export default function StudentAssignments() {
                                                   (item.score / item.maxScore) * 100
                                                 )}`}
                                               >
-                                                {item.isGraded === false ? 'Not Graded' : `${item.score}%`}
+                                                {item.isGraded === false ? 'Not Graded' : `${item.score}`}
                                               </span>
                                             </div>
                                           </div>

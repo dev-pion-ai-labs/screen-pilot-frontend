@@ -951,7 +951,7 @@ const TeacherAssignment = () => {
                       console.log('🔍 Raw text to parse:', rawText);
                       
                       // Updated pattern to match: * **Name (percentage%)**: score/maxScore - assessment
-                      const rubricPattern = /\* \*\*([^(]+)\s*\((\d+)%\)\*\*:\s*(\d+)\/(\d+)\s*-\s*([^*]+?)(?=\n\*|$)/g;
+                      const rubricPattern = /\* \*\*([^(]+)\s*\((\d+)\)\*\*:\s*(\d+)\/(\d+)\s*-\s*([^*]+?)(?=\n\*|$)/g;
                       
                       let match;
                       while ((match = rubricPattern.exec(rawText)) !== null) {
@@ -965,7 +965,7 @@ const TeacherAssignment = () => {
                         
                         rubricItems.push({
                           criterion,
-                          percentage: percentage + "%",
+                          percentage: percentage ,
                           score,
                           maxScore,
                           assessment
@@ -977,7 +977,7 @@ const TeacherAssignment = () => {
                         console.log('🔄 Trying fallback patterns...');
                         
                         // Try without the leading * 
-                        const altPattern = /\*\*([^(]+)\s*\((\d+)%\)\*\*:\s*(\d+)\/(\d+)\s*-\s*([^*]+?)(?=\n\*|$)/g;
+                        const altPattern = /\*\*([^(]+)\s*\((\d+)\)\*\*:\s*(\d+)\/(\d+)\s*-\s*([^*]+?)(?=\n\*|$)/g;
                         
                         while ((match = altPattern.exec(rawText)) !== null) {
                           const criterion = match[1].trim();
@@ -990,7 +990,7 @@ const TeacherAssignment = () => {
                           
                           rubricItems.push({
                             criterion,
-                            percentage: percentage + "%",
+                            percentage: percentage ,
                             score,
                             maxScore,
                             assessment
@@ -1057,7 +1057,7 @@ const TeacherAssignment = () => {
                                   </h4>
                                   {(item.percentage || item.weightage) && (
                                     <Badge className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white border-0 text-xs">
-                                      {item.percentage || item.weightage}%
+                                      {item.percentage || item.weightage}
                                     </Badge>
                                   )}
                                 </div>
@@ -1067,7 +1067,7 @@ const TeacherAssignment = () => {
                                       (item.score / (item.maxScore || item.weightage || 20)) * 100
                                     )}`}
                                   >
-                                    {item.isGraded === false ? 'Not Graded' : `${item.score}%`}
+                                    {item.isGraded === false ? 'Not Graded' : `${item.score}`}
                                   </span>
                                 </div>
                               </div>

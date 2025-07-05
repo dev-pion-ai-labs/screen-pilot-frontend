@@ -1053,7 +1053,7 @@ const TeacherAssignment = () => {
                               <div className="flex items-center justify-between mb-3">
                                 <div className="flex items-center gap-2">
                                   <h4 className="font-bold text-gray-900">
-                                    {item.criterion}
+                                    {item.criterion?.replace(/\*\*/g, '') || item.criterion}
                                   </h4>
                                   {(item.percentage || item.weightage) && (
                                     <Badge className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white border-0 text-xs">

@@ -558,22 +558,7 @@ const ScriptAnalyzer = () => {
                     </div>
                   </div>
 
-                  <div>
-                    <Label htmlFor="content">Or Paste Script Content</Label>
-                    <Textarea
-                      id="content"
-                      value={scriptContent}
-                      onChange={(e) => setScriptContent(e.target.value)}
-                      placeholder="Paste your script content here... (or will be auto-filled from uploaded PDF)"
-                      className="min-h-32 mt-1"
-                      disabled={analyzing || isUploading}
-                    />
-                    {scriptContent && (
-                      <p className="text-xs text-gray-500 mt-1">
-                        {scriptContent.length} characters
-                      </p>
-                    )}
-                  </div>
+                  
 
                   {analysisProgress && (
                     <Alert className="bg-blue-50 border-blue-200">

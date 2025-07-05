@@ -1221,33 +1221,7 @@ const TeacherAssignment = () => {
                             </p>
                           </div>
 
-                          <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-xl p-4 border border-orange-200 shadow-sm">
-                            <div className="flex items-center gap-3 mb-3">
-                              <div className="p-2 bg-gradient-to-r from-orange-500 to-amber-500 rounded-lg">
-                                <AlertTriangle className="w-4 h-4 text-white" />
-                              </div>
-                              <h4 className="font-bold text-orange-800 text-sm">
-                                🎯 Areas for Improvement
-                              </h4>
-                            </div>
-                            <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
-                              {feedbackData.areasForImprovement}
-                            </p>
-                          </div>
-
-                          <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-4 border border-purple-200 shadow-sm">
-                            <div className="flex items-center gap-3 mb-3">
-                              <div className="p-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg">
-                                <Star className="w-4 h-4 text-white" />
-                              </div>
-                              <h4 className="font-bold text-purple-800 text-sm">
-                                ⭐ Recommendations
-                              </h4>
-                            </div>
-                            <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
-                              {feedbackData.recommendations}
-                            </p>
-                          </div>
+                         
                         </div>
                       </div>
                     );

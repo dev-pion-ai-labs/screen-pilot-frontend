@@ -1963,20 +1963,7 @@ export default function StudentAssignments() {
                             )}
                           </div>
 
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Additional Notes (Optional)
-                            </label>
-                            <Textarea
-                              placeholder="Add any additional notes or comments about your submission..."
-                              value={additionalNotes}
-                              onChange={(e) =>
-                                setAdditionalNotes(e.target.value)
-                              }
-                              rows={3}
-                              className="border-blue-200 focus:border-blue-400 focus:ring-blue-400"
-                            />
-                          </div>
+                          
                         </div>
                       </div>
                     )}

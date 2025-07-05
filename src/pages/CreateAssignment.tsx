@@ -149,42 +149,9 @@ const semester2Syllabus = {
   },
 }
 
-// API configurations for each semester
-const semester1Config = {
-  agent: {
-    endpoint: "https://api-d7b62b.stack.tryrelevance.com/latest/agents/trigger",
-    authorization: "5cc7752400a6-4648-b47b-04fc92b47cae:sk-NDFiZmEyM2YtOWM4NC00NmY0LTkxNDQtN2NiMTVmMGRkYzU0",
-    agent_id: "714816ed-a5ad-480d-acb9-4d67dd17ff70",
-  },
-  tools: {
-    generateAssignment: {
-      endpoint:
-        "https://api-d7b62b.stack.tryrelevance.com/latest/studios/01eebbab-522a-4c36-9baa-bc97bc7d2e89/trigger_webhook?project=5cc7752400a6-4648-b47b-04fc92b47cae",
-      authorization:
-        "5cc7752400a6-4648-b47b-04fc92b47cae:sk-YmMyYmU0ZmUtOTMwNi00YjA1LWE2NDUtZjQ1N2ExYjk2MTgw",
-    },
-  },
-  region: "d7b62b",
-  project: "5cc7752400a6-4648-b47b-04fc92b47cae",
-}
 
-const semester2Config = {
-  agent: {
-    endpoint: "https://api-d7b62b.stack.tryrelevance.com/latest/agents/trigger",
-    authorization: "5cc7752400a6-4648-b47b-04fc92b47cae:sk-OWVlZmZiMmQtYzQyMy00YWJlLTg1MTYtMmRmN2ZiNzdmMGQy",
-    agent_id: "94336a05-ebcd-4171-8ba7-9e1477e1f35e",
-  },
-  tools: {
-    generateAssignment: {
-      endpoint:
-        "https://api-d7b62b.stack.tryrelevance.com/latest/studios/e84887f3-baab-47ff-9b70-333d44c705a3/trigger_webhook?project=5cc7752400a6-4648-b47b-04fc92b47cae",
-      authorization:
-        "5cc7752400a6-4648-b47b-04fc92b47cae:sk-NGI5MzQ2NTAtYTk3Mi00OTg0LWE3MmMtMDVkMGMzMzZiOGE3",
-    },
-  },
-  region: "d7b62b",
-  project: "5cc7752400a6-4648-b47b-04fc92b47cae",
-}
+
+
 
 interface Profile {
   id: string;
@@ -423,184 +390,200 @@ export default function CreateAssignment() {
     }
   }
 
-  const callRelevanceAgent = async (message: string, config: any): Promise<any> => {
-    console.log("🚀 Calling Relevance Agent with:", {
-      message,
-      agent_id: config.agent.agent_id,
-      endpoint: config.agent.endpoint
-    })
 
-    const payload = {
-      message: { role: "user", content: message },
-      agent_id: config.agent.agent_id,
-    }
-
-    console.log("📤 Sending payload:", JSON.stringify(payload, null, 2))
-
-    try {
-      const fetchFunction = isSafari() ? safeFetch : fetch
-      const response = await fetchFunction(config.agent.endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: config.agent.authorization,
-          Accept: "application/json",
-        },
-        body: JSON.stringify(payload),
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error("❌ API Error Response:", errorText)
-        throw new Error(`API Error: ${response.status} - ${response.statusText}`)
-      }
-
-      const result = await response.json()
-      console.log("📥 Agent Response:", JSON.stringify(result, null, 2))
-
-      return result
-    } catch (error) {
-      console.error("❌ Agent Call Error:", error)
-      throw error
-    }
-  }
-
-  const pollAgentResponse = async (jobInfo: any, config: any): Promise<any> => {
-    const maxAttempts = 25
-    let attempts = 0
-    const baseDelay = 2000
-
-    console.log("🔄 Starting polling for job:", jobInfo.job_id)
-
-    while (attempts < maxAttempts) {
-      try {
-        const pollUrl = `https://api-${config.region}.stack.tryrelevance.com/latest/studios/${jobInfo.studio_id}/async_poll/${jobInfo.job_id}`
-        
-        console.log(`📡 Polling attempt ${attempts + 1}/${maxAttempts}:`, pollUrl)
-
-        const fetchFunction = isSafari() ? safeFetch : fetch
-        const response = await fetchFunction(pollUrl, {
-          method: "GET",
-          headers: {
-            Authorization: config.agent.authorization,
-            Accept: "application/json",
-          },
-        })
-
-        if (!response.ok) {
-          throw new Error(`Polling failed: ${response.status} - ${response.statusText}`)
-        }
-
-        const status = await response.json()
-        console.log(`📊 Polling status:`, {
-          attempt: attempts + 1,
-          updatesCount: status.updates?.length || 0,
-          status: status
-        })
-
-        for (const update of status.updates || []) {
-          if (update.type === "chain-success") {
-            console.log("✅ Chain Success - Final Output:", JSON.stringify(update.output, null, 2))
-            return {
-              success: true,
-              content: update.output,
-            }
-          }
-          if (update.type === "chain-error") {
-            console.error("❌ Chain Error:", update.error)
-            return {
-              success: false,
-              error: update.error || "An error occurred during processing.",
-            }
-          }
-        }
-
-        attempts++
-        const delay = Math.min(baseDelay + attempts * 300, 8000)
-        await smartDelay(delay)
-
-      } catch (error) {
-        console.error(`❌ Polling error on attempt ${attempts + 1}:`, error)
-        attempts++
-        await smartDelay(3000)
-      }
-    }
-
-    console.error("⏰ Polling timeout after", maxAttempts, "attempts")
-    return {
-      success: false,
-      error: `Request timed out after ${maxAttempts} attempts. Please try again.`,
-    }
-  }
-
-  const generateAssignment = async (isRevision = false) => {
-    const config = selectedClass!.semester === 1 ? semester1Config : semester2Config
+  const callAssignmentAgent = async ({
+  subtopic,
+  isRevision = false,
+  content,
+  changes,
+}) => {
+  let url, payload;
+  if (isRevision) {
+    url = "https://vijiteshnaik.app.n8n.cloud/webhook/e72a35be-6d20-4ee5-a5ab-06dc94a98f0d";
+    payload = {
+      content,
+      subtopic,
+      changes,
+    };
+    console.log("Calling n8n for revision with payload:", payload);
     
-    let message: string
-    if (isRevision && currentAssignment && revisionRequest) {
-      // For revisions, include the current assignment and the revision request
-      message = `Based on this existing assignment:
+  } else {
+    url = "https://vijiteshnaik.app.n8n.cloud/webhook/6a7c5ac0-bd6d-4fd6-9aea-af711dd902f9";
+    payload = {
+      subtopic,
+    };
+  }
 
-${currentAssignment.content}
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
 
-Please make the following changes: ${revisionRequest}
+  if (!response.ok) {
+    throw new Error("Assignment agent error: " + (await response.text()));
+  }
 
-Subtopic: ${selectedSubtopic}`
+  const result = await response.json();
+  return result; // Adapt this if your n8n agent's structure is different!
+};
+
+
+
+
+//   const generateAssignment = async (isRevision = false) => {
+//     const config = selectedClass!.semester === 1 ? semester1Config : semester2Config
+    
+//     let message: string
+//     if (isRevision && currentAssignment && revisionRequest) {
+//       // For revisions, include the current assignment and the revision request
+//       message = `Based on this existing assignment:
+
+// ${currentAssignment.content}
+
+// Please make the following changes: ${revisionRequest}
+
+// Subtopic: ${selectedSubtopic}`
+//     } else {
+//       // For initial generation
+//       message = `Create an assignment for the subtopic: ${selectedSubtopic}`
+//     }
+
+//     console.log("📝 Sending message to agent:", message)
+
+//     const agentResponse = await callRelevanceAgent(message, config)
+
+//     if (agentResponse.job_info) {
+//       console.log("⏳ Job created, starting polling...")
+//       const result = await pollAgentResponse(agentResponse.job_info, config)
+
+//       if (result.success) {
+//         const assignmentContent = result.content?.output?.answer || result.content?.answer || "No assignment content generated"
+//         console.log("📋 Assignment Content:", assignmentContent)
+
+//         const newAssignment: GeneratedAssignment = {
+//           title: selectedSubtopic,
+//           topic: availableTopics[selectedTopic]?.topic || selectedTopic,
+//           content: assignmentContent,
+//           revisionHistory: currentAssignment ? [
+//             ...currentAssignment.revisionHistory,
+//             {
+//               version: currentAssignment.revisionHistory.length + 1,
+//               content: assignmentContent,
+//               revisionRequest: isRevision ? revisionRequest : undefined,
+//               timestamp: new Date()
+//             }
+//           ] : [
+//             {
+//               version: 1,
+//               content: assignmentContent,
+//               timestamp: new Date()
+//             }
+//           ]
+//         }
+
+//         setCurrentAssignment(newAssignment)
+//         setRevisionRequest("")
+//         setWorkflowState('reviewing')
+
+//         toast({
+//           title: isRevision ? "Assignment Revised Successfully!" : "Assignment Generated Successfully!",
+//           description: "Please review the assignment and decide if you want to make any changes.",
+//         })
+
+//         return true
+//       } else {
+//         throw new Error(result.error || "Assignment generation failed")
+//       }
+//     } else {
+//       throw new Error("No job info received from agent")
+//     }
+//   }
+
+
+const generateAssignment = async (isRevision = false) => {
+  try {
+    let agentResponse;
+
+    // Always use the revision agent if isRevision is true
+    const subtopicToUse = isRevision
+      ? (selectedSubtopic || currentAssignment?.title || "")
+      : selectedSubtopic;
+
+    if (isRevision && currentAssignment) {
+      // Always use the revision agent regardless of revisionRequest value
+      agentResponse = await callAssignmentAgent({
+        isRevision: true,
+        content: currentAssignment.content,
+        subtopic: subtopicToUse,
+        changes: revisionRequest, // may be empty, that's fine
+      });
     } else {
-      // For initial generation
-      message = `Create an assignment for the subtopic: ${selectedSubtopic}`
+      // Initial assignment generation
+      agentResponse = await callAssignmentAgent({
+        isRevision: false,
+        subtopic: subtopicToUse,
+        content: undefined,
+        changes: undefined,
+      });
     }
 
-    console.log("📝 Sending message to agent:", message)
+    const assignmentContent =
+      agentResponse.output ||
+      agentResponse.content ||
+      agentResponse.answer ||
+      "No assignment content generated";
 
-    const agentResponse = await callRelevanceAgent(message, config)
-
-    if (agentResponse.job_info) {
-      console.log("⏳ Job created, starting polling...")
-      const result = await pollAgentResponse(agentResponse.job_info, config)
-
-      if (result.success) {
-        const assignmentContent = result.content?.output?.answer || result.content?.answer || "No assignment content generated"
-        console.log("📋 Assignment Content:", assignmentContent)
-
-        const newAssignment: GeneratedAssignment = {
-          title: selectedSubtopic,
-          topic: availableTopics[selectedTopic]?.topic || selectedTopic,
-          content: assignmentContent,
-          revisionHistory: currentAssignment ? [
+    const newAssignment = {
+      title: subtopicToUse,
+      topic: availableTopics[selectedTopic]?.topic || selectedTopic,
+      content: assignmentContent,
+      revisionHistory: currentAssignment
+        ? [
             ...currentAssignment.revisionHistory,
             {
               version: currentAssignment.revisionHistory.length + 1,
               content: assignmentContent,
               revisionRequest: isRevision ? revisionRequest : undefined,
-              timestamp: new Date()
-            }
-          ] : [
+              timestamp: new Date(),
+            },
+          ]
+        : [
             {
               version: 1,
               content: assignmentContent,
-              timestamp: new Date()
-            }
-          ]
-        }
+              timestamp: new Date(),
+            },
+          ],
+    };
 
-        setCurrentAssignment(newAssignment)
-        setRevisionRequest("")
-        setWorkflowState('reviewing')
+    setCurrentAssignment(newAssignment);
+    setRevisionRequest("");
+    setWorkflowState("reviewing");
 
-        toast({
-          title: isRevision ? "Assignment Revised Successfully!" : "Assignment Generated Successfully!",
-          description: "Please review the assignment and decide if you want to make any changes.",
-        })
+    toast({
+      title: isRevision
+        ? "Assignment Revised Successfully!"
+        : "Assignment Generated Successfully!",
+      description: "Please review the assignment and decide if you want to make any changes.",
+    });
 
-        return true
-      } else {
-        throw new Error(result.error || "Assignment generation failed")
-      }
-    } else {
-      throw new Error("No job info received from agent")
-    }
+    return true;
+  } catch (error) {
+    console.error("❌ Assignment Generation Error:", error);
+    toast({
+      title: isRevision ? "Revision Failed" : "Generation Failed",
+      description: error instanceof Error ? error.message : "Unknown error occurred",
+      variant: "destructive",
+    });
+    setWorkflowState(isRevision ? "reviewing" : "form");
+    return false;
   }
+};
+
+
+
+
 
   const handleInitialGeneration = async () => {
     // Validation

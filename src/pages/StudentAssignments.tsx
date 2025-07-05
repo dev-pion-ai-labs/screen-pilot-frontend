@@ -84,16 +84,7 @@ interface Submission {
   file_name: string | null;
   file_path: string | null;
   grade: number | null;
-  ai_grade?: any;
-  ai_overall_grade?: any;
-  ai_strengths?: string | null;
-  ai_areas_for_improvement?: string | null;
-  ai_recommendations?: string | null;
-  ai_rubric_breakdown?: string | null;
-  ai_academic_integrity?: string | null;
-  ai_status?: string | null;
-  ai_red_flags?: string | null;
-  ai_feedback?: string | null;
+  ai_feedback?: any;
 }
 
 interface Profile {
@@ -119,8 +110,17 @@ function parseAIFeedback(aiResult: any) {
   );
 
   let parsed = aiResult;
+  let rawText = "";
 
-  if (aiResult?.raw) {
+  // Handle the new N8N response format
+  if (aiResult?.output) {
+    console.log("[AI Feedback] Found output field from N8N agent");
+    rawText = aiResult.output;
+    parsed = {
+      rawText: rawText,
+      threadId: aiResult.threadId || null
+    };
+  } else if (aiResult?.raw) {
     console.log("[AI Feedback] Found raw field, attempting to parse");
     let raw = aiResult.raw;
     if (typeof raw === "string" && raw.startsWith("```json")) {
@@ -134,6 +134,7 @@ function parseAIFeedback(aiResult: any) {
       console.warn(
         "[AI Feedback] Not valid JSON, extracting from raw Markdown"
       );
+      rawText = raw;
       parsed = {
         rawText: raw,
         Score: raw.match(/Score:\s*(\d+)/)?.[1] || null,
@@ -150,6 +151,110 @@ function parseAIFeedback(aiResult: any) {
         },
       };
     }
+  } else {
+    rawText = JSON.stringify(aiResult, null, 2);
+  }
+
+  // Parse the new format with markdown table
+  if (rawText && rawText.includes("## 📊 Rubric-Based Scoring")) {
+    console.log("[AI Feedback] Parsing new N8N format with rubric table");
+    
+    // Extract total score from the table
+    const totalMatch = rawText.match(/\|\s*\*\*Total\*\*\s*\|\s*\d+\s*\|\s*(\d+)\s*\|/);
+    const totalScore = totalMatch ? parseInt(totalMatch[1]) : null;
+    
+    // Extract individual criteria scores and comments
+    const rubricItems = [];
+    const criteriaMatches = rawText.matchAll(/\|\s*([^|]+?)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*([^|]+?)\s*\|/g);
+    
+    for (const match of criteriaMatches) {
+      const criterion = match[1].trim();
+      const weightage = parseInt(match[2]);
+      const score = parseInt(match[3]);
+      const comment = match[4].trim();
+      
+      // Skip the header row and total row
+      if (criterion !== "Criteria" && criterion !== "**Total**") {
+        rubricItems.push({
+          criterion,
+          weightage,
+          score,
+          comment
+        });
+      }
+    }
+    
+    // Extract feedback sections - handle both new and old formats
+    let summaryFeedback = "";
+    let areasForImprovement = "";
+    let recommendations = "";
+    
+    // Try the exact format from the console output (using unicode flag for emojis)
+    const summaryMatch = rawText.match(/🧾 \*\*Summary Feedback\*\*:\s*\n([\s\S]+?)(?=🎓|$)/u);
+    if (summaryMatch) {
+      summaryFeedback = summaryMatch[1].trim();
+      console.log("✅ Found Summary Feedback:", summaryFeedback);
+    }
+    
+    const guidanceMatch = rawText.match(/🎓 \*\*Lecturer's Guidance\*\*:\s*\n([\s\S]+?)(?=$)/u);
+    if (guidanceMatch) {
+      const lecturerGuidance = guidanceMatch[1].trim();
+      console.log("✅ Found Lecturer's Guidance:", lecturerGuidance);
+      // The entire guidance section can be used as areas for improvement/recommendations
+      areasForImprovement = lecturerGuidance;
+      recommendations = lecturerGuidance;
+    }
+    
+    // Try parsing the format from your example (bullet points with sections)
+    if (!summaryFeedback) {
+      // Look for: * **Strengths**: 
+      const strengthsMatch = rawText.match(/\*\s*\*\*Strengths\*\*:\s*\n([^*]+?)(?=\n\*\s*\*\*|##|$)/s) || 
+                            rawText.match(/\*\s*\*\*Strengths\*\*:\s*([^*]+?)(?=\n\*\s*\*\*|##|$)/s);
+      summaryFeedback = strengthsMatch ? strengthsMatch[1].trim() : "";
+    }
+    
+    if (!areasForImprovement) {
+      // Look for: * **Areas for Improvement**: 
+      const directAreasMatch = rawText.match(/\*\s*\*\*Areas for Improvement\*\*:\s*\n([^*]+?)(?=\n\*\s*\*\*|##|$)/s) || 
+                               rawText.match(/\*\s*\*\*Areas for Improvement\*\*:\s*([^*]+?)(?=\n\*\s*\*\*|##|$)/s);
+      areasForImprovement = directAreasMatch ? directAreasMatch[1].trim() : "";
+    }
+    
+    if (!recommendations) {
+      // Look for various recommendation patterns
+      const patterns = [
+        /\*\s*\*\*Recommendations\*\*:\s*\n([^*]+?)(?=\n\*\s*\*\*|##|$)/s,
+        /\*\s*\*\*Recommendations\*\*:\s*([^*]+?)(?=\n\*\s*\*\*|##|$)/s,
+        /\*\s*\*\*Improvement Suggestions\*\*:\s*\n([^*]+?)(?=\n\*\s*\*\*|##|$)/s,
+        /\*\s*\*\*Improvement Suggestions\*\*:\s*([^*]+?)(?=\n\*\s*\*\*|##|$)/s
+      ];
+      
+      for (const pattern of patterns) {
+        const match = rawText.match(pattern);
+        if (match) {
+          recommendations = match[1].trim();
+          break;
+        }
+      }
+    }
+    
+    parsed = {
+      rawText: rawText,
+      threadId: aiResult.threadId || null,
+      Score: totalScore,
+      "Overall Grade": totalScore ? getGradeFromScore(totalScore) : null,
+      "Constructive Feedback": {
+        Strengths: summaryFeedback,
+        "Areas for Improvement": areasForImprovement,
+        Recommendations: recommendations,
+      },
+      "Rubric Items": rubricItems,
+      "Faculty Progress Summary": {
+        "Academic Integrity": "Clean", // Default assumption
+        Status: "Evaluated",
+        "Red Flags": "None",
+      },
+    };
   }
 
   const get = (obj: any, path: string, fallback: any = null) =>
@@ -169,7 +274,7 @@ function parseAIFeedback(aiResult: any) {
     ai_recommendations:
       get(parsed, "Constructive Feedback.Recommendations") || "",
     ai_rubric_breakdown: JSON.stringify(
-      get(parsed, "Rubric-Based Breakdown") || {}
+      get(parsed, "Rubric Items") || get(parsed, "Rubric-Based Breakdown") || {}
     ),
     ai_academic_integrity:
       get(parsed, "Faculty Progress Summary.Academic Integrity") || "",
@@ -193,6 +298,15 @@ function parseAIFeedback(aiResult: any) {
   });
 
   return result;
+}
+
+// Helper function to convert score to grade
+function getGradeFromScore(score: number): string {
+  if (score >= 90) return "A";
+  if (score >= 80) return "B";
+  if (score >= 70) return "C";
+  if (score >= 60) return "D";
+  return "F";
 }
 
 // 🔧 Helper to extract sections like "Strengths", "Recommendations"
@@ -538,15 +652,6 @@ export default function StudentAssignments() {
               file_name,
               file_path,
               grade,
-              ai_grade,
-              ai_overall_grade,
-              ai_strengths,
-              ai_areas_for_improvement,
-              ai_recommendations,
-              ai_rubric_breakdown,
-              ai_academic_integrity,
-              ai_status,
-              ai_red_flags,
               ai_feedback
             )
           )
@@ -687,18 +792,9 @@ export default function StudentAssignments() {
         file_path: filePath,
         file_name: selectedFile.name,
         submission_date: now,
-        ai_feedback: aiData.ai_feedback,
+        ai_feedback: JSON.parse(aiData.ai_feedback), // Store as JSON object
         grade: aiData.grade,
-        ai_grade: aiData.ai_grade,
-        ai_overall_grade: aiData.ai_overall_grade,
-        ai_strengths: aiData.ai_strengths,
-        ai_areas_for_improvement: aiData.ai_areas_for_improvement,
-        ai_recommendations: aiData.ai_recommendations,
-        ai_rubric_breakdown: aiData.ai_rubric_breakdown,
-        ai_academic_integrity: aiData.ai_academic_integrity,
-        ai_status: aiData.ai_status,
-        ai_red_flags: aiData.ai_red_flags,
-        ai_evaluation: aiData.ai_evaluation,
+        ai_evaluation: aiData.ai_evaluation, // Store complete evaluation as JSON
         status: "submitted",
         created_at: now,
         updated_at: now,
@@ -1387,70 +1483,79 @@ export default function StudentAssignments() {
 
                               {/* Rubric Breakdown */}
                               {(() => {
-                                const parseRubricFromSubmission = (
-                                  submission: any
-                                ) => {
-                                  let rawText = "";
+                                const parseRubricFromSubmission = (submission: any) => {
+                                  console.log("🔍 [RUBRIC DEBUG] Full submission object:", submission);
+                                  console.log("🔍 [RUBRIC DEBUG] ai_evaluation:", submission.ai_evaluation);
+                                  console.log("🔍 [RUBRIC DEBUG] ai_feedback:", submission.ai_feedback);
+                                  
+                                  // First check if we have rubric items directly in ai_evaluation
+                                  if (submission.ai_evaluation?.["Rubric Items"]) {
+                                    console.log("✅ [RUBRIC DEBUG] Found Rubric Items in ai_evaluation");
+                                    return submission.ai_evaluation["Rubric Items"];
+                                  }
 
-                                  // Get rawText from ai_evaluation first, then ai_feedback
+                                  // Then check ai_feedback
+                                  if (submission.ai_feedback?.["Rubric Items"]) {
+                                    console.log("✅ [RUBRIC DEBUG] Found Rubric Items in ai_feedback");
+                                    return submission.ai_feedback["Rubric Items"];
+                                  }
+
+                                  // Fallback to parsing rawText if available
+                                  let rawText = "";
                                   if (submission.ai_evaluation?.rawText) {
                                     rawText = submission.ai_evaluation.rawText;
-                                  } else if (submission.ai_feedback) {
-                                    try {
-                                      const feedbackData = JSON.parse(submission.ai_feedback);
-                                      rawText = feedbackData.rawText || "";
-                                    } catch (e) {
-                                      console.warn("❌ Failed to parse ai_feedback JSON:", e);
-                                    }
+                                    console.log("🔍 [RUBRIC DEBUG] Using rawText from ai_evaluation");
+                                  } else if (submission.ai_feedback?.rawText) {
+                                    rawText = submission.ai_feedback.rawText;
+                                    console.log("🔍 [RUBRIC DEBUG] Using rawText from ai_feedback");
+                                  } else if (typeof submission.ai_evaluation === 'string') {
+                                    rawText = submission.ai_evaluation;
+                                    console.log("🔍 [RUBRIC DEBUG] Using ai_evaluation as string");
+                                  } else if (typeof submission.ai_feedback === 'string') {
+                                    rawText = submission.ai_feedback;
+                                    console.log("🔍 [RUBRIC DEBUG] Using ai_feedback as string");
                                   }
 
                                   if (!rawText) {
+                                    console.log("❌ [RUBRIC DEBUG] No rawText found");
                                     return null;
                                   }
 
-                                  console.log("Parsing rubric from rawText:", rawText);
+                                  console.log("🔍 [RUBRIC DEBUG] Raw text sample:", rawText.substring(0, 500));
 
-                                  // Parse rubric breakdown from rawText
+                                  // Parse new rubric table format - handle both numeric scores and "XX" placeholders
                                   const rubricItems = [];
-
-                                  // First, extract all criterion blocks
-                                  const criterionBlocks = rawText.match(/\* \*\*Criterion \d+:[^*]+?\*\*:[\s\S]*?(?=\n\* \*\*Criterion|\n## |$)/g) || [];
+                                  const criteriaMatches = rawText.matchAll(/\|\s*([^|]+?)\s*\|\s*(\d+|XX)\s*\|\s*(\d+|XX)\s*\|\s*([^|]+?)\s*\|/g);
                                   
-                                  console.log("Found criterion blocks:", criterionBlocks);
-
-                                  criterionBlocks.forEach((block, index) => {
-                                    // Extract criterion name
-                                    const nameMatch = block.match(/\* \*\*(Criterion \d+:[^*]+?)\*\*:/);
+                                  for (const match of criteriaMatches) {
+                                    const criterion = match[1].trim();
+                                    const weightageStr = match[2].trim();
+                                    const scoreStr = match[3].trim();
+                                    const comment = match[4].trim();
                                     
-                                    // Extract score
-                                    const scoreMatch = block.match(/Score:\s*(\d+)\/(\d+)/);
-                                    
-                                    // Extract assessment
-                                    const assessmentMatch = block.match(/Assessment:\s*(.+?)(?=\n\n|$)/s);
-                                    
-                                    if (nameMatch && scoreMatch) {
-                                      const criterion = nameMatch[1].trim();
-                                      const score = parseInt(scoreMatch[1]);
-                                      const maxScore = parseInt(scoreMatch[2]);
-                                      const assessment = assessmentMatch ? assessmentMatch[1].trim() : "";
-
+                                    // Skip the header row and total row
+                                    if (criterion !== "Criteria" && criterion !== "**Total**" && 
+                                        !criterion.toLowerCase().includes("criteria")) {
+                                      
+                                      const weightage = weightageStr === "XX" ? 0 : parseInt(weightageStr);
+                                      const score = scoreStr === "XX" ? 0 : parseInt(scoreStr);
+                                      
                                       rubricItems.push({
                                         criterion,
-                                        percentage: "N/A",
+                                        weightage,
                                         score,
-                                        maxScore,
-                                        assessment,
+                                        maxScore: weightage || 20, // Use weightage as max score, fallback to 20
+                                        assessment: comment,
                                       });
                                     }
-                                  });
+                                  }
 
-                                  console.log("Parsed rubric items:", rubricItems);
-                                  
+                                  console.log("🔍 [RUBRIC DEBUG] Parsed rubric items:", rubricItems);
                                   return rubricItems.length > 0 ? rubricItems : null;
                                 };
 
-                                const rubricItems =
-                                  parseRubricFromSubmission(submission);
+                                const rubricItems = parseRubricFromSubmission(submission);
+                                console.log("🔍 [RUBRIC DEBUG] Final rubric items to display:", rubricItems);
 
                                 return rubricItems ? (
                                   <div className="mb-4">
@@ -1469,17 +1574,16 @@ export default function StudentAssignments() {
                                               <span className="font-medium text-gray-800 text-sm">
                                                 {item.criterion}
                                               </span>
-                                              {item.percentage !== "N/A" && (
+                                              {item.weightage && (
                                                 <Badge className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white border-0 text-xs">
-                                                  {item.percentage}
+                                                  {item.weightage}%
                                                 </Badge>
                                               )}
                                             </div>
                                             <div className="flex items-center gap-2">
                                               <span
                                                 className={`text-sm font-bold ${getGradeColor(
-                                                  (item.score / item.maxScore) *
-                                                    100
+                                                  (item.score / item.maxScore) * 100
                                                 )}`}
                                               >
                                                 {item.score}
@@ -1490,9 +1594,7 @@ export default function StudentAssignments() {
                                             </div>
                                           </div>
                                           <Progress
-                                            value={
-                                              (item.score / item.maxScore) * 100
-                                            }
+                                            value={(item.score / item.maxScore) * 100}
                                             className="mb-2 h-2"
                                           />
                                           <p className="text-xs text-gray-700">
@@ -1508,135 +1610,153 @@ export default function StudentAssignments() {
                               {/* AI Feedback Sections */}
                               {(() => {
                                 const getFeedbackData = (submission: any) => {
-                                  let feedbackData = null;
+                                  console.log("🔍 [FEEDBACK DEBUG] Starting feedback parsing for submission:", submission.id);
+                                  console.log("🔍 [FEEDBACK DEBUG] ai_evaluation:", submission.ai_evaluation);
+                                  console.log("🔍 [FEEDBACK DEBUG] ai_feedback:", submission.ai_feedback);
+                                  
                                   let strengths = "";
                                   let areasForImprovement = "";
                                   let recommendations = "";
 
-                                  // Parse ai_feedback JSON first
-                                  if (submission.ai_feedback) {
-                                    try {
-                                      feedbackData = JSON.parse(
-                                        submission.ai_feedback
-                                      );
-
-                                      if (
-                                        feedbackData["Constructive Feedback"]
-                                      ) {
-                                        const feedback =
-                                          feedbackData["Constructive Feedback"];
-
-                                        // Extract clean feedback sections
-                                        if (feedback.Strengths) {
-                                          const strengthsText =
-                                            feedback.Strengths;
-                                          // Remove any areas for improvement or recommendations that got mixed in
-                                          const strengthsMatch =
-                                            strengthsText.match(
-                                              /^([^*]+?)(?=\n\s*\*\s*\*\*Areas for Improvement\*\*|\n\s*\*\s*\*\*Recommendations\*\*|$)/s
-                                            );
-                                          strengths = strengthsMatch
-                                            ? strengthsMatch[1].trim()
-                                            : strengthsText
-                                                .split("\n\n")[0]
-                                                .trim();
-                                        }
-
-                                        if (feedback["Areas for Improvement"]) {
-                                          const areas =
-                                            feedback["Areas for Improvement"];
-                                          // Remove any recommendations that got mixed in
-                                          const areasMatch = areas.match(
-                                            /^([^*]+?)(?=\n\s*\*\s*\*\*Recommendations\*\*|$)/s
-                                          );
-                                          areasForImprovement = areasMatch
-                                            ? areasMatch[1].trim()
-                                            : areas.split("\n\n")[0].trim();
-                                        }
-
-                                        if (feedback.Recommendations) {
-                                          recommendations =
-                                            feedback.Recommendations;
-                                        }
-                                      } else if (feedbackData.rawText) {
-                                        // Parse from rawText if structured data not available
-                                        const rawText = feedbackData.rawText;
-
-                                        const strengthsMatch = rawText.match(
-                                          /\*\*Strengths\*\*: ([^*]+?)(?=\n\*\*|$)/
-                                        );
-                                        const areasMatch = rawText.match(
-                                          /\*\*Areas for Improvement\*\*: ([^*]+?)(?=\n\*\*|$)/
-                                        );
-                                        const recommendationsMatch =
-                                          rawText.match(
-                                            /\*\*Recommendations\*\*: ([^*]+?)(?=\n\*\*|$)/
-                                          );
-
-                                        strengths = strengthsMatch
-                                          ? strengthsMatch[1].trim()
-                                          : "";
-                                        areasForImprovement = areasMatch
-                                          ? areasMatch[1].trim()
-                                          : "";
-                                        recommendations = recommendationsMatch
-                                          ? recommendationsMatch[1].trim()
-                                          : "";
-                                      }
-                                    } catch (e) {
-                                      console.warn(
-                                        "❌ Failed to parse ai_feedback JSON:",
-                                        e
-                                      );
+                                  // First try to get data from ai_evaluation
+                                  if (submission.ai_evaluation) {
+                                    const evalData = submission.ai_evaluation;
+                                    console.log("🔍 [FEEDBACK DEBUG] evalData keys:", Object.keys(evalData));
+                                    if (evalData["Constructive Feedback"]) {
+                                      console.log("✅ [FEEDBACK DEBUG] Found Constructive Feedback in ai_evaluation");
+                                      const feedback = evalData["Constructive Feedback"];
+                                      strengths = feedback.Strengths || "";
+                                      areasForImprovement = feedback["Areas for Improvement"] || "";
+                                      recommendations = feedback.Recommendations || "";
+                                    } else {
+                                      console.log("❌ [FEEDBACK DEBUG] No Constructive Feedback found in ai_evaluation");
                                     }
                                   }
 
-                                  // Fallback to individual fields
-                                  if (!strengths && submission.ai_strengths) {
-                                    const strengthsText =
-                                      submission.ai_strengths;
-                                    // Remove any areas for improvement or recommendations that got mixed in
-                                    const strengthsMatch = strengthsText.match(
-                                      /^([^*]+?)(?=\n\s*\*\s*\*\*Areas for Improvement\*\*|\n\s*\*\s*\*\*Recommendations\*\*|$)/s
-                                    );
-                                    strengths = strengthsMatch
-                                      ? strengthsMatch[1].trim()
-                                      : strengthsText.split("\n\n")[0].trim();
+                                  // Fallback to ai_feedback if ai_evaluation doesn't have the data
+                                  if (!strengths && !areasForImprovement && !recommendations && submission.ai_feedback) {
+                                    console.log("🔍 [FEEDBACK DEBUG] Trying ai_feedback fallback");
+                                    const feedbackData = submission.ai_feedback;
+                                    console.log("🔍 [FEEDBACK DEBUG] feedbackData keys:", Object.keys(feedbackData || {}));
+                                    
+                                    if (feedbackData["Constructive Feedback"]) {
+                                      console.log("✅ [FEEDBACK DEBUG] Found Constructive Feedback in ai_feedback");
+                                      const feedback = feedbackData["Constructive Feedback"];
+                                      strengths = feedback.Strengths || "";
+                                      areasForImprovement = feedback["Areas for Improvement"] || "";
+                                      recommendations = feedback.Recommendations || "";
+                                    } else if (feedbackData.rawText) {
+                                      console.log("🔍 [FEEDBACK DEBUG] Parsing from rawText in ai_feedback");
+                                      // Parse from rawText using multiple patterns
+                                      const rawText = feedbackData.rawText;
+
+                                      // Try multiple patterns for strengths
+                                      const strengthsPatterns = [
+                                        /\*\s*\*\*Strengths\*\*:\s*\n([^*]+?)(?=\n\*\s*\*\*|##|$)/s,
+                                        /\*\s*\*\*Strengths\*\*:\s*([^*]+?)(?=\n\*\s*\*\*|##|$)/s,
+                                        /\*\*Strengths\*\*:\s*([^*]+?)(?=\n\*\*|$)/
+                                      ];
+                                      
+                                      for (const pattern of strengthsPatterns) {
+                                        const match = rawText.match(pattern);
+                                        if (match) {
+                                          strengths = match[1].trim();
+                                          break;
+                                        }
+                                      }
+
+                                      // Try multiple patterns for areas for improvement
+                                      const areasPatterns = [
+                                        /\*\s*\*\*Areas for Improvement\*\*:\s*\n([^*]+?)(?=\n\*\s*\*\*|##|$)/s,
+                                        /\*\s*\*\*Areas for Improvement\*\*:\s*([^*]+?)(?=\n\*\s*\*\*|##|$)/s,
+                                        /\*\*Areas for Improvement\*\*:\s*([^*]+?)(?=\n\*\*|$)/
+                                      ];
+                                      
+                                      for (const pattern of areasPatterns) {
+                                        const match = rawText.match(pattern);
+                                        if (match) {
+                                          areasForImprovement = match[1].trim();
+                                          break;
+                                        }
+                                      }
+
+                                      // Try multiple patterns for recommendations
+                                      const recommendationsPatterns = [
+                                        /\*\s*\*\*Recommendations\*\*:\s*\n([^*]+?)(?=\n\*\s*\*\*|##|$)/s,
+                                        /\*\s*\*\*Recommendations\*\*:\s*([^*]+?)(?=\n\*\s*\*\*|##|$)/s,
+                                        /\*\*Recommendations\*\*:\s*([^*]+?)(?=\n\*\*|$)/
+                                      ];
+                                      
+                                      for (const pattern of recommendationsPatterns) {
+                                        const match = rawText.match(pattern);
+                                        if (match) {
+                                          recommendations = match[1].trim();
+                                          break;
+                                        }
+                                      }
+                                    }
                                   }
 
-                                  if (
-                                    !areasForImprovement &&
-                                    submission.ai_areas_for_improvement
-                                  ) {
-                                    const areasText =
-                                      submission.ai_areas_for_improvement;
-                                    // Remove any recommendations that got mixed in
-                                    const areasMatch = areasText.match(
-                                      /^([^*]+?)(?=\n\s*\*\s*\*\*Recommendations\*\*|$)/s
-                                    );
-                                    areasForImprovement = areasMatch
-                                      ? areasMatch[1].trim()
-                                      : areasText.split("\n\n")[0].trim();
+                                  // Add fallback for direct text parsing if nothing found yet
+                                  if (!strengths && !areasForImprovement && !recommendations) {
+                                    console.log("🔍 [FEEDBACK DEBUG] No feedback found, trying direct text parsing");
+                                    let directText = "";
+                                    if (typeof submission.ai_feedback === 'string') {
+                                      directText = submission.ai_feedback;
+                                    } else if (typeof submission.ai_evaluation === 'string') {
+                                      directText = submission.ai_evaluation;
+                                    }
+                                    
+                                    if (directText) {
+                                      console.log("🔍 [FEEDBACK DEBUG] Direct text sample:", directText.substring(0, 300));
+                                      
+                                      // Try the exact format from the feedback
+                                      const summaryMatch = directText.match(/🧾 \*\*Summary Feedback\*\*:\s*\n([\s\S]+?)(?=🎓|$)/u);
+                                      if (summaryMatch) {
+                                        strengths = summaryMatch[1].trim();
+                                        console.log("✅ [FEEDBACK DEBUG] Found Summary Feedback as strengths");
+                                      }
+                                      
+                                      const guidanceMatch = directText.match(/🎓 \*\*Lecturer's Guidance\*\*:\s*\n([\s\S]+?)(?=$)/u);
+                                      if (guidanceMatch) {
+                                        areasForImprovement = guidanceMatch[1].trim();
+                                        recommendations = guidanceMatch[1].trim();
+                                        console.log("✅ [FEEDBACK DEBUG] Found Lecturer's Guidance as areas/recommendations");
+                                      }
+
+                                      // Fallback patterns
+                                      if (!strengths) {
+                                        const strengthsMatch = directText.match(/\*\s*\*\*Strengths\*\*:\s*([^*]+?)(?=\n\*\s*\*\*|##|$)/s);
+                                        if (strengthsMatch) {
+                                          strengths = strengthsMatch[1].trim();
+                                          console.log("✅ [FEEDBACK DEBUG] Found strengths in direct text");
+                                        }
+                                      }
+
+                                      if (!areasForImprovement) {
+                                        const areasMatch = directText.match(/\*\s*\*\*Areas for Improvement\*\*:\s*([^*]+?)(?=\n\*\s*\*\*|##|$)/s);
+                                        if (areasMatch) {
+                                          areasForImprovement = areasMatch[1].trim();
+                                          console.log("✅ [FEEDBACK DEBUG] Found areas in direct text");
+                                        }
+                                      }
+                                    }
                                   }
 
-                                  if (
-                                    !recommendations &&
-                                    submission.ai_recommendations
-                                  ) {
-                                    recommendations =
-                                      submission.ai_recommendations;
-                                  }
-
+                                  console.log("🔍 [FEEDBACK DEBUG] Final parsed data:", {
+                                    strengths: strengths || "EMPTY",
+                                    areasForImprovement: areasForImprovement || "EMPTY", 
+                                    recommendations: recommendations || "EMPTY"
+                                  });
+                                  
                                   return {
                                     strengths: strengths || "",
-                                    areasForImprovement:
-                                      areasForImprovement || "",
+                                    areasForImprovement: areasForImprovement || "",
                                     recommendations: recommendations || "",
                                   };
                                 };
 
-                                const feedbackData =
-                                  getFeedbackData(submission);
+                                const feedbackData = getFeedbackData(submission);
 
                                 return feedbackData.strengths ||
                                   feedbackData.areasForImprovement ||

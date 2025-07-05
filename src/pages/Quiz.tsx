@@ -1044,6 +1044,12 @@ const formatMentorResponse = (content: string): string => {
     '<div class="mb-2 ml-4 flex items-start gap-2"><span class="text-purple-600 mt-1">•</span><span class="text-gray-700">$1</span></div>'
   );
 
+  // Format dash bullet points (remove dash and add line break)
+  formattedContent = formattedContent.replace(
+    /^-\s*(.+)$/gm,
+    '<div class="mb-2 ml-4" style="display: block;"><span class="text-gray-700">$1</span></div>'
+  );
+
   // Format reference materials section specially
   formattedContent = formattedContent.replace(
     /Reference Materials:\s*\n([^\n]+(?:\n[^\n]+)*?)(?=\n\n|$)/g,

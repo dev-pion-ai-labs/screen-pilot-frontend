@@ -1718,21 +1718,13 @@ export default function StudentAssignments() {
                                               <span className="font-medium text-gray-800 text-sm">
                                                 {item.criterion?.replace(/\*\*/g, '') || item.criterion}
                                               </span>
-                                              {item.weightage && (
-                                                <Badge className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white border-0 text-xs">
-                                                  {item.weightage}
-                                                </Badge>
-                                              )}
+                                              
                                             </div>
-                                            <div className="flex items-center gap-2">
-                                              <span
-                                                className={`text-sm font-bold ${item.isGraded === false ? 'text-gray-400' : getGradeColor(
-                                                  (item.score / item.maxScore) * 100
-                                                )}`}
-                                              >
-                                                {item.isGraded === false ? 'Not Graded' : `${item.score}`}
-                                              </span>
-                                            </div>
+                                            
+
+                                          </div>
+                                          <div className="text-sm text-gray-600 mb-1">
+                                             {item.comment}
                                           </div>
                                           <p className="text-xs text-gray-700">
                                             {item.assessment}

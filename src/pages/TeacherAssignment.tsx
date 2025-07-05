@@ -907,6 +907,19 @@ const TeacherAssignment = () => {
                     const parseRubricFromSubmission = (submission: any) => {
                       console.log('🔍 Parsing detailed submission:', submission);
                       
+                      // First check if we have rubric items directly in ai_evaluation
+                      if (submission.ai_evaluation?.["Rubric Items"]) {
+                        console.log('✅ Found Rubric Items in ai_evaluation:', submission.ai_evaluation["Rubric Items"]);
+                        return submission.ai_evaluation["Rubric Items"];
+                      }
+                      
+                      // Then check ai_feedback
+                      if (submission.ai_feedback?.["Rubric Items"]) {
+                        console.log('✅ Found Rubric Items in ai_feedback:', submission.ai_feedback["Rubric Items"]);
+                        return submission.ai_feedback["Rubric Items"];
+                      }
+                      
+                      // Fallback to parsing from rawText if needed
                       let feedbackData = null;
                       let rawText = '';
                       
@@ -1042,29 +1055,24 @@ const TeacherAssignment = () => {
                                   <h4 className="font-bold text-gray-900">
                                     {item.criterion}
                                   </h4>
-                                  {item.percentage && (
+                                  {(item.percentage || item.weightage) && (
                                     <Badge className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white border-0 text-xs">
-                                      {item.percentage}
+                                      {item.percentage || item.weightage}%
                                     </Badge>
                                   )}
                                 </div>
                                 <div className="flex items-center gap-2">
                                   <span
-                                    className={`text-lg font-bold ${getGradeColor(
-                                      (item.score / item.maxScore) * 100
+                                    className={`text-lg font-bold ${item.isGraded === false ? 'text-gray-400' : getGradeColor(
+                                      (item.score / (item.maxScore || item.weightage || 20)) * 100
                                     )}`}
                                   >
-                                    {item.score}
+                                    {item.isGraded === false ? 'Not Graded' : `${item.score}%`}
                                   </span>
-                                  <span className="text-gray-500">/ {item.maxScore}</span>
                                 </div>
                               </div>
-                              <Progress
-                                value={(item.score / item.maxScore) * 100}
-                                className="mb-3"
-                              />
                               <p className="text-sm text-gray-700">
-                                {item.assessment}
+                                {item.assessment || item.comment}
                               </p>
                             </div>
                           ))}

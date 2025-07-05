@@ -189,20 +189,20 @@ function parseAIFeedback(aiResult: any) {
     let areasForImprovement = "";
     let recommendations = "";
     
-    // Try new format first
-    const summaryMatch = rawText.match(/### 🧾 Summary Feedback:\s*\n([^#]+?)(?=\n###|$)/s);
+    // Try the exact format from the console output (using unicode flag for emojis)
+    const summaryMatch = rawText.match(/🧾 \*\*Summary Feedback\*\*:\s*\n([\s\S]+?)(?=🎓|$)/u);
     if (summaryMatch) {
       summaryFeedback = summaryMatch[1].trim();
+      console.log("✅ Found Summary Feedback:", summaryFeedback);
     }
     
-    const guidanceMatch = rawText.match(/### 🎓 Lecturer's Guidance:\s*\n([^#]+?)(?=\n###|$)/s);
+    const guidanceMatch = rawText.match(/🎓 \*\*Lecturer's Guidance\*\*:\s*\n([\s\S]+?)(?=$)/u);
     if (guidanceMatch) {
       const lecturerGuidance = guidanceMatch[1].trim();
-      const areasMatch = lecturerGuidance.match(/- \*\*Areas for Improvement\*\*:\s*([^-]+?)(?=\n-|$)/s);
-      areasForImprovement = areasMatch ? areasMatch[1].trim() : "";
-      
-      const recommendationsMatch = lecturerGuidance.match(/- \*\*Improvement Suggestions\*\*:\s*([^-]+?)(?=\n-|$)/s);
-      recommendations = recommendationsMatch ? recommendationsMatch[1].trim() : "";
+      console.log("✅ Found Lecturer's Guidance:", lecturerGuidance);
+      // The entire guidance section can be used as areas for improvement/recommendations
+      areasForImprovement = lecturerGuidance;
+      recommendations = lecturerGuidance;
     }
     
     // Try parsing the format from your example (bullet points with sections)
@@ -1523,23 +1523,28 @@ export default function StudentAssignments() {
 
                                   console.log("🔍 [RUBRIC DEBUG] Raw text sample:", rawText.substring(0, 500));
 
-                                  // Parse new rubric table format
+                                  // Parse new rubric table format - handle both numeric scores and "XX" placeholders
                                   const rubricItems = [];
-                                  const criteriaMatches = rawText.matchAll(/\|\s*([^|]+?)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*([^|]+?)\s*\|/g);
+                                  const criteriaMatches = rawText.matchAll(/\|\s*([^|]+?)\s*\|\s*(\d+|XX)\s*\|\s*(\d+|XX)\s*\|\s*([^|]+?)\s*\|/g);
                                   
                                   for (const match of criteriaMatches) {
                                     const criterion = match[1].trim();
-                                    const weightage = parseInt(match[2]);
-                                    const score = parseInt(match[3]);
+                                    const weightageStr = match[2].trim();
+                                    const scoreStr = match[3].trim();
                                     const comment = match[4].trim();
                                     
                                     // Skip the header row and total row
-                                    if (criterion !== "Criteria" && criterion !== "**Total**") {
+                                    if (criterion !== "Criteria" && criterion !== "**Total**" && 
+                                        !criterion.toLowerCase().includes("criteria")) {
+                                      
+                                      const weightage = weightageStr === "XX" ? 0 : parseInt(weightageStr);
+                                      const score = scoreStr === "XX" ? 0 : parseInt(scoreStr);
+                                      
                                       rubricItems.push({
                                         criterion,
                                         weightage,
                                         score,
-                                        maxScore: 20, // Default max score
+                                        maxScore: weightage || 20, // Use weightage as max score, fallback to 20
                                         assessment: comment,
                                       });
                                     }
@@ -1704,17 +1709,36 @@ export default function StudentAssignments() {
                                     
                                     if (directText) {
                                       console.log("🔍 [FEEDBACK DEBUG] Direct text sample:", directText.substring(0, 300));
-                                      // Try the patterns on direct text
-                                      const strengthsMatch = directText.match(/\*\s*\*\*Strengths\*\*:\s*([^*]+?)(?=\n\*\s*\*\*|##|$)/s);
-                                      if (strengthsMatch) {
-                                        strengths = strengthsMatch[1].trim();
-                                        console.log("✅ [FEEDBACK DEBUG] Found strengths in direct text");
+                                      
+                                      // Try the exact format from the feedback
+                                      const summaryMatch = directText.match(/🧾 \*\*Summary Feedback\*\*:\s*\n([\s\S]+?)(?=🎓|$)/u);
+                                      if (summaryMatch) {
+                                        strengths = summaryMatch[1].trim();
+                                        console.log("✅ [FEEDBACK DEBUG] Found Summary Feedback as strengths");
+                                      }
+                                      
+                                      const guidanceMatch = directText.match(/🎓 \*\*Lecturer's Guidance\*\*:\s*\n([\s\S]+?)(?=$)/u);
+                                      if (guidanceMatch) {
+                                        areasForImprovement = guidanceMatch[1].trim();
+                                        recommendations = guidanceMatch[1].trim();
+                                        console.log("✅ [FEEDBACK DEBUG] Found Lecturer's Guidance as areas/recommendations");
                                       }
 
-                                      const areasMatch = directText.match(/\*\s*\*\*Areas for Improvement\*\*:\s*([^*]+?)(?=\n\*\s*\*\*|##|$)/s);
-                                      if (areasMatch) {
-                                        areasForImprovement = areasMatch[1].trim();
-                                        console.log("✅ [FEEDBACK DEBUG] Found areas in direct text");
+                                      // Fallback patterns
+                                      if (!strengths) {
+                                        const strengthsMatch = directText.match(/\*\s*\*\*Strengths\*\*:\s*([^*]+?)(?=\n\*\s*\*\*|##|$)/s);
+                                        if (strengthsMatch) {
+                                          strengths = strengthsMatch[1].trim();
+                                          console.log("✅ [FEEDBACK DEBUG] Found strengths in direct text");
+                                        }
+                                      }
+
+                                      if (!areasForImprovement) {
+                                        const areasMatch = directText.match(/\*\s*\*\*Areas for Improvement\*\*:\s*([^*]+?)(?=\n\*\s*\*\*|##|$)/s);
+                                        if (areasMatch) {
+                                          areasForImprovement = areasMatch[1].trim();
+                                          console.log("✅ [FEEDBACK DEBUG] Found areas in direct text");
+                                        }
                                       }
                                     }
                                   }

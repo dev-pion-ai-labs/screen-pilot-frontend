@@ -27,7 +27,7 @@ export default function Login() {
     try {
       const { error } = await signIn(email, password)
 
-      if (!error) {
+      if (error === null || error === undefined) {
         toast({
           title: "Welcome to Screen Pilot!",
           description: "Login successful. Let's start your creative journey.",
@@ -148,12 +148,6 @@ export default function Login() {
                         <Label htmlFor="password" className="text-gray-700 font-medium">
                           Password
                         </Label>
-                        {/* <Link
-                          to="/auth/forgot-password"
-                          className="text-sm text-purple-600 hover:text-purple-700 hover:underline font-medium"
-                        > */}
-                          {/* Forgot password? */}
-                        {/* </Link> */}
                       </div>
                       <Input
                         id="password"
@@ -183,26 +177,6 @@ export default function Login() {
                       )}
                     </Button>
 
-                    {/* <div className="text-center">
-                      <p className="text-gray-600">
-                        New to Screen Pilot?{" "}
-                        <Link
-                          to="/signup"
-                          className="text-purple-600 hover:text-purple-700 font-medium hover:underline"
-                        >
-                          Create your account
-                        </Link>
-                      </p>
-                    </div> */}
-
-                    {/* <div className="text-center pt-4 border-t border-gray-200">
-                      <p className="text-sm text-gray-500">
-                        Need help? Contact{" "}
-                        <Link to="/support" className="text-purple-600 hover:text-purple-700 hover:underline">
-                          ACFM Support
-                        </Link>
-                      </p>
-                    </div> */}
                   </CardFooter>
                 </form>
               </Card>

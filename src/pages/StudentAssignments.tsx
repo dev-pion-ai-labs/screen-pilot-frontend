@@ -58,27 +58,8 @@ import {
 } from "@/components/ui/select";
 
 // --- RelevanceAI Config ---
-const RELEVANCE_CONFIG = {
-  agent: {
-    endpoint: "https://api-d7b62b.stack.tryrelevance.com/latest/agents/trigger",
-    authorization:
-      "5cc7752400a6-4648-b47b-04fc92b47cae:sk-OGIxMWJiMzAtMTk5Ni00Nzk3LTk5MTYtZTFmZTI4NzIzNTNj",
-    agent_id: "6c425902-6090-4781-b8de-df38ff3f26fb",
-  },
-  extractPdf: {
-    endpoint:
-      "https://api-d7b62b.stack.tryrelevance.com/latest/studios/5a6eaca2-6e92-4557-a299-c0e2bbbac201/trigger_webhook?project=5cc7752400a6-4648-b47b-04fc92b47cae",
-    authorization:
-      "5cc7752400a6-4648-b47b-04fc92b47cae:sk-OTJkZGIzNzYtMGU5Yi00MDY4LTk2NjEtM2JkODE4NjM4M2Jk",
-  },
-  extractDocx: {
-    endpoint:
-      "https://api-d7b62b.stack.tryrelevance.com/latest/studios/aa26fd47-2966-428c-b542-cb40e608357a/trigger_webhook?project=5cc7752400a6-4648-b47b-04fc92b47cae",
-    authorization:
-      "5cc7752400a6-4648-b47b-04fc92b47cae:sk-OWQzMGE4MTUtMjVmOS00Nzk5LWJkNzEtZDdjOWRkOWJmZGRm",
-  },
-  region: "d7b62b",
-};
+const N8N_ASSIGNMENT_EVALUATOR_ENDPOINT = "https://vijiteshnaik.app.n8n.cloud/webhook/6d51e44c-1b35-4ba3-931a-aecc10f6293e";
+
 
 interface Assignment {
   id: string;
@@ -125,179 +106,9 @@ interface Profile {
   updated_at: string;
 }
 
-// --- Helper: Extract text from uploaded file (supports .txt, .pdf, .docx) ---
-async function extractTextFromFile(
-  file: File,
-  publicUrl: string
-): Promise<string> {
-  const ext = file.name.split(".").pop()?.toLowerCase();
-  console.log(
-    `[File Processing] Starting extraction for file: ${file.name} (${ext})`
-  );
 
-  if (ext === "txt") {
-    console.log("[TXT Processing] Reading text file directly");
-    const text = await file.text();
-    console.log(
-      "[TXT Processing] Successfully read text file, length:",
-      text.length
-    );
-    return text;
-  }
 
-  if (ext === "pdf") {
-    console.log("[PDF Processing] Starting PDF extraction");
-    console.log("[PDF Processing] File URL:", publicUrl);
 
-    // Wait for storage availability
-    console.log("[PDF Processing] Waiting for file availability...");
-    await new Promise((res) => setTimeout(res, 2000));
-
-    console.log("[PDF Processing] Sending request to PDF extraction API");
-    const response = await fetch(RELEVANCE_CONFIG.extractPdf.endpoint, {
-      method: "POST",
-      headers: {
-        Authorization: RELEVANCE_CONFIG.extractPdf.authorization,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ file_url: publicUrl }),
-    });
-
-    if (!response.ok) {
-      console.error("[PDF Processing] API Error:", {
-        status: response.status,
-        statusText: response.statusText,
-      });
-      throw new Error(
-        `PDF extraction API error: ${response.status} ${response.statusText}`
-      );
-    }
-
-    const data = await response.json();
-    console.log(
-      "[PDF Processing] Raw API Response:",
-      JSON.stringify(data, null, 2)
-    );
-
-    // Check all possible response formats
-    const possibleTexts = [
-      data?.result?.text,
-      data?.output,
-      data?.data,
-      data?.scanned_data,
-      data?.text,
-    ];
-
-    console.log("[PDF Processing] Checking possible text fields:", {
-      hasResultText: !!data?.result?.text,
-      hasOutput: !!data?.output,
-      hasData: !!data?.data,
-      hasScannedData: !!data?.scanned_data,
-      hasText: !!data?.text,
-    });
-
-    const extracted = possibleTexts.find(
-      (v) => typeof v === "string" && v.trim().length > 0
-    );
-
-    if (extracted) {
-      console.log(
-        "[PDF Processing] Successfully extracted text, length:",
-        extracted.length
-      );
-      return extracted;
-    }
-
-    console.error(
-      "[PDF Processing] Failed to extract text. Response structure:",
-      {
-        hasResult: !!data?.result,
-        hasOutput: !!data?.output,
-        hasData: !!data?.data,
-        hasScannedData: !!data?.scanned_data,
-        hasText: !!data?.text,
-      }
-    );
-
-    throw new Error(
-      "❌ PDF appears to be image-based or contains no extractable text. Try uploading a searchable/text-based PDF instead."
-    );
-  }
-
-  if (ext === "docx") {
-    console.log("[DOCX Processing] Starting DOCX extraction");
-    console.log("[DOCX Processing] File URL:", publicUrl);
-
-    const response = await fetch(RELEVANCE_CONFIG.extractDocx.endpoint, {
-      method: "POST",
-      headers: {
-        Authorization: RELEVANCE_CONFIG.extractDocx.authorization,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ doc_url: publicUrl }),
-    });
-
-    const data = await response.json();
-    console.log(
-      "[DOCX Processing] Raw API Response:",
-      JSON.stringify(data, null, 2)
-    );
-
-    if (data?.result?.text) {
-      console.log("[DOCX Processing] Extracted from result.text");
-      return data.result.text;
-    }
-    if (data?.output) {
-      console.log("[DOCX Processing] Extracted from output");
-      return data.output;
-    }
-    if (data?.text) {
-      console.log("[DOCX Processing] Extracted from text");
-      return data.text;
-    }
-
-    console.error(
-      "[DOCX Processing] Failed to extract text. Response structure:",
-      {
-        hasResult: !!data?.result,
-        hasOutput: !!data?.output,
-      }
-    );
-    throw new Error("❌ Failed to extract text from DOCX.");
-  }
-
-  console.error("[File Processing] Unsupported file type:", ext);
-  throw new Error("❌ Unsupported file type");
-}
-
-// Helper function to convert UTC to IST
-const convertToIST = (utcDate: string): string => {
-  const date = new Date(utcDate);
-
-  // Add 5 hours and 30 minutes for IST
-  const istDate = new Date(date.getTime() + 5.5 * 60 * 60 * 1000);
-
-  // Format the date
-  return format(istDate, "dd MMM yyyy, hh:mm a") + " IST";
-};
-
-// Alternative function if you want to use the browser's timezone
-const convertToLocalTime = (utcDate: string): string => {
-  const date = new Date(utcDate);
-
-  // This will convert to IST if the user's browser is set to IST
-  return (
-    date.toLocaleString("en-IN", {
-      timeZone: "Asia/Kolkata",
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-    }) + " IST"
-  );
-};
 
 // --- Helper: Parse AI Evaluation Result ---
 function parseAIFeedback(aiResult: any) {
@@ -409,21 +220,7 @@ const getGradeColor = (score: number) => {
   return "text-red-600";
 };
 
-// Helper function to get grade badge color
-const getGradeBadgeColor = (grade: string) => {
-  switch (grade?.toLowerCase()) {
-    case "excellent":
-      return "bg-gradient-to-r from-green-500 to-emerald-500 text-white border-0";
-    case "good":
-      return "bg-gradient-to-r from-blue-500 to-cyan-500 text-white border-0";
-    case "satisfactory":
-      return "bg-gradient-to-r from-yellow-500 to-orange-500 text-white border-0";
-    case "needs improvement":
-      return "bg-gradient-to-r from-red-500 to-pink-500 text-white border-0";
-    default:
-      return "bg-gradient-to-r from-gray-400 to-gray-500 text-white border-0";
-  }
-};
+
 
 // Helper to format assignment description - preserves all content
 // Helper to format assignment description - fixed to handle all cases properly
@@ -831,90 +628,26 @@ export default function StudentAssignments() {
     return { filePath, publicUrl: urlData.publicUrl };
   };
 
-  // --- AI Evaluation (pass content & file URL) ---
-  const callRelevanceAgent = async (
-    assignmentTitle: string,
-    studentName: string,
-    additionalNotes: string,
-    fileContent: string,
-    fileUrl: string,
-    aiGeneratedContent: any
-  ): Promise<any> => {
-    const message = `Assignment Title: ${assignmentTitle}
-Student: ${studentName}
-Notes from student: ${additionalNotes || "None"}
-Assignment File URL: ${fileUrl}
-Assignment AI Generated Content: ${JSON.stringify(aiGeneratedContent, null, 2)}
-Assignment Text Content:
-${fileContent}
-Please evaluate the assignment according to the assignment rubric, provide an overall grade and a rubric-based breakdown, and detailed feedback in JSON.`;
-    const payload = {
-      message: { role: "user", content: message },
-      agent_id: RELEVANCE_CONFIG.agent.agent_id,
-    };
-    const response = await fetch(RELEVANCE_CONFIG.agent.endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: RELEVANCE_CONFIG.agent.authorization,
-      },
-      body: JSON.stringify(payload),
-    });
-    if (!response.ok) throw new Error(`AI Agent error: ${response.status}`);
-    const data = await response.json();
-    // Poll for result
-    if (data?.job_info?.studio_id && data?.job_info?.job_id) {
-      return await pollAgentResponse(
-        data.job_info.studio_id,
-        data.job_info.job_id
-      );
-    } else {
-      throw new Error("AI Agent did not return job info");
-    }
-  };
 
-  const pollAgentResponse = async (
-    studioId: string,
-    jobId: string
-  ): Promise<any> => {
-    const maxAttempts = 20;
-    let attempts = 0;
-    while (attempts < maxAttempts) {
-      const res = await fetch(
-        `https://api-${RELEVANCE_CONFIG.region}.stack.tryrelevance.com/latest/studios/${studioId}/async_poll/${jobId}`,
-        { headers: { Authorization: RELEVANCE_CONFIG.agent.authorization } }
-      );
-      if (!res.ok) throw new Error(`Polling failed: ${res.status}`);
-      const status = await res.json();
-      for (const update of status.updates || []) {
-        if (update.type === "chain-success" && update.output) {
-          let content = "";
-          if (update.output.output && update.output.output.answer)
-            content = update.output.output.answer;
-          else if (typeof update.output === "string") content = update.output;
-          else if (
-            update.output.answer &&
-            typeof update.output.answer === "string"
-          )
-            content = update.output.answer;
-          else content = JSON.stringify(update.output, null, 2);
-          // Try to parse JSON in response
-          try {
-            return typeof content === "string" && content.startsWith("{")
-              ? JSON.parse(content)
-              : { raw: content };
-          } catch {
-            return { raw: content };
-          }
-        }
-        if (update.type === "chain-error")
-          throw new Error(update.error || "AI evaluation failed");
-      }
-      attempts++;
-      await new Promise((res) => setTimeout(res, 3000));
-    }
-    throw new Error("AI evaluation timed out");
+
+ const callN8nAgent = async (criteria: string, subtopic: string, file_url: string) => {
+  const payload = {
+    criteria,
+    subtopic,
+    file_url
   };
+  const response = await fetch(N8N_ASSIGNMENT_EVALUATOR_ENDPOINT, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    throw new Error(`N8N Agent error: ${response.status}`);
+  }
+  return await response.json();
+};
 
   // --- Submission Handler ---
   const handleSubmitAssignment = async (): Promise<void> => {
@@ -928,16 +661,16 @@ Please evaluate the assignment according to the assignment rubric, provide an ov
         selectedAssignment.id
       );
       // 2. Extract content (for AI eval)
-      const fileContent = await extractTextFromFile(selectedFile, publicUrl);
+      
       // 3. Get AI evaluation
-      const aiResult = await callRelevanceAgent(
-        selectedAssignment.title,
-        profile.full_name,
-        additionalNotes,
-        fileContent,
-        publicUrl,
-        selectedAssignment.ai_generated_content
-      );
+      
+      const aiResult = await callN8nAgent(
+  selectedAssignment.ai_generated_content, // criteria
+  selectedAssignment.title,               // subtopic
+  publicUrl                               // file_url
+);
+
+      console.log("AI Evaluation Result:", aiResult);
       // 4. Parse AI result
       const aiData = parseAIFeedback(aiResult);
       // 5. Insert to submissions (all fields)

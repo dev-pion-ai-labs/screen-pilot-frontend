@@ -261,9 +261,7 @@ export default function ModernStudentDashboard() {
         )
         .in("class_id", classIds)
         .eq("status", "published")
-        .order("created_at", { ascending: false })
-;
-
+        .order("created_at", { ascending: false });
       const assignmentsWithUserSubmissions =
         assignmentsData?.map((assignment: any) => ({
           ...assignment,
@@ -711,8 +709,11 @@ export default function ModernStudentDashboard() {
                         <Zap className="h-5 w-5 text-white" />
                       </div>
                       AI Learning Tools
-                      <Badge variant="secondary" className="ml-auto bg-purple-100 text-purple-700">
-                        3 Tools
+                      <Badge
+                        variant="secondary"
+                        className="ml-auto bg-purple-100 text-purple-700"
+                      >
+                        4 Tools
                       </Badge>
                     </CardTitle>
                     <p className="text-sm text-gray-600 mt-2">
@@ -721,7 +722,7 @@ export default function ModernStudentDashboard() {
                   </CardHeader>
                   <CardContent className="p-0">
                     <div className="space-y-0">
-                      <Link to="/ai-mentor" className="block">
+                      <Link to="/quiz" className="block">
                         <div className="group relative p-6 hover:bg-gradient-to-r hover:from-blue-50 hover:to-blue-100 transition-all duration-300 border-b border-gray-100 last:border-b-0">
                           <div className="flex items-center gap-4">
                             <div className="p-3 bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl group-hover:scale-110 transition-transform duration-300 shadow-lg">
@@ -729,11 +730,14 @@ export default function ModernStudentDashboard() {
                             </div>
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-1">
-                                <h3 className="font-bold text-gray-900 text-lg">AI Mentor</h3>
+                                <h3 className="font-bold text-gray-900 text-lg">
+                                  AI Mentor - Syllabus
+                                </h3>
                                 <Sparkles className="h-4 w-4 text-blue-500 group-hover:animate-pulse" />
                               </div>
                               <p className="text-sm text-gray-600 group-hover:text-gray-700">
-                                Get personalized guidance and explanations from your AI mentor
+                                Get personalized guidance and explanations from
+                                your AI mentor
                               </p>
                             </div>
                             <ChevronRight className="h-5 w-5 text-gray-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all duration-300" />
@@ -742,26 +746,52 @@ export default function ModernStudentDashboard() {
                         </div>
                       </Link>
 
-                      <Link to="/quiz" className="block">
-                        <div className="group relative p-6 hover:bg-gradient-to-r hover:from-purple-50 hover:to-purple-100 transition-all duration-300 border-b border-gray-100 last:border-b-0">
+                      <Link to="/student/assignments" className="block">
+                        <div className="group relative p-6 hover:bg-gradient-to-r hover:from-orange-50 hover:to-orange-100 transition-all duration-300 border-b border-gray-100 last:border-b-0">
                           <div className="flex items-center gap-4">
-                            <div className="p-3 bg-gradient-to-r from-purple-500 to-purple-600 rounded-2xl group-hover:scale-110 transition-transform duration-300 shadow-lg">
+                            <div className="p-3 bg-gradient-to-r from-orange-500 to-orange-600 rounded-2xl group-hover:scale-110 transition-transform duration-300 shadow-lg">
+                              <FileText className="h-6 w-6 text-white" />
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <h3 className="font-bold text-gray-900 text-lg">
+                                  Assignment
+                                </h3>
+                                <Sparkles className="h-4 w-4 text-orange-500 group-hover:animate-pulse" />
+                              </div>
+                              <p className="text-sm text-gray-600 group-hover:text-gray-700">
+                                Access and complete your assignments with
+                                AI-powered assistance
+                              </p>
+                            </div>
+                            <ChevronRight className="h-5 w-5 text-gray-400 group-hover:text-orange-600 group-hover:translate-x-1 transition-all duration-300" />
+                          </div>
+                          <div className="absolute inset-0 bg-gradient-to-r from-orange-500/5 to-orange-600/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                        </div>
+                      </Link>
+
+                      <div className="block cursor-not-allowed opacity-60">
+                        <div className="relative p-6 border-b border-gray-100 last:border-b-0">
+                          <div className="flex items-center gap-4">
+                            <div className="p-3 bg-gradient-to-r from-purple-500 to-purple-600 rounded-2xl shadow-lg">
                               <Brain className="h-6 w-6 text-white" />
                             </div>
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-1">
-                                <h3 className="font-bold text-gray-900 text-lg">Quiz Tool</h3>
-                                <Sparkles className="h-4 w-4 text-purple-500 group-hover:animate-pulse" />
+                                <h3 className="font-bold text-gray-900 text-lg">
+                                  Consult AI Mentor
+                                </h3>
+                                <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
+                                  Coming Soon
+                                </Badge>
                               </div>
-                              <p className="text-sm text-gray-600 group-hover:text-gray-700">
-                                Test your knowledge with interactive AI-generated quizzes
+                              <p className="text-sm text-gray-600">
+                                Voice AI agent
                               </p>
                             </div>
-                            <ChevronRight className="h-5 w-5 text-gray-400 group-hover:text-purple-600 group-hover:translate-x-1 transition-all duration-300" />
                           </div>
-                          <div className="absolute inset-0 bg-gradient-to-r from-purple-500/5 to-purple-600/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                         </div>
-                      </Link>
+                      </div>
 
                       <Link to="/script-analyzer" className="block">
                         <div className="group relative p-6 hover:bg-gradient-to-r hover:from-emerald-50 hover:to-emerald-100 transition-all duration-300 border-b border-gray-100 last:border-b-0">
@@ -771,11 +801,14 @@ export default function ModernStudentDashboard() {
                             </div>
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-1">
-                                <h3 className="font-bold text-gray-900 text-lg">Script Analyzer</h3>
+                                <h3 className="font-bold text-gray-900 text-lg">
+                                  Script Analyser
+                                </h3>
                                 <Sparkles className="h-4 w-4 text-emerald-500 group-hover:animate-pulse" />
                               </div>
                               <p className="text-sm text-gray-600 group-hover:text-gray-700">
-                                Analyze scripts and screenplays with advanced AI insights
+                                Analyze scripts and screenplays with advanced AI
+                                insights
                               </p>
                             </div>
                             <ChevronRight className="h-5 w-5 text-gray-400 group-hover:text-emerald-600 group-hover:translate-x-1 transition-all duration-300" />
@@ -814,7 +847,10 @@ export default function ModernStudentDashboard() {
                                 dataKey="value"
                               >
                                 {getGradeDistribution().map((entry, index) => (
-                                  <Cell key={`cell-${index}`} fill={entry.fill} />
+                                  <Cell
+                                    key={`cell-${index}`}
+                                    fill={entry.fill}
+                                  />
                                 ))}
                               </Pie>
                               <Tooltip

@@ -154,7 +154,7 @@ export function AppSidebar() {
           //   description: "Chat with your AI mentor",
           // },
           {
-            name: "AI Mentor",
+            name: "AI Mentor - Syllabus",
             href: "/quiz",
             icon: Brain,
             description: "Test your knowledge",

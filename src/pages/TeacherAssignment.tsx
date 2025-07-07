@@ -92,6 +92,8 @@ const TeacherAssignment = () => {
   const [gradeInput, setGradeInput] = useState("");
   const [feedbackInput, setFeedbackInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [aiFeedbackVisible, setAiFeedbackVisible] = useState(false);
+
 
   console.log("hey", viewSubmission);
 
@@ -249,6 +251,7 @@ const TeacherAssignment = () => {
     setViewSubmission(submission);
     setGradeInput(submission.teacher_grade?.toString() || "");
     setFeedbackInput(submission.teacher_feedback || "");
+    setAiFeedbackVisible(!!submission.ai_feedback_show); // 👈 Add this line
   };
 
   const handleGradeSubmit = async () => {
@@ -260,6 +263,8 @@ const TeacherAssignment = () => {
         .update({
           teacher_grade: gradeInput ? Number(gradeInput) : null,
           teacher_feedback: feedbackInput || null,
+          ai_feedback_show: aiFeedbackVisible, // 👈 Add this line
+
           status: "graded",
           updated_at: new Date().toISOString(),
         })
@@ -1227,27 +1232,7 @@ const TeacherAssignment = () => {
                     );
                   })()}
 
-                  {/* Submission Review - Raw Data Section */}
-                  {/* <div className="bg-gradient-to-r from-slate-50 to-gray-50 rounded-2xl p-6 border border-slate-200">
-                    <div className="flex items-center gap-3 mb-6">
-                      <div className="p-3 bg-gradient-to-r from-slate-500 to-gray-500 rounded-xl">
-                        <FileText className="w-6 h-6 text-white" />
-                      </div>
-                      <div>
-                        <h3 className="text-2xl font-bold text-gray-900">
-                          Submission Review
-                        </h3>
-                        <p className="text-gray-600">
-                          Complete raw data from the submission
-                        </p>
-                      </div>
-                    </div>
-                    <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 max-h-96 overflow-y-auto">
-                      <pre className="text-xs text-gray-700 whitespace-pre-wrap break-words">
-                        {JSON.stringify(viewSubmission, null, 2)}
-                      </pre>
-                    </div>
-                  </div> */}
+                 
 
                   {/* Teacher Grading Section */}
                   <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl p-6 border border-amber-100">
@@ -1281,6 +1266,20 @@ const TeacherAssignment = () => {
                         rows={4}
                         className="border-amber-200 focus:border-amber-400 focus:ring-amber-400"
                       />
+                      <div className="flex items-center gap-2 pt-2">
+  <input
+    type="checkbox"
+    id="ai-feedback-toggle"
+    checked={aiFeedbackVisible}
+    onChange={(e) => setAiFeedbackVisible(e.target.checked)}
+    className="w-4 h-4 text-amber-500 border-gray-300 rounded focus:ring-amber-400"
+  />
+  <label htmlFor="ai-feedback-toggle" className="text-gray-700 text-sm">
+    Show AI Feedback to Student
+  </label>
+</div>
+
+
                     </div>
                   </div>
                 </div>

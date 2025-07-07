@@ -811,7 +811,8 @@ export default function StudentAssignments() {
               file_name,
               file_path,
               grade,
-              ai_feedback
+              ai_feedback,
+               ai_feedback_show 
             )
           )
         `
@@ -1631,7 +1632,16 @@ export default function StudentAssignments() {
                               </div>
                             )}
 
+                            {!submission.ai_feedback_show && submission.ai_feedback && (
+  <div className="mt-4 text-sm text-gray-500 italic">
+    The AI feedback for this submission is currently hidden by your teacher.
+  </div>
+)}
+
+
                             {/* AI Feedback and Rubric Section */}
+                            {submission.ai_feedback_show && (
+
                             <div className="bg-gradient-to-r from-cyan-50 to-blue-50 rounded-xl p-4 border border-cyan-200 mt-4">
                               <div className="flex items-center gap-2 mb-4">
                                 <Brain className="h-5 w-5 text-cyan-600" />
@@ -1917,6 +1927,10 @@ export default function StudentAssignments() {
                                 ) : null;
                               })()}
                             </div>
+                            )} {/* end of AI Feedback and Rubric Section */}
+
+                            {/* File Download Section */}
+                            {/* last line of div */}
                           </div>
                         ))}
                       </div>

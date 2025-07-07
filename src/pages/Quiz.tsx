@@ -139,44 +139,44 @@ const CURRICULUM = {
   "Semester 1": {
     "Introduction to Direction": [
       "Film analysis",
-      "Different approaches to shoot and types of film",
-      "Case studies of filmmakers and their approach",
-      "Case studies of filmmakers in historical perspective",
+      "Different approaches to Shoot and types of film",
+      "Case studies of Filmmakers and their approach",
+      "Case studies of Filmmakers in historical perspective",
       "Writing Actuality Report",
-      "Film Diary (Analysis of films, director and scripts, thoughts, ideas/stories,scenes, photographs)",
+      "Film Diary (Analysis of films, director and scripts, thoughts, ideas/stories, scenes, photographs)"
     ],
     "Visual Storytelling and Collaboration": [
       "Introduction to visual storytelling (Composition, Cutting, Closeup, Continuity, Camera Angle)",
       "Recreating a Painting",
       "Collaboration with Camera, Edit and Sound",
-      "Turning Actualities into Stories (Observation Writing)",
-      "Trip to a Closed Public Space (e.g. Library, Museum)",
-      "Trip to an open public space (e.g. Park, Market place, Bus stop)",
+      "Turning Actualities into stories (Writing on observation)",
+      "Trip to closed public space (e.g. Library, Museum)",
+      "Trip to an open public space (e.g. Park, Market place, Bus stop)"
     ],
     "Principles of Continuity": [
       "Decoupage (cutting scripts and planning visual for cinematic connection) and Continuity",
-      "Aspects of Continuity",
-      "Time and Space in Films",
-      "Scene analysis of Classical Hollywood films and contemporary films",
+      "Aspects of continuity",
+      "Time and Space in films",
+      "Scene analysis of Classical Hollywood films and contemporary films"
     ],
-    "Concept and Ideation": [
-      "Research",
-      "Types of Stories",
-      "Developing a Concept",
-      "Use of VFX Elements",
-      "Oral Narrative Skills",
+    "Concept, Ideation & Research": [
+      "Types of stories",
+      "Developing a concept",
+      "Usage of VFX elements",
+      "Oral narrative skills",
       "Creative Writing (Personal Memoir, Descriptive Writing)",
-      "Reading and Analysis of Short Stories",
+      "Reading and Analysis of short stories",
+      "Research"
     ],
     "Theories and Formats of Scriptwriting": [
       "History of Storytelling",
-      "Screenplay Writing – Overview and Process",
-      "Elements of a Screenplay",
+      "Screenplay writing - Overview and Process",
+      "Elements of a screenplay",
       "Premise, Plot, Treatment, Characters, Conflict",
-      "Screenwriting Software",
+      "Screenwriting Softwares",
       "Introductions to Story structures  - I (Three-Act Structure, 5 Act Structure)",
-      "Creating simple screenplays using 3 act structure",
-    ],
+      "Creating simple screenplays using 3 act structure"
+    ]
   },
   "Semester 2": {
     "Staging and Blocking": [
@@ -184,35 +184,36 @@ const CURRICULUM = {
       "Types of staging and blocking",
       "Usage of props and space",
       "I, A, L, C, S patterns",
-      "Blocking for VFX",
+      "Blocking for VFX"
     ],
     "Working with Actors": [
       "Staging a scene with actors",
       "Exercise on Improvisation",
       "Styles of acting",
       "Difference between stage and film acting",
-      "Working with Virtual/Digital Actors : Possibilities and Limitations",
+      "Working with Virtual/Digital Actors : Possibilities & Limitations"
     ],
-    "Scene Analysis": [
+    "Scene Analysis and Visualization": [
       "Dialogue – Acting - Composition-Staging and Blocking along with use of Visualization tools like",
-      "Traditional/Digital Storyboards and AI tools for mood boards",
+      "Traditional/Digital Storyboards & AI tools for mood boards"
     ],
-    "Dialogue writing and Story Structures": [
+    "Dialogue Writing & Story Structures": [
       "Dialogue, monologue and conversation",
       "Types of dialogue",
       "Writing effective dialogue",
       "Dialogue through observation",
       "Dialogue in a situation",
       "Story Structures II (Hero’s Journey, Dan Harmon Story Circle)",
-      "Creating effective story conflicts",
+      "Creating effective story conflicts"
     ],
-    "Rhythm and Pace": [
+    "Rhythm and Action Dynamics": [
       "Usage of Edit, Sound and BGM from Director’s Point of View",
       "Tonalities of Dialogue",
-      "Space and Action Dynamics",
-    ],
-  },
+      "Space and Action Dynamics"
+    ]
+  }
 };
+
 
 // Utility Functions
 // DEPRECATED: parseQuizContent - no longer needed as we receive structured data from API

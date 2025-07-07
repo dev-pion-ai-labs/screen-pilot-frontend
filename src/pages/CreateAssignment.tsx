@@ -43,113 +43,225 @@ import { cn } from "@/lib/utils"
 import AssignmentDisplay from "@/components/AssignmentDisplay"
 
 // Semester syllabus data
-const semester1Syllabus = { 
-  introductionToDirection: { 
-    topic: "Introduction to Direction", 
-    subtopics: [ 
-      "Film Analysis", 
-      "Different Approaches to Shooting and Types of Films", 
-      "Case Studies of Filmmakers and Their Approach", 
-      "Case Studies of Filmmakers in Historical Perspective", 
-      "Writing an Actuality Report", 
-      "Film Diary (Analysis of Films, Directors, Scripts, Thoughts, Ideas/Stories, Scenes, Photographs)", 
-    ], 
-  }, 
-  visualStorytellingAndCollaboration: { 
-    topic: "Visual Storytelling and Collaboration", 
-    subtopics: [ 
-      "Introduction to Visual Storytelling (Composition, Cutting, Closeup, Continuity, Camera Angles)", 
-      "Recreating a Painting", 
-      "Collaboration with Camera, Editing, and Sound", 
-      "Turning Actualities into Stories (Writing Based on Observations)", 
-      "Trip to a Closed Public Space (e.g., Library, Museum)", 
-      "Trip to an Open Public Space (e.g., Park, Marketplace, Bus Stop)", 
-    ], 
-  }, 
-  principlesOfContinuity: { 
-    topic: "Principles of Continuity", 
-    subtopics: [ 
-      "Decoupage (Script Breakdown) and Continuity Planning", 
-      "Aspects of Continuity in Films", 
-      "Understanding Time and Space in Films", 
-      "Scene Analysis of Classical Hollywood Films and Contemporary Films", 
-    ], 
-  }, 
-  conceptIdeationAndResearch: { 
-    topic: "Concept, Ideation & Research", 
-    subtopics: [ 
-      "Types of Stories", 
-      "Developing a Concept for a Film", 
-      "Usage of VFX Elements in Storytelling", 
-      "Oral Narrative Skills (Storytelling Practice)", 
-      "Creative Writing: Personal Memoir, Descriptive Writing", 
-      "Reading and Analysis of Short Stories", 
-    ], 
-  }, 
-  theoriesAndFormatsOfScriptwriting: { 
-    topic: "Theories and Formats of Scriptwriting", 
-    subtopics: [ 
-      "History of Storytelling", 
-      "Overview of Screenplay Writing Process", 
-      "Elements of a Screenplay (Premise, Plot, Treatment, Characters, Conflict)", 
-      "Screenwriting Software Introduction", 
-      "Introduction to Story Structures (Three-Act Structure, Five-Act Structure)", 
-      "Creating Simple Screenplays using the Three-Act Structure", 
-    ], 
-  } 
-}
+// const semester1Syllabus = { 
+//   introductionToDirection: { 
+//     topic: "Introduction to Direction", 
+//     subtopics: [ 
+//       "Film Analysis", 
+
+//       "Different approaches to Shoot and types of film",
+      
+//       "Case studies of Filmmakers and their approach",
+      
+//       "Case studies of Filmmakers in historical perspective",
+//       "Writing an Actuality Report", 
+//       "Film Diary (Analysis of Films, Directors, Scripts, Thoughts, Ideas/Stories, Scenes, Photographs)", 
+//     ], 
+//   }, 
+//   visualStorytellingAndCollaboration: { 
+//     topic: "Visual Storytelling and Collaboration", 
+//     subtopics: [ 
+//       "Introduction to Visual Storytelling (Composition, Cutting, Closeup, Continuity, Camera Angles)", 
+//       "Recreating a Painting", 
+//       "Collaboration with Camera, Editing, and Sound", 
+       
+//       "Turning Actualities into stories (Writing on observation)",
+//       "Trip to a Closed Public Space (e.g., Library, Museum)", 
+//       "Trip to an Open Public Space (e.g., Park, Marketplace, Bus Stop)", 
+//     ], 
+//   }, 
+//   principlesOfContinuity: { 
+//     topic: "Principles of Continuity", 
+//     subtopics: [ 
+//       "Decoupage (Script Breakdown) and Continuity Planning", 
+//       "Aspects of Continuity in Films", 
+//       "Understanding Time and Space in Films", 
+//       "Scene Analysis of Classical Hollywood Films and Contemporary Films", 
+//     ], 
+//   }, 
+//   conceptIdeationAndResearch: { 
+//     topic: "Concept, Ideation & Research", 
+//     subtopics: [ 
+//       "Types of Stories", 
+//       "Developing a Concept for a Film", 
+//       "Usage of VFX Elements in Storytelling", 
+//       "Oral Narrative Skills (Storytelling Practice)", 
+//       "Creative Writing: Personal Memoir, Descriptive Writing", 
+//       "Reading and Analysis of Short Stories", 
+//     ], 
+//   }, 
+//   theoriesAndFormatsOfScriptwriting: { 
+//     topic: "Theories and Formats of Scriptwriting", 
+//     subtopics: [ 
+//       "History of Storytelling", 
+//       "Overview of Screenplay Writing Process", 
+//       "Elements of a Screenplay (Premise, Plot, Treatment, Characters, Conflict)", 
+//       "Screenwriting Software Introduction", 
+//       "Introduction to Story Structures (Three-Act Structure, Five-Act Structure)", 
+//       "Creating Simple Screenplays using the Three-Act Structure", 
+//     ], 
+//   } 
+// }
+
+
+const semester1Syllabus = {
+  introductionToDirection: {
+    topic: "Introduction to Direction",
+    subtopics: [
+      "Film Analysis",
+      "Different approaches to Shoot and types of film",
+      "Case studies of Filmmakers and their approach",
+      "Case studies of Filmmakers in historical perspective",
+      "Writing Actuality Report",
+      "Film Diary (Analysis of films, director and scripts, thoughts, ideas/stories,scenes, photographs)"
+    ]
+  },
+  visualStorytellingAndCollaboration: {
+    topic: "Visual Storytelling and Collaboration",
+    subtopics: [
+      "Introduction to visual storytelling (Composition, Cutting, Closeup, Continuity, Camera Angle)",
+      "Recreating a Painting",
+      "Collaboration with Camera, Edit and Sound",
+      "Turning Actualities into stories (Writing on observation)",
+      "Trip to closed public space (e.g. Library, Museum)",
+      "Trip to an open public space (e.g. Park, Market place, Bus stop)"
+    ]
+  },
+  principlesOfContinuity: {
+    topic: "Principles of Continuity",
+    subtopics: [
+      "Decoupage (cutting scripts and planning visual for cinematic connection) and Continuity",
+      "Aspects of continuity",
+      "Time and Space in films",
+      "Scene analysis of Classical Hollywood films and contemporary films"
+    ]
+  },
+  conceptIdeationAndResearch: {
+    topic: "Concept, Ideation & Research",
+    subtopics: [
+      "Types of stories",
+      "Developing a concept",
+      "Usage of VFX elements",
+      "Oral narrative skills",
+      "Creative Writing (Personal Memoir, Descriptive Writing)",
+      "Reading and Analysis of short stories"
+    ]
+  },
+  theoriesAndFormatsOfScriptwriting: {
+    topic: "Theories and Formats of Scriptwriting",
+    subtopics: [
+      "History of Storytelling",
+      "Screenplay writing - Overview and Process",
+      "Elements of a screenplay",
+      "Premise, Plot, Treatment, Characters, Conflict",
+      "Screenwriting Softwares",
+      "Introductions to Story structures  - I (Three-Act Structure, 5 Act Structure)",
+      "Creating simple screenplays using 3 act structure"
+    ]
+  }
+};
+
+
+// const semester2Syllabus = {
+//   stagingAndBlocking: {
+//     topic: "Staging and Blocking",
+//     subtopics: [
+//       "Understanding the Concept of Staging and Blocking",
+//       "Types of Staging and Blocking",
+//       "Usage of Props and Space",
+//       "I, A, L, C, S Patterns",
+//       "Blocking for VFX",
+//     ],
+//   },
+//   workingWithActors: {
+//     topic: "Working with Actors",
+//     subtopics: [
+//       "Staging a Scene with Actors",
+//       "Exercise on Improvisation",
+//       "Styles of Acting",
+//       "Difference between Stage and Film Acting",
+//       "Working with Virtual/Digital Actors: Possibilities & Limitations",
+//     ],
+//   },
+//   sceneAnalysis: {
+//     topic: "Scene Analysis",
+//     subtopics: [
+//       "Dialogue – Acting – Composition – Staging and Blocking",
+//       "Use of Visualization Tools like Traditional/Digital Storyboards",
+//       "Using AI Tools for Mood Boards",
+//     ],
+//   },
+//   dialogueWritingAndStoryStructures: {
+//     topic: "Dialogue Writing & Story Structures",
+//     subtopics: [
+//       "Dialogue, Monologue and Conversation",
+//       "Types of Dialogue",
+//       "Writing Effective Dialogue",
+//       "Dialogue Through Observation",
+//       "Dialogue in a Situation",
+//       "Story Structures II (Hero's Journey, Dan Harmon Story Circle)",
+//       "Creating Effective Story Conflicts",
+//     ],
+//   },
+//   rhythmAndPace: {
+//     topic: "Rhythm and Pace",
+//     subtopics: [
+//       "Usage of Edit, Sound, and BGM from the Director's Point of View",
+//       "Tonalities of Dialogue",
+//       "Space and Action Dynamics",
+//     ],
+//   },
+// }
 
 const semester2Syllabus = {
   stagingAndBlocking: {
     topic: "Staging and Blocking",
     subtopics: [
-      "Understanding the Concept of Staging and Blocking",
-      "Types of Staging and Blocking",
-      "Usage of Props and Space",
-      "I, A, L, C, S Patterns",
-      "Blocking for VFX",
-    ],
+      "Understanding the concept of staging and blocking",
+      "Types of staging and blocking",
+      "Usage of props and space",
+      "I, A, L, C, S patterns",
+      "Blocking for VFX"
+    ]
   },
   workingWithActors: {
     topic: "Working with Actors",
     subtopics: [
-      "Staging a Scene with Actors",
+      "Staging a scene with actors",
       "Exercise on Improvisation",
-      "Styles of Acting",
-      "Difference between Stage and Film Acting",
-      "Working with Virtual/Digital Actors: Possibilities & Limitations",
-    ],
+      "Styles of acting",
+      "Difference between stage and film acting",
+      "Working with Virtual/Digital Actors : Possibilities & Limitations"
+    ]
   },
   sceneAnalysis: {
     topic: "Scene Analysis",
     subtopics: [
-      "Dialogue – Acting – Composition – Staging and Blocking",
-      "Use of Visualization Tools like Traditional/Digital Storyboards",
-      "Using AI Tools for Mood Boards",
-    ],
+      "Dialogue – Acting - Composition-Staging and Blocking along with use of Visualization tools like",
+      "Traditional/Digital Storyboards & AI tools for mood boards"
+    ]
   },
   dialogueWritingAndStoryStructures: {
     topic: "Dialogue Writing & Story Structures",
     subtopics: [
-      "Dialogue, Monologue and Conversation",
-      "Types of Dialogue",
-      "Writing Effective Dialogue",
-      "Dialogue Through Observation",
-      "Dialogue in a Situation",
-      "Story Structures II (Hero's Journey, Dan Harmon Story Circle)",
-      "Creating Effective Story Conflicts",
-    ],
+      "Dialogue, monologue and conversation",
+      "Types of dialogue",
+      "Writing effective dialogue",
+      "Dialogue through observation",
+      "Dialogue in a situation",
+      "Story Structures II (Hero’s Journey, Dan Harmon Story Circle)",
+      "Creating effective story conflicts"
+    ]
   },
   rhythmAndPace: {
     topic: "Rhythm and Pace",
     subtopics: [
-      "Usage of Edit, Sound, and BGM from the Director's Point of View",
+      "Usage of Edit, Sound and BGM from Director’s Point of View",
       "Tonalities of Dialogue",
-      "Space and Action Dynamics",
-    ],
-  },
-}
-
+      "Space and Action Dynamics"
+    ]
+  }
+};
 
 
 

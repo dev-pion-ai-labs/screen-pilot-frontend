@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { AuthGuard } from "@/components/AuthGuard"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { supabase } from "@/integrations/supabase/client"
-import { Users, UserPlus, Trash2, Edit, Search, GraduationCap, School, Shield } from "lucide-react"
+import { Users, UserPlus, Trash2, Edit, Search, GraduationCap, School, Shield, Loader2 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { ModernDashboardLayout } from "@/components/ModernDashboardLayout"
 import { AdminUsersShimmer } from "@/components/AdminUsersShimmer"
@@ -33,6 +33,9 @@ const AdminUsers = () => {
   const [searchTerm, setSearchTerm] = useState("")
   const [filterRole, setFilterRole] = useState<string>("all")
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [isCreatingUser, setIsCreatingUser] = useState(false)
   const [isUpdatingUser, setIsUpdatingUser] = useState(false)
@@ -44,6 +47,7 @@ const AdminUsers = () => {
     password: "",
   })
 
+  const searchRef = useRef<HTMLInputElement | null>(null)
   const [currentStep, setCurrentStep] = useState(1)
 
   useEffect(() => {
@@ -87,110 +91,61 @@ const AdminUsers = () => {
   }
 
   const handleAddUser = async () => {
-    console.log('Starting user creation process...', { newUser })
-    if (isCreatingUser) {
-      console.log('User creation already in progress, skipping...')
-      return
-    }
-
+    if (isCreatingUser) return
     setIsCreatingUser(true)
 
     try {
-      // Get the current user session to restore it later
-      console.log('Getting current session...')
-      const { data: currentSession } = await supabase.auth.getSession()
-      console.log('Current session retrieved:', currentSession ? 'Session exists' : 'No session')
+      const {
+        data: { session },
+        error
+      } = await supabase.auth.getSession()
 
-      // Create user in auth with admin privileges
-      console.log('Attempting to create user with admin privileges...')
-      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-        email: newUser.email,
-        password: newUser.password,
-        email_confirm: true,
-        user_metadata: {
-          full_name: newUser.full_name,
-          role: newUser.role,
-        },
-      })
+      if (error || !session) throw new Error("Not authenticated")
 
-      if (authError) {
-        console.log('Admin create user failed, falling back to regular signup:', authError)
-        // If admin.createUser is not available, try regular signup with immediate signout
-        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-          email: newUser.email,
-          password: newUser.password,
-          options: {
-            data: {
-              full_name: newUser.full_name,
-              role: newUser.role,
-            },
+      const accessToken = session.access_token
+
+      const response = await fetch(
+        "https://vnyoexxeqdjpzekjteft.supabase.co/functions/v1/create-user",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`
           },
-        })
-
-        if (signUpError) {
-          console.error('Signup error:', signUpError)
-          throw signUpError
+          body: JSON.stringify({
+            email: newUser.email,
+            password: newUser.password,
+            full_name: newUser.full_name,
+            role: newUser.role,
+            semester: newUser.semester
+          })
         }
+      )
 
-        console.log('Regular signup successful, signing out new user...')
-        // Immediately sign out the new user to prevent session hijacking
-        await supabase.auth.signOut()
+      const result = await response.json()
 
-        // Restore the admin session
-        if (currentSession?.session) {
-          console.log('Restoring admin session...')
-          await supabase.auth.setSession(currentSession.session)
-        }
-
-        // Update profile with additional data
-        if (signUpData.user) {
-          console.log('Updating user profile...', { userId: signUpData.user.id })
-          const { error: updateError } = await supabase
-            .from("profiles")
-            .update({
-              role: newUser.role,
-              semester: newUser.role === "student" ? newUser.semester : null
-            })
-            .eq("id", signUpData.user.id)
-
-          if (updateError) {
-            console.error("Error updating profile:", updateError)
-          }
-        }
-      } else {
-        console.log('Admin create user successful, updating profile...')
-        // If admin.createUser worked, update the profile
-        if (authData.user && newUser.role === "student") {
-          const { error: updateError } = await supabase
-            .from("profiles")
-            .update({ semester: newUser.semester })
-            .eq("id", authData.user.id)
-
-          if (updateError) {
-            console.error("Error updating profile:", updateError)
-          }
-        }
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to create user")
       }
 
-      console.log('User creation completed successfully')
       toast({
         title: "Success",
-        description: "User created successfully",
+        description: "User created successfully"
       })
 
       resetForm()
       fetchUsers()
-    } catch (error) {
-      console.error("Error creating user:", error)
+    } catch (err: any) {
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to create user",
-        variant: "destructive",
+        description: err.message || "Something went wrong",
+        variant: "destructive"
       })
     } finally {
       setIsCreatingUser(false)
     }
   }
+
 
   const handleEditUser = async (user: User) => {
     console.log('Starting user edit process...', { user })
@@ -275,71 +230,64 @@ const AdminUsers = () => {
   }
 
   const handleDeleteUser = async (userId: string) => {
-    console.log('Starting user deletion process...', { userId })
 
-    // Show confirmation dialog
-    const confirmDelete = window.confirm(
-      "Are you sure you want to delete this user? This action cannot be undone and will also delete all related data (assignments, submissions, etc.)."
-    )
-
-    if (!confirmDelete) {
-      console.log('User deletion cancelled by user')
-      return
-    }
 
     try {
-      // First, try to delete related data
-      console.log('Deleting user submissions...')
-      const { error: submissionsError } = await supabase
-        .from("submissions")
-        .delete()
-        .eq("student_id", userId)
+      // Step 1: Delete related data
+      await supabase.from("submissions").delete().eq("student_id", userId);
+      await supabase.from("assignments").delete().eq("teacher_id", userId);
+      await supabase.from("profiles").delete().eq("id", userId);
 
-      if (submissionsError) {
-        console.error("Error deleting submissions:", submissionsError)
-      } else {
-        console.log('Submissions deleted successfully')
+      // Get current session to extract access token
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
+
+      if (sessionError || !session) {
+        throw new Error("User not authenticated");
       }
 
-      console.log('Deleting user assignments...')
-      const { error: assignmentsError } = await supabase
-        .from("assignments")
-        .delete()
-        .eq("teacher_id", userId)
+      const accessToken = session.access_token;
 
-      if (assignmentsError) {
-        console.error("Error deleting assignments:", assignmentsError)
-      } else {
-        console.log('Assignments deleted successfully')
+      // Step 2: Call Edge Function with Authorization header
+      const response = await fetch(
+        "https://vnyoexxeqdjpzekjteft.supabase.co/functions/v1/delete-user",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`, // send access token instead of service role
+          },
+          body: JSON.stringify({ userId }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to delete user from auth.users");
       }
 
-      console.log('Deleting user profile...')
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .delete()
-        .eq("id", userId)
-
-      if (profileError) {
-        console.error('Error deleting user profile:', profileError)
-        throw profileError
-      }
-
-      console.log('User and related data deleted successfully')
       toast({
         title: "Success",
-        description: "User and related data deleted successfully",
-      })
+        description: "User deleted successfully",
+      });
 
-      fetchUsers()
-    } catch (error) {
-      console.error("Error deleting user:", error)
+      fetchUsers(); // Refresh the table
+    } catch (err: any) {
+      console.error("Error deleting user:", err);
       toast({
         title: "Error",
-        description: `Failed to delete user: ${error.message || "Unknown error"}`,
+        description: err.message || "Something went wrong",
         variant: "destructive",
-      })
+      });
     }
-  }
+  };
+
+
+
+
 
   const filteredUsers = users.filter((user) => {
     const matchesSearch =
@@ -376,7 +324,12 @@ const AdminUsers = () => {
       semester: 1,
       password: "",
     })
+    setSearchTerm("")
+    if (searchRef.current) {
+      searchRef.current.value = ""
+    }
   }
+
 
   if (loading) {
     return (
@@ -408,46 +361,46 @@ const AdminUsers = () => {
                 <p className="text-lg text-gray-600">Manage system users and their roles</p>
               </div>
 
-              <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+              <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
+                setIsAddDialogOpen(open)
+                if (!open) {
+                  setSearchTerm("")
+                  if (searchRef.current) {
+                    searchRef.current.value = "" // ✅ clear autofill
+                  }
+                }
+              }}>
+
                 <DialogTrigger asChild>
-                  <Button className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 border-0 shadow-lg hover:shadow-xl transition-all duration-300 text-lg px-6 py-3 h-auto">
+                  <Button className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 border-0 shadow-lg hover:shadow-xl transition-all duration-300 text-base md:text-lg px-5 md:px-6 py-2.5 md:py-3 h-auto">
                     <UserPlus className="h-5 w-5 mr-2" />
                     Add User
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="bg-white/95 backdrop-blur-sm border-0 shadow-2xl max-w-md">
+
+                <DialogContent className="bg-white/95 backdrop-blur-sm border-0 shadow-2xl w-[92vw] sm:w-[480px] md:max-w-md rounded-2xl px-4 py-6 md:px-6">
                   <DialogHeader>
-                    <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                    <DialogTitle className="text-xl md:text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent text-center">
                       Add New User
                     </DialogTitle>
-                    <div className="flex items-center justify-center mt-4">
-                      <div className="flex items-center space-x-4">
-                        <div
-                          className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-all duration-300 ${currentStep >= 1
-                            ? "bg-gradient-to-r from-blue-500 to-purple-500 text-white"
-                            : "bg-gray-200 text-gray-500"
-                            }`}
-                        >
+
+                    {/* Step Progress Indicator */}
+                    <div className="flex justify-center mt-4">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-300 ${currentStep >= 1 ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-600"}`}>
                           1
                         </div>
-                        <div
-                          className={`w-12 h-1 rounded-full transition-all duration-300 ${currentStep >= 2 ? "bg-gradient-to-r from-blue-500 to-purple-500" : "bg-gray-200"
-                            }`}
-                        ></div>
-                        <div
-                          className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-all duration-300 ${currentStep >= 2
-                            ? "bg-gradient-to-r from-blue-500 to-purple-500 text-white"
-                            : "bg-gray-200 text-gray-500"
-                            }`}
-                        >
+                        <div className={`h-1 w-10 rounded-full ${currentStep >= 2 ? "bg-blue-600" : "bg-gray-300"}`} />
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-300 ${currentStep >= 2 ? "bg-purple-600 text-white" : "bg-gray-300 text-gray-600"}`}>
                           2
                         </div>
                       </div>
                     </div>
                   </DialogHeader>
 
+                  {/* Step 1: Basic Info */}
                   {currentStep === 1 && (
-                    <div className="space-y-6">
+                    <div className="space-y-6 mt-6">
                       <div className="text-center">
                         <h3 className="text-lg font-semibold text-gray-800">Basic Information</h3>
                         <p className="text-sm text-gray-600">Enter the user's basic details</p>
@@ -455,43 +408,39 @@ const AdminUsers = () => {
 
                       <div className="space-y-4">
                         <div className="space-y-2">
-                          <Label htmlFor="email" className="text-sm font-medium text-gray-700">
-                            Email Address
-                          </Label>
+                          <Label htmlFor="email" className="text-sm font-medium text-gray-700">Email Address</Label>
                           <Input
                             id="email"
                             type="email"
                             value={newUser.email}
                             onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
                             placeholder="user@example.com"
-                            className="border-gray-200 focus:border-blue-400 focus:ring-blue-400 h-12"
+                            autoComplete="off"
+                            className="h-11 border-gray-200 focus:border-blue-500 focus:ring-blue-400"
                           />
                         </div>
 
                         <div className="space-y-2">
-                          <Label htmlFor="password" className="text-sm font-medium text-gray-700">
-                            Password
-                          </Label>
+                          <Label htmlFor="password" className="text-sm font-medium text-gray-700">Password</Label>
                           <Input
                             id="password"
                             type="password"
                             value={newUser.password}
                             onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
                             placeholder="Enter secure password"
-                            className="border-gray-200 focus:border-blue-400 focus:ring-blue-400 h-12"
+                            autoComplete="off"
+                            className="h-11 border-gray-200 focus:border-blue-500 focus:ring-blue-400"
                           />
                         </div>
 
                         <div className="space-y-2">
-                          <Label htmlFor="full_name" className="text-sm font-medium text-gray-700">
-                            Full Name
-                          </Label>
+                          <Label htmlFor="full_name" className="text-sm font-medium text-gray-700">Full Name</Label>
                           <Input
                             id="full_name"
                             value={newUser.full_name}
                             onChange={(e) => setNewUser({ ...newUser, full_name: e.target.value })}
                             placeholder="Enter full name"
-                            className="border-gray-200 focus:border-blue-400 focus:ring-blue-400 h-12"
+                            className="h-11 border-gray-200 focus:border-blue-500 focus:ring-blue-400"
                           />
                         </div>
                       </div>
@@ -500,7 +449,7 @@ const AdminUsers = () => {
                         <Button
                           onClick={() => setCurrentStep(2)}
                           disabled={!newUser.email || !newUser.password || !newUser.full_name}
-                          className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 border-0 px-8 py-3 h-auto"
+                          className="w-full md:w-auto px-8 py-3 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 border-0"
                         >
                           Next Step
                         </Button>
@@ -508,120 +457,71 @@ const AdminUsers = () => {
                     </div>
                   )}
 
+                  {/* Step 2: Role and Permissions */}
                   {currentStep === 2 && (
-                    <div className="space-y-6">
+                    <div className="space-y-6 mt-6">
                       <div className="text-center">
                         <h3 className="text-lg font-semibold text-gray-800">Role & Permissions</h3>
-                        <p className="text-sm text-gray-600">Select the user's role and permissions</p>
+                        <p className="text-sm text-gray-600">Select the user's role and semester (if applicable)</p>
                       </div>
 
-                      <div className="space-y-4">
-                        <Label className="text-sm font-medium text-gray-700">Select Role</Label>
-
-                        <div className="space-y-3">
-                          {/* Student Role */}
+                      {/* Role Cards */}
+                      <div className="grid sm:grid-cols-3 gap-4">
+                        {[
+                          { role: "student", icon: <GraduationCap className="w-5 h-5 text-green-600" />, label: "Student" },
+                          { role: "teacher", icon: <School className="w-5 h-5 text-blue-600" />, label: "Teacher" },
+                          { role: "admin", icon: <Shield className="w-5 h-5 text-red-600" />, label: "Admin" }
+                        ].map(({ role, icon, label }) => (
                           <div
-                            className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 ${newUser.role === "student"
-                              ? "border-green-400 bg-gradient-to-r from-green-50 to-emerald-50"
-                              : "border-gray-200 bg-white hover:border-green-300 hover:bg-green-50/50"
+                            key={role}
+                            onClick={() => setNewUser({ ...newUser, role: role as "admin" | "teacher" | "student" })}
+                            className={`cursor-pointer p-4 rounded-xl border-2 transition-all duration-300 ${newUser.role === role
+                              ? role === "student"
+                                ? "border-green-400 bg-gradient-to-r from-green-50 to-emerald-50"
+                                : role === "teacher"
+                                  ? "border-blue-400 bg-gradient-to-r from-blue-50 to-cyan-50"
+                                  : "border-red-400 bg-gradient-to-r from-red-50 to-pink-50"
+                              : "border-gray-200 bg-white hover:shadow-md"
                               }`}
-                            onClick={() => setNewUser({ ...newUser, role: "student" })}
                           >
-                            <div className="flex items-center space-x-3">
-                              <div
-                                className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-300 ${newUser.role === "student" ? "border-green-500 bg-green-500" : "border-gray-300"
-                                  }`}
-                              >
-                                {newUser.role === "student" && <div className="w-2 h-2 bg-white rounded-full"></div>}
+                            <div className="flex items-center space-x-2">
+                              <div className="flex items-center justify-center w-5 h-5 rounded-full border-2">
+                                {icon}
                               </div>
-                              <div className="flex items-center space-x-2">
-                                <GraduationCap className="w-5 h-5 text-green-600" />
-                                <div>
-                                  <div className="font-medium text-gray-900">Student</div>
-                                  <div className="text-sm text-gray-600">Access to assignments and submissions</div>
-                                </div>
-                              </div>
+                              <div className="text-sm font-medium text-gray-700">{label}</div>
                             </div>
                           </div>
+                        ))}
+                      </div>
 
-                          {/* Teacher Role */}
-                          <div
-                            className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 ${newUser.role === "teacher"
-                              ? "border-blue-400 bg-gradient-to-r from-blue-50 to-cyan-50"
-                              : "border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50/50"
-                              }`}
-                            onClick={() => setNewUser({ ...newUser, role: "teacher" })}
-                          >
-                            <div className="flex items-center space-x-3">
-                              <div
-                                className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-300 ${newUser.role === "teacher" ? "border-blue-500 bg-blue-500" : "border-gray-300"
+                      {/* Semester Selector */}
+                      {newUser.role === "student" && (
+                        <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl p-4">
+                          <Label className="text-sm font-medium text-gray-700 mb-2 block">Select Semester</Label>
+                          <div className="grid grid-cols-4 gap-2">
+                            {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => (
+                              <button
+                                key={sem}
+                                type="button"
+                                className={`p-2 text-sm rounded-lg border-2 font-medium ${newUser.semester === sem
+                                  ? "border-green-500 bg-green-500 text-white"
+                                  : "border-green-200 bg-white hover:border-green-400 hover:bg-green-100"
                                   }`}
+                                onClick={() => setNewUser({ ...newUser, semester: sem })}
                               >
-                                {newUser.role === "teacher" && <div className="w-2 h-2 bg-white rounded-full"></div>}
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                <School className="w-5 h-5 text-blue-600" />
-                                <div>
-                                  <div className="font-medium text-gray-900">Teacher</div>
-                                  <div className="text-sm text-gray-600">Create and manage assignments</div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Admin Role */}
-                          <div
-                            className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 ${newUser.role === "admin"
-                              ? "border-red-400 bg-gradient-to-r from-red-50 to-pink-50"
-                              : "border-gray-200 bg-white hover:border-red-300 hover:bg-red-50/50"
-                              }`}
-                            onClick={() => setNewUser({ ...newUser, role: "admin" })}
-                          >
-                            <div className="flex items-center space-x-3">
-                              <div
-                                className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-300 ${newUser.role === "admin" ? "border-red-500 bg-red-500" : "border-gray-300"
-                                  }`}
-                              >
-                                {newUser.role === "admin" && <div className="w-2 h-2 bg-white rounded-full"></div>}
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                <Shield className="w-5 h-5 text-red-600" />
-                                <div>
-                                  <div className="font-medium text-gray-900">Administrator</div>
-                                  <div className="text-sm text-gray-600">Full system access and management</div>
-                                </div>
-                              </div>
-                            </div>
+                                {sem}
+                              </button>
+                            ))}
                           </div>
                         </div>
+                      )}
 
-                        {/* Semester Selection for Students */}
-                        {newUser.role === "student" && (
-                          <div className="mt-6 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200">
-                            <Label className="text-sm font-medium text-gray-700 mb-3 block">Select Semester</Label>
-                            <div className="grid grid-cols-4 gap-2">
-                              {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => (
-                                <div
-                                  key={sem}
-                                  className={`p-3 text-center rounded-lg border-2 cursor-pointer transition-all duration-300 ${newUser.semester === sem
-                                    ? "border-green-500 bg-green-500 text-white"
-                                    : "border-green-200 bg-white text-gray-700 hover:border-green-400 hover:bg-green-100"
-                                    }`}
-                                  onClick={() => setNewUser({ ...newUser, semester: sem })}
-                                >
-                                  <div className="text-sm font-medium">{sem}</div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="flex justify-between">
+                      {/* Footer Buttons */}
+                      <div className="flex flex-col-reverse md:flex-row justify-between gap-3">
                         <Button
                           variant="outline"
                           onClick={() => setCurrentStep(1)}
-                          className="px-6 py-3 h-auto border-gray-300 hover:bg-gray-50"
+                          className="px-6 py-3 border-gray-300 hover:bg-gray-100"
                           disabled={isCreatingUser}
                         >
                           Back
@@ -629,7 +529,7 @@ const AdminUsers = () => {
                         <Button
                           onClick={handleAddUser}
                           disabled={isCreatingUser}
-                          className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 border-0 px-8 py-3 h-auto"
+                          className="px-8 py-3 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white border-0"
                         >
                           {isCreatingUser ? "Creating..." : "Create User"}
                         </Button>
@@ -638,6 +538,51 @@ const AdminUsers = () => {
                   )}
                 </DialogContent>
               </Dialog>
+
+
+              <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                <DialogContent className="bg-white/95 backdrop-blur-sm border-0 shadow-xl max-w-sm text-center">
+                  <DialogHeader>
+                    <DialogTitle className="text-xl font-bold text-red-600">Confirm Deletion</DialogTitle>
+                  </DialogHeader>
+                  <p className="text-gray-700 mb-6">
+                    Are you sure you want to delete <span className="font-semibold">{users.find(u => u.id === deletingUserId)?.email || 'this user'}</span>?
+                  </p>
+
+                  <div className="flex justify-end gap-3">
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsDeleteDialogOpen(false)}
+                      className="hover:bg-gray-100 border-gray-300"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      disabled={isDeleting}
+                      onClick={async () => {
+                        if (deletingUserId) {
+                          setIsDeleting(true) // start loading
+                          await handleDeleteUser(deletingUserId)
+                          setIsDeleting(false) // end loading
+                          setIsDeleteDialogOpen(false)
+                          setDeletingUserId(null)
+                        }
+                      }}
+                      className="bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 border-0 text-white"
+                    >
+                      {isDeleting ? (
+                        <span className="flex items-center gap-2">
+                          <Loader2 className="animate-spin h-4 w-4" />
+                          Deleting...
+                        </span>
+                      ) : "Yes, Delete"}
+
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+
             </div>
 
             {/* Statistics Cards */}
@@ -720,11 +665,17 @@ const AdminUsers = () => {
                     <div className="relative">
                       <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                       <Input
+                        ref={searchRef}
+                        id="user-search-box"
+                        name="user_search_custom"
                         placeholder="Search users..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
+                        autoComplete="off"
                         className="pl-12 h-12 border-gray-200 focus:border-blue-400 focus:ring-blue-400 bg-white/80 backdrop-blur-sm"
                       />
+
+
                     </div>
                   </div>
                   <Select value={filterRole} onValueChange={setFilterRole}>
@@ -863,7 +814,10 @@ const AdminUsers = () => {
                                   <Button
                                     variant="destructive"
                                     size="sm"
-                                    onClick={() => handleDeleteUser(user.id)}
+                                    onClick={() => {
+                                      setDeletingUserId(user.id)
+                                      setIsDeleteDialogOpen(true)
+                                    }}
                                     className="bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 border-0"
                                   >
                                     <Trash2 className="h-4 w-4" />

@@ -148,6 +148,12 @@ export default function Login() {
                         <Label htmlFor="password" className="text-gray-700 font-medium">
                           Password
                         </Label>
+                        <Link 
+                          to="/forgot-password" 
+                          className="text-sm text-purple-600 hover:text-purple-700 font-medium"
+                        >
+                          Forgot password?
+                        </Link>
                       </div>
                       <Input
                         id="password"
@@ -177,6 +183,12 @@ export default function Login() {
                       )}
                     </Button>
 
+                    <div className="text-center text-sm text-gray-500">
+                      Don't have an account?{" "}
+                      <Link to="/signup" className="text-purple-600 hover:text-purple-700 font-medium">
+                        Sign up for Screen Pilot
+                      </Link>
+                    </div>
                   </CardFooter>
                 </form>
               </Card>

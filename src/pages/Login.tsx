@@ -148,6 +148,7 @@ export default function Login() {
                         <Label htmlFor="password" className="text-gray-700 font-medium">
                           Password
                         </Label>
+                        {/* FORGET PASSOWRD */}
                         <Link 
                           to="/forgot-password" 
                           className="text-sm text-purple-600 hover:text-purple-700 font-medium"

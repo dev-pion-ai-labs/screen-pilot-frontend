@@ -13,7 +13,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import AdminUsers from "./pages/AdminUsers";
 import Chat from "./pages/Chat";
 import AIMentor from "./pages/AIMentor";
-import Quiz from "./pages/Quiz";
+import Quiz from "./pages/AIMentorNew";
 import ScriptAnalyzer from "./pages/ScriptAnalyzer";
 import AssignmentDetail from "./pages/AssignmentDetail";
 import Unauthorized from "./pages/Unauthorized";
@@ -28,6 +28,12 @@ import StudentAssignments from "./pages/StudentAssignments";
 import CreateAssignment from "./pages/CreateAssignment";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
+import CreateQuiz from "./pages/CreateQuiz";
+import StudentQuizzes from "./pages/StudentQuizzes";
+import TeacherQuizzes from "./pages/TeacherQuizzes";
+import CreateNotes from "./pages/CreateNotes";
+import TeacherNotes from "./pages/TeacherNotes";
+import StudentNotes from "./pages/StudentNotes";
 
 const queryClient = new QueryClient();
 
@@ -42,11 +48,11 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
-             <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/student/dashboard" element={<StudentDashboard />} />
             <Route path="/student/assignments" element={<StudentAssignments />} />
-            
+
 
 
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
@@ -60,8 +66,15 @@ const App = () => (
             <Route path="/teacher/student-submission" element={<TeacherStudentSubmission />} />
             <Route path="/teacher/students" element={<TeacherStudents />} />
             <Route path="/chat" element={<Chat />} />
-            <Route path="/ai-mentor" element={<AIMentor />} />
-            <Route path="/quiz" element={<Quiz />} />
+            <Route path="/old-ai-mentor" element={<AIMentor />} />
+            <Route path="/ai-mentor" element={<Quiz />} />
+            <Route path="/student/quizzes" element={<StudentQuizzes />} />
+            <Route path="/teacher/create-quiz" element={<CreateQuiz />} />
+            <Route path="/teacher/quiz" element={<TeacherQuizzes />} />
+            <Route path="/teacher/create-notes" element={<CreateNotes />} />
+            <Route path="/teacher/notes" element={<TeacherNotes />} />
+
+            <Route path="/student/notes" element={<StudentNotes />} />
             <Route path="/script-analyzer" element={<ScriptAnalyzer />} />
             <Route path="/assignment/:id" element={<AssignmentDetail />} />
             <Route path="/unauthorized" element={<Unauthorized />} />

@@ -42,66 +42,6 @@ import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import AssignmentDisplay from "@/components/AssignmentDisplay"
 
-// Semester syllabus data
-// const semester1Syllabus = { 
-//   introductionToDirection: { 
-//     topic: "Introduction to Direction", 
-//     subtopics: [ 
-//       "Film Analysis", 
-
-//       "Different approaches to Shoot and types of film",
-      
-//       "Case studies of Filmmakers and their approach",
-      
-//       "Case studies of Filmmakers in historical perspective",
-//       "Writing an Actuality Report", 
-//       "Film Diary (Analysis of Films, Directors, Scripts, Thoughts, Ideas/Stories, Scenes, Photographs)", 
-//     ], 
-//   }, 
-//   visualStorytellingAndCollaboration: { 
-//     topic: "Visual Storytelling and Collaboration", 
-//     subtopics: [ 
-//       "Introduction to Visual Storytelling (Composition, Cutting, Closeup, Continuity, Camera Angles)", 
-//       "Recreating a Painting", 
-//       "Collaboration with Camera, Editing, and Sound", 
-       
-//       "Turning Actualities into stories (Writing on observation)",
-//       "Trip to a Closed Public Space (e.g., Library, Museum)", 
-//       "Trip to an Open Public Space (e.g., Park, Marketplace, Bus Stop)", 
-//     ], 
-//   }, 
-//   principlesOfContinuity: { 
-//     topic: "Principles of Continuity", 
-//     subtopics: [ 
-//       "Decoupage (Script Breakdown) and Continuity Planning", 
-//       "Aspects of Continuity in Films", 
-//       "Understanding Time and Space in Films", 
-//       "Scene Analysis of Classical Hollywood Films and Contemporary Films", 
-//     ], 
-//   }, 
-//   conceptIdeationAndResearch: { 
-//     topic: "Concept, Ideation & Research", 
-//     subtopics: [ 
-//       "Types of Stories", 
-//       "Developing a Concept for a Film", 
-//       "Usage of VFX Elements in Storytelling", 
-//       "Oral Narrative Skills (Storytelling Practice)", 
-//       "Creative Writing: Personal Memoir, Descriptive Writing", 
-//       "Reading and Analysis of Short Stories", 
-//     ], 
-//   }, 
-//   theoriesAndFormatsOfScriptwriting: { 
-//     topic: "Theories and Formats of Scriptwriting", 
-//     subtopics: [ 
-//       "History of Storytelling", 
-//       "Overview of Screenplay Writing Process", 
-//       "Elements of a Screenplay (Premise, Plot, Treatment, Characters, Conflict)", 
-//       "Screenwriting Software Introduction", 
-//       "Introduction to Story Structures (Three-Act Structure, Five-Act Structure)", 
-//       "Creating Simple Screenplays using the Three-Act Structure", 
-//     ], 
-//   } 
-// }
 
 
 const semester1Syllabus = {
@@ -161,57 +101,6 @@ const semester1Syllabus = {
   }
 };
 
-
-// const semester2Syllabus = {
-//   stagingAndBlocking: {
-//     topic: "Staging and Blocking",
-//     subtopics: [
-//       "Understanding the Concept of Staging and Blocking",
-//       "Types of Staging and Blocking",
-//       "Usage of Props and Space",
-//       "I, A, L, C, S Patterns",
-//       "Blocking for VFX",
-//     ],
-//   },
-//   workingWithActors: {
-//     topic: "Working with Actors",
-//     subtopics: [
-//       "Staging a Scene with Actors",
-//       "Exercise on Improvisation",
-//       "Styles of Acting",
-//       "Difference between Stage and Film Acting",
-//       "Working with Virtual/Digital Actors: Possibilities & Limitations",
-//     ],
-//   },
-//   sceneAnalysis: {
-//     topic: "Scene Analysis",
-//     subtopics: [
-//       "Dialogue – Acting – Composition – Staging and Blocking",
-//       "Use of Visualization Tools like Traditional/Digital Storyboards",
-//       "Using AI Tools for Mood Boards",
-//     ],
-//   },
-//   dialogueWritingAndStoryStructures: {
-//     topic: "Dialogue Writing & Story Structures",
-//     subtopics: [
-//       "Dialogue, Monologue and Conversation",
-//       "Types of Dialogue",
-//       "Writing Effective Dialogue",
-//       "Dialogue Through Observation",
-//       "Dialogue in a Situation",
-//       "Story Structures II (Hero's Journey, Dan Harmon Story Circle)",
-//       "Creating Effective Story Conflicts",
-//     ],
-//   },
-//   rhythmAndPace: {
-//     topic: "Rhythm and Pace",
-//     subtopics: [
-//       "Usage of Edit, Sound, and BGM from the Director's Point of View",
-//       "Tonalities of Dialogue",
-//       "Space and Action Dynamics",
-//     ],
-//   },
-// }
 
 const semester2Syllabus = {
   stagingAndBlocking: {
@@ -543,75 +432,6 @@ export default function CreateAssignment() {
 
 
 
-
-//   const generateAssignment = async (isRevision = false) => {
-//     const config = selectedClass!.semester === 1 ? semester1Config : semester2Config
-    
-//     let message: string
-//     if (isRevision && currentAssignment && revisionRequest) {
-//       // For revisions, include the current assignment and the revision request
-//       message = `Based on this existing assignment:
-
-// ${currentAssignment.content}
-
-// Please make the following changes: ${revisionRequest}
-
-// Subtopic: ${selectedSubtopic}`
-//     } else {
-//       // For initial generation
-//       message = `Create an assignment for the subtopic: ${selectedSubtopic}`
-//     }
-
-//     console.log("📝 Sending message to agent:", message)
-
-//     const agentResponse = await callRelevanceAgent(message, config)
-
-//     if (agentResponse.job_info) {
-//       console.log("⏳ Job created, starting polling...")
-//       const result = await pollAgentResponse(agentResponse.job_info, config)
-
-//       if (result.success) {
-//         const assignmentContent = result.content?.output?.answer || result.content?.answer || "No assignment content generated"
-//         console.log("📋 Assignment Content:", assignmentContent)
-
-//         const newAssignment: GeneratedAssignment = {
-//           title: selectedSubtopic,
-//           topic: availableTopics[selectedTopic]?.topic || selectedTopic,
-//           content: assignmentContent,
-//           revisionHistory: currentAssignment ? [
-//             ...currentAssignment.revisionHistory,
-//             {
-//               version: currentAssignment.revisionHistory.length + 1,
-//               content: assignmentContent,
-//               revisionRequest: isRevision ? revisionRequest : undefined,
-//               timestamp: new Date()
-//             }
-//           ] : [
-//             {
-//               version: 1,
-//               content: assignmentContent,
-//               timestamp: new Date()
-//             }
-//           ]
-//         }
-
-//         setCurrentAssignment(newAssignment)
-//         setRevisionRequest("")
-//         setWorkflowState('reviewing')
-
-//         toast({
-//           title: isRevision ? "Assignment Revised Successfully!" : "Assignment Generated Successfully!",
-//           description: "Please review the assignment and decide if you want to make any changes.",
-//         })
-
-//         return true
-//       } else {
-//         throw new Error(result.error || "Assignment generation failed")
-//       }
-//     } else {
-//       throw new Error("No job info received from agent")
-//     }
-//   }
 
 
 const generateAssignment = async (isRevision = false) => {

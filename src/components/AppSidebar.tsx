@@ -125,6 +125,31 @@ export function AppSidebar() {
             icon: Clapperboard,
             description: "Create new assignments for your students",
           },
+          {
+            name: "Create Quiz",
+            href: "/teacher/create-quiz",
+            icon: Clapperboard,
+            description: "Create new quizes for your students",
+          },
+
+          {
+            name: "Quiz History",
+            href: "/teacher/quiz",
+            icon: Clapperboard,
+            description: "Create new quizes for your students",
+          },
+          {
+            name: "Create Notes",
+            href: "/teacher/create-notes",
+            icon: Clapperboard,
+            description: "Create a notes for your students",
+          },
+          {
+            name: "Notes",
+            href: "/teacher/notes",
+            icon: Clapperboard,
+            description: "view a notes for your students",
+          },
           // {
           //   name: "Submissions",
           //   href: "/teacher/student-submission",
@@ -153,17 +178,31 @@ export function AppSidebar() {
           //   icon: MessageSquare,
           //   description: "Chat with your AI mentor",
           // },
-          {
-            name: "AI Mentor - Syllabus",
-            href: "/quiz",
-            icon: Brain,
-            description: "Test your knowledge",
-          },
+          // {
+          //   name: "AI Mentor - Syllabus",
+          //   href: "/ai-mentor",
+          //   icon: Brain,
+          //   description: "Test your knowledge",
+          // },
           {
             name: "Script Analyzer",
             href: "/script-analyzer",
             icon: FileText,
             description: "Get feedback on your scripts",
+          },
+
+          {
+            name: "Quiz",
+            href: "/student/quizzes",
+            icon: FileText,
+            description: "Take quiz and saw the result",
+          },
+
+          {
+            name: "Notes",
+            href: "/student/notes",
+            icon: FileText,
+            description: "Notes shared by your teacher",
           },
         ];
       default:
@@ -240,9 +279,8 @@ export function AppSidebar() {
 
   const sidebarWidth = isCollapsed ? "w-16" : "w-64";
   const mobileClasses = isMobile
-    ? `fixed inset-y-0 left-0 z-40 transform transition-transform duration-300 ease-in-out ${
-        isMobileOpen ? "translate-x-0" : "-translate-x-full"
-      }`
+    ? `fixed inset-y-0 left-0 z-40 transform transition-transform duration-300 ease-in-out ${isMobileOpen ? "translate-x-0" : "-translate-x-full"
+    }`
     : `relative transition-all duration-300 ease-in-out ${sidebarWidth}`;
 
   return (

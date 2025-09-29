@@ -34,6 +34,7 @@ import TeacherQuizzes from "./pages/TeacherQuizzes";
 import CreateNotes from "./pages/CreateNotes";
 import TeacherNotes from "./pages/TeacherNotes";
 import StudentNotes from "./pages/StudentNotes";
+import Glossary from "./pages/Glossary";
 
 const queryClient = new QueryClient();
 
@@ -73,7 +74,8 @@ const App = () => (
             <Route path="/teacher/quiz" element={<TeacherQuizzes />} />
             <Route path="/teacher/create-notes" element={<CreateNotes />} />
             <Route path="/teacher/notes" element={<TeacherNotes />} />
-
+            <Route path="/teacher/glossary" element={<Glossary />} />
+            <Route path="/student/glossary" element={<Glossary />} />
             <Route path="/student/notes" element={<StudentNotes />} />
             <Route path="/script-analyzer" element={<ScriptAnalyzer />} />
             <Route path="/assignment/:id" element={<AssignmentDetail />} />

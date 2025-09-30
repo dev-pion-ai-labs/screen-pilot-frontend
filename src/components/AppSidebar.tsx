@@ -5,12 +5,11 @@ import { useAuth } from "@/hooks/useAuth";
 import { useState, useEffect } from "react";
 import {
   BookOpen,
-  MessageSquare,
+  Book, // Add this
   Brain,
   FileText,
   Users,
   Settings,
-  BarChart3,
   Shield,
   LogOut,
   ChevronRight,
@@ -18,10 +17,10 @@ import {
   Menu,
   X,
   Clapperboard,
-  Lightbulb,
   GraduationCap,
   Home,
   School,
+  Plus, // Add this
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -104,11 +103,124 @@ export function AppSidebar() {
             description: "Configure system settings",
           },
         ];
+      // case "teacher":
+      //   return [
+      //     ...baseItems,
+      //     {
+      //       name: "Classes",
+      //       href: "/teacher/classes",
+      //       icon: School,
+      //       description: "View your assigned classes",
+      //     },
+      //     {
+      //       name: "Assignments",
+      //       href: "/teacher/assignments",
+      //       icon: BookOpen,
+      //       description: "Create and manage assignments",
+      //     },
+      //     {
+      //       name: "Create Assignment",
+      //       href: "/teacher/create-assignment",
+      //       icon: Clapperboard,
+      //       description: "Create new assignments for your students",
+      //     },
+      //     {
+      //       name: "Create Quiz",
+      //       href: "/teacher/create-quiz",
+      //       icon: Clapperboard,
+      //       description: "Create new quizes for your students",
+      //     },
+
+      //     {
+      //       name: "Quiz History",
+      //       href: "/teacher/quiz",
+      //       icon: Clapperboard,
+      //       description: "Create new quizes for your students",
+      //     },
+      //     {
+      //       name: "Create Notes",
+      //       href: "/teacher/create-notes",
+      //       icon: Clapperboard,
+      //       description: "Create a notes for your students",
+      //     },
+      //     {
+      //       name: "Notes",
+      //       href: "/teacher/notes",
+      //       icon: Clapperboard,
+      //       description: "view a notes for your students",
+      //     },
+      //     {
+      //       name: "Glossary",
+      //       href: "/teacher/glossary",
+      //       icon: Clapperboard,
+      //       description: "view & add a glossary for your students",
+      //     },
+      //     // {
+      //     //   name: "Submissions",
+      //     //   href: "/teacher/student-submission",
+      //     //   icon: FileText,
+      //     //   description: "Review student submissions",
+      //     // },
+      //     // {
+      //     //   name: "Students",
+      //     //   href: "/teacher/students",
+      //     //   icon: GraduationCap,
+      //     //   description: "Manage your students",
+      //     // },
+      //   ];
+      // case "student":
+      //   return [
+      //     ...baseItems,
+      //     {
+      //       name: "Assignments",
+      //       href: "/student/assignments",
+      //       icon: FileText,
+      //       description: "View and submit your assignments",
+      //     },
+      //     // {
+      //     //   name: "AI Mentor",
+      //     //   href: "/ai-mentor",
+      //     //   icon: MessageSquare,
+      //     //   description: "Chat with your AI mentor",
+      //     // },
+      //     // {
+      //     //   name: "AI Mentor - Syllabus",
+      //     //   href: "/ai-mentor",
+      //     //   icon: Brain,
+      //     //   description: "Test your knowledge",
+      //     // },
+      //     {
+      //       name: "Script Analyzer",
+      //       href: "/script-analyzer",
+      //       icon: FileText,
+      //       description: "Get feedback on your scripts",
+      //     },
+
+      //     {
+      //       name: "Quiz",
+      //       href: "/student/quizzes",
+      //       icon: FileText,
+      //       description: "Take quiz and saw the result",
+      //     },
+
+      //     {
+      //       name: "Notes",
+      //       href: "/student/notes",
+      //       icon: FileText,
+      //       description: "Notes shared by your teacher",
+      //     },
+      //     {
+      //       name: "Glossary",
+      //       href: "/student/glossary",
+      //       icon: Clapperboard,
+      //       description: "view & request a glossary",
+      //     },
+      //   ];
       case "teacher":
         return [
           ...baseItems,
           {
-            name: "Classes",
+            name: "My Classes",
             href: "/teacher/classes",
             icon: School,
             description: "View your assigned classes",
@@ -116,93 +228,78 @@ export function AppSidebar() {
           {
             name: "Assignments",
             href: "/teacher/assignments",
-            icon: BookOpen,
-            description: "Create and manage assignments",
+            icon: FileText,
+            description: "Manage student assignments",
           },
           {
             name: "Create Assignment",
             href: "/teacher/create-assignment",
-            icon: Clapperboard,
-            description: "Create new assignments for your students",
+            icon: Plus, // Need to import from lucide-react
+            description: "Create new assignments",
+          },
+          {
+            name: "Quizzes",
+            href: "/teacher/quiz",
+            icon: Brain,
+            description: "View all quizzes",
           },
           {
             name: "Create Quiz",
             href: "/teacher/create-quiz",
-            icon: Clapperboard,
-            description: "Create new quizes for your students",
+            icon: Plus,
+            description: "Create new quiz",
           },
-
           {
-            name: "Quiz History",
-            href: "/teacher/quiz",
-            icon: Clapperboard,
-            description: "Create new quizes for your students",
+            name: "Study Notes",
+            href: "/teacher/notes",
+            icon: BookOpen,
+            description: "Manage course notes",
           },
           {
             name: "Create Notes",
             href: "/teacher/create-notes",
-            icon: Clapperboard,
-            description: "Create a notes for your students",
+            icon: Plus,
+            description: "Create new study notes",
           },
           {
-            name: "Notes",
-            href: "/teacher/notes",
-            icon: Clapperboard,
-            description: "view a notes for your students",
+            name: "Glossary",
+            href: "/teacher/glossary",
+            icon: Book, // Need to import from lucide-react
+            description: "Manage film terminology",
           },
-          // {
-          //   name: "Submissions",
-          //   href: "/teacher/student-submission",
-          //   icon: FileText,
-          //   description: "Review student submissions",
-          // },
-          // {
-          //   name: "Students",
-          //   href: "/teacher/students",
-          //   icon: GraduationCap,
-          //   description: "Manage your students",
-          // },
         ];
       case "student":
         return [
           ...baseItems,
           {
-            name: "Assignments",
+            name: "My Assignments",
             href: "/student/assignments",
             icon: FileText,
-            description: "View and submit your assignments",
+            description: "View and submit assignments",
           },
-          // {
-          //   name: "AI Mentor",
-          //   href: "/ai-mentor",
-          //   icon: MessageSquare,
-          //   description: "Chat with your AI mentor",
-          // },
-          // {
-          //   name: "AI Mentor - Syllabus",
-          //   href: "/ai-mentor",
-          //   icon: Brain,
-          //   description: "Test your knowledge",
-          // },
           {
             name: "Script Analyzer",
             href: "/script-analyzer",
-            icon: FileText,
-            description: "Get feedback on your scripts",
+            icon: Clapperboard,
+            description: "Analyze your scripts with AI",
           },
-
           {
-            name: "Quiz",
+            name: "Quizzes",
             href: "/student/quizzes",
-            icon: FileText,
-            description: "Take quiz and saw the result",
+            icon: Brain,
+            description: "Take quizzes and view results",
           },
-
           {
-            name: "Notes",
+            name: "Study Notes",
             href: "/student/notes",
-            icon: FileText,
-            description: "Notes shared by your teacher",
+            icon: BookOpen,
+            description: "Access course materials",
+          },
+          {
+            name: "Glossary",
+            href: "/student/glossary",
+            icon: Book,
+            description: "Film terminology reference",
           },
         ];
       default:

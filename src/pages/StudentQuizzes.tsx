@@ -7,8 +7,10 @@ import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { Input } from "@/components/ui/input"
 import { supabase } from "@/integrations/supabase/client"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import {
   Clock,
   CheckCircle,
@@ -17,6 +19,7 @@ import {
   ArrowRight,
   Brain,
   Loader2,
+  PlayCircle,
   Eye,
   ChevronDown,
   ChevronUp,
@@ -24,14 +27,15 @@ import {
   Timer,
   Calendar,
   Trophy,
-  BarChart3
+  Search,
+  X
 } from "lucide-react"
 import { format, isAfter } from "date-fns"
 import { ModernDashboardLayout } from "@/components/ModernDashboardLayout"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 
-// Types
+// Types (same as before)
 interface Quiz {
   id: string
   title: string
@@ -72,88 +76,6 @@ interface QuizSubmission {
   status: string
 }
 
-interface QuizEnrollment {
-  id: string
-  quiz_id: string
-  student_id: string
-  assigned_at: string
-  status: 'assigned' | 'started' | 'completed' | 'overdue'
-}
-
-type ViewState = 'dashboard' | 'taking-quiz' | 'quiz-results' | 'quiz-history'
-
-// Quiz Card Component
-const QuizCard = ({ quiz, submission, onAction }) => {
-    const isOverdue = isAfter(new Date(), new Date(quiz.due_date))
-    const isCompleted = submission !== null && submission !== undefined
-  
-  const getStatus = () => {
-    if (isCompleted) {
-      return {
-        label: 'COMPLETED',
-        color: 'bg-green-100 border-green-300 text-green-800',
-        dot: 'bg-green-500'
-      }
-    }
-    if (isOverdue) {
-      return {
-        label: 'OVERDUE',
-        color: 'bg-red-100 border-red-300 text-red-800',
-        dot: 'bg-red-500'
-      }
-    }
-    return {
-      label: 'PENDING',
-      color: 'bg-blue-100 border-blue-300 text-blue-800',
-      dot: 'bg-blue-500'
-    }
-  }
-
-  const status = getStatus()
-
-  return (
-    <Card 
-      className={cn("cursor-pointer transition-all hover:shadow-md border-2", status.color)}
-      onClick={() => onAction(quiz, isCompleted ? 'view' : 'start')}
-    >
-      <CardContent className="p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <div className={cn("w-2 h-2 rounded-full", status.dot)}></div>
-          <Badge variant="outline" className="text-xs font-semibold">
-            {status.label}
-          </Badge>
-        </div>
-        
-        <h3 className="font-bold text-sm mb-2 line-clamp-2">{quiz.title}</h3>
-        
-        <div className="space-y-2 text-xs text-gray-600">
-          <div className="flex items-center gap-1">
-            <BookOpen className="h-3 w-3" />
-            <span>{quiz.total_points} questions</span>
-          </div>
-          
-          {isCompleted ? (
-            <div className="flex items-center gap-1 font-semibold text-green-700">
-              <Trophy className="h-3 w-3" />
-              <span>Score: {submission?.score}/{submission?.total_points}</span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-1">
-              <Calendar className="h-3 w-3" />
-              <span>Due {format(new Date(quiz.due_date), "MMM dd")}</span>
-            </div>
-          )}
-          
-          <div className="flex items-center gap-1">
-            <Timer className="h-3 w-3" />
-            <span>{quiz.time_limit_minutes} min</span>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
 // Timer Component
 const QuizTimer = ({ timeLeft, onTimeUp }) => {
   const minutes = Math.floor(timeLeft / 60)
@@ -180,72 +102,70 @@ const QuestionDisplay = ({ question, selectedAnswer, onAnswerSelect, showResults
   const [showExplanation, setShowExplanation] = useState(false)
 
   return (
-    <Card className="border-2 border-gray-200">
-      <CardContent className="p-6">
-        <h3 className="text-lg font-semibold mb-6">{question.question_text}</h3>
-        
-        <div className="space-y-3">
-          {question.options.map((option, index) => {
-            const isSelected = selectedAnswer === index
-            const isCorrect = question.correct_option_id === index
-            const isStudentChoice = studentAnswer === index
-            
-            let cardStyle = "border-2 border-gray-200 hover:border-blue-300 bg-white"
-            
-            if (showResults) {
-              if (isCorrect) {
-                cardStyle = "border-2 border-green-300 bg-green-50"
-              } else if (isStudentChoice && !isCorrect) {
-                cardStyle = "border-2 border-red-300 bg-red-50"
-              }
-            } else if (isSelected) {
-              cardStyle = "border-2 border-blue-500 bg-blue-50"
+    <div className="space-y-4">
+      <h3 className="text-lg font-semibold">{question.question_text}</h3>
+      
+      <div className="space-y-3">
+        {question.options.map((option, index) => {
+          const isSelected = selectedAnswer === index
+          const isCorrect = question.correct_option_id === index
+          const isStudentChoice = studentAnswer === index
+          
+          let cardStyle = "border-2 border-gray-200 hover:border-blue-300 bg-white"
+          
+          if (showResults) {
+            if (isCorrect) {
+              cardStyle = "border-2 border-green-300 bg-green-50"
+            } else if (isStudentChoice && !isCorrect) {
+              cardStyle = "border-2 border-red-300 bg-red-50"
             }
-            
-            return (
-              <div
-                key={index}
-                className={cn("p-4 rounded-lg cursor-pointer transition-all", cardStyle)}
-                onClick={() => !showResults && onAnswerSelect(index)}
-              >
-                <div className="flex items-center gap-3">
-                  <Badge className={cn(
-                    "w-8 h-8 rounded-full flex items-center justify-center",
-                    showResults && isCorrect && "bg-green-600 text-white",
-                    showResults && isStudentChoice && !isCorrect && "bg-red-600 text-white",
-                    !showResults && isSelected && "bg-blue-600 text-white"
-                  )}>
-                    {String.fromCharCode(65 + index)}
-                  </Badge>
-                  <span className="flex-1">{option}</span>
-                  {showResults && isCorrect && <CheckCircle className="h-5 w-5 text-green-600" />}
-                  {showResults && isStudentChoice && !isCorrect && <AlertTriangle className="h-5 w-5 text-red-600" />}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-        
-        {showResults && question.explanation && (
-          <div className="mt-6">
-            <Button
-              variant="ghost"
-              onClick={() => setShowExplanation(!showExplanation)}
-              className="w-full justify-between"
+          } else if (isSelected) {
+            cardStyle = "border-2 border-blue-500 bg-blue-50"
+          }
+          
+          return (
+            <div
+              key={index}
+              className={cn("p-4 rounded-lg cursor-pointer transition-all", cardStyle)}
+              onClick={() => !showResults && onAnswerSelect(index)}
             >
-              <span>{showExplanation ? 'Hide' : 'Show'} Explanation</span>
-              {showExplanation ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </Button>
-            
-            {showExplanation && (
-              <div className="mt-4 p-4 bg-blue-50 border rounded-lg">
-                <p className="text-sm text-blue-800">{question.explanation}</p>
+              <div className="flex items-center gap-3">
+                <Badge className={cn(
+                  "w-8 h-8 rounded-full flex items-center justify-center",
+                  showResults && isCorrect && "bg-green-600 text-white",
+                  showResults && isStudentChoice && !isCorrect && "bg-red-600 text-white",
+                  !showResults && isSelected && "bg-blue-600 text-white"
+                )}>
+                  {String.fromCharCode(65 + index)}
+                </Badge>
+                <span className="flex-1">{option}</span>
+                {showResults && isCorrect && <CheckCircle className="h-5 w-5 text-green-600" />}
+                {showResults && isStudentChoice && !isCorrect && <AlertTriangle className="h-5 w-5 text-red-600" />}
               </div>
-            )}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+            </div>
+          )
+        })}
+      </div>
+      
+      {showResults && question.explanation && (
+        <div className="mt-4">
+          <Button
+            variant="ghost"
+            onClick={() => setShowExplanation(!showExplanation)}
+            className="w-full justify-between"
+          >
+            <span>{showExplanation ? 'Hide' : 'Show'} Explanation</span>
+            {showExplanation ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </Button>
+          
+          {showExplanation && (
+            <div className="mt-3 p-4 bg-blue-50 border rounded-lg">
+              <p className="text-sm text-blue-800">{question.explanation}</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -255,10 +175,14 @@ export default function StudentQuizzes() {
   const { toast } = useToast()
   
   // State
-  const [viewState, setViewState] = useState<ViewState>('dashboard')
   const [loading, setLoading] = useState(true)
   const [quizzes, setQuizzes] = useState<Quiz[]>([])
   const [submissions, setSubmissions] = useState<QuizSubmission[]>([])
+  const [searchTerm, setSearchTerm] = useState('')
+  
+  // Modal states
+  const [isQuizModalOpen, setIsQuizModalOpen] = useState(false)
+  const [isResultsModalOpen, setIsResultsModalOpen] = useState(false)
   
   // Quiz taking state
   const [activeQuiz, setActiveQuiz] = useState<Quiz | null>(null)
@@ -276,7 +200,6 @@ export default function StudentQuizzes() {
     try {
       setLoading(true)
       
-      // Get student's quiz enrollments
       const { data: enrollments, error: enrollError } = await supabase
         .from('quiz_enrollments')
         .select('quiz_id')
@@ -287,7 +210,6 @@ export default function StudentQuizzes() {
       const quizIds = enrollments?.map(e => e.quiz_id) || []
       
       if (quizIds.length > 0) {
-        // Get quizzes
         const { data: quizData, error: quizError } = await supabase
           .from('quizzes')
           .select('*')
@@ -297,7 +219,6 @@ export default function StudentQuizzes() {
         if (quizError) throw quizError
         setQuizzes(quizData || [])
 
-        // Get submissions
         const { data: submissionData, error: submissionError } = await supabase
           .from('quiz_submissions')
           .select('*')
@@ -326,7 +247,7 @@ export default function StudentQuizzes() {
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null
     
-    if (viewState === 'taking-quiz' && timeLeft > 0) {
+    if (isQuizModalOpen && timeLeft > 0) {
       interval = setInterval(() => {
         setTimeLeft(prev => {
           if (prev <= 1) {
@@ -341,18 +262,10 @@ export default function StudentQuizzes() {
     return () => {
       if (interval) clearInterval(interval)
     }
-  }, [viewState, timeLeft])
+  }, [isQuizModalOpen, timeLeft])
 
-  // Handle quiz actions
-  const handleQuizAction = async (quiz: Quiz, action: 'start' | 'view') => {
-    if (action === 'start') {
-      await startQuiz(quiz)
-    } else {
-      await viewResults(quiz)
-    }
-  }
-
-  const startQuiz = async (quiz: Quiz) => {
+  // Start Quiz
+  const handleStartQuiz = async (quiz: Quiz) => {
     try {
       const { data: questionsData, error } = await supabase
         .from('quiz_questions')
@@ -368,7 +281,7 @@ export default function StudentQuizzes() {
       setAnswers({})
       setTimeLeft(quiz.time_limit_minutes * 60)
       setStartTime(new Date())
-      setViewState('taking-quiz')
+      setIsQuizModalOpen(true)
 
       toast({
         title: "Quiz Started",
@@ -384,7 +297,8 @@ export default function StudentQuizzes() {
     }
   }
 
-  const viewResults = async (quiz: Quiz) => {
+  // View Results
+  const handleViewResults = async (quiz: Quiz) => {
     const submission = submissions.find(s => s.quiz_id === quiz.id)
     if (!submission) return
 
@@ -400,7 +314,7 @@ export default function StudentQuizzes() {
       setActiveQuiz(quiz)
       setQuestions(questionsData || [])
       setCurrentSubmission(submission)
-      setViewState('quiz-results')
+      setIsResultsModalOpen(true)
     } catch (error) {
       console.error('Error loading results:', error)
     }
@@ -418,7 +332,6 @@ export default function StudentQuizzes() {
     if (!activeQuiz || !startTime) return
 
     try {
-      // Calculate score
       let score = 0
       questions.forEach(question => {
         if (answers[question.id] === question.correct_option_id) {
@@ -428,7 +341,6 @@ export default function StudentQuizzes() {
 
       const timeTaken = Math.round((new Date().getTime() - startTime.getTime()) / (1000 * 60))
 
-      // Save submission
       const { data: submission, error } = await supabase
         .from('quiz_submissions')
         .insert([{
@@ -447,7 +359,6 @@ export default function StudentQuizzes() {
 
       if (error) throw error
 
-      // Update enrollment status
       await supabase
         .from('quiz_enrollments')
         .update({ status: 'completed' })
@@ -455,14 +366,15 @@ export default function StudentQuizzes() {
         .eq('student_id', profile?.id)
 
       setCurrentSubmission(submission)
-      setViewState('quiz-results')
+      setIsQuizModalOpen(false)
+      setIsResultsModalOpen(true)
 
       toast({
         title: "Quiz Submitted!",
         description: `You scored ${score}/${activeQuiz.total_points}`,
       })
 
-      fetchData() // Refresh data
+      fetchData()
     } catch (error) {
       console.error('Error submitting quiz:', error)
       toast({
@@ -477,13 +389,20 @@ export default function StudentQuizzes() {
   const getStats = () => {
     const completed = submissions.length
     const pending = quizzes.length - completed
-    const totalPoints = submissions.reduce((sum, s) => sum + s.score, 0)
-    const avgScore = completed > 0 ? Math.round(totalPoints / completed * 10) / 10 : 0
+    const totalScore = submissions.reduce((sum, s) => sum + s.score, 0)
+    const totalPossible = submissions.reduce((sum, s) => sum + s.total_points, 0)
+    const avgPercentage = totalPossible > 0 ? Math.round((totalScore / totalPossible) * 100) : 0
 
-    return { completed, pending, totalPoints, avgScore }
+    return { completed, pending, avgPercentage }
   }
 
   const stats = getStats()
+
+  // Filter quizzes
+  const filteredQuizzes = quizzes.filter(quiz =>
+    quiz.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    quiz.topic.toLowerCase().includes(searchTerm.toLowerCase())
+  )
 
   if (loading) {
     return (
@@ -503,154 +422,187 @@ export default function StudentQuizzes() {
   return (
     <AuthGuard allowedRoles={["student"]}>
       <ModernDashboardLayout>
-        <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            
-            {/* Sidebar - Quiz List */}
-            <div className="lg:col-span-1">
-              <Card className="sticky top-6">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Brain className="h-5 w-5 text-purple-600" />
-                    My Quizzes ({quizzes.length})
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <ScrollArea className="h-[600px] px-4 pb-4">
-                    <div className="space-y-3">
-                      {quizzes.map(quiz => {
-                        const submission = submissions.find(s => s.quiz_id === quiz.id)
-                        return (
-                          <QuizCard
-                            key={quiz.id}
-                            quiz={quiz}
-                            submission={submission}
-                            onAction={handleQuizAction}
-                          />
-                        )
-                      })}
+        <div className="max-w-7xl mx-auto space-y-6">
+          
+          {/* Header */}
+          <div className="text-center space-y-2">
+            <h1 className="text-3xl font-bold text-gray-900">My Quizzes</h1>
+            <p className="text-gray-600">Complete quizzes and track your performance</p>
+          </div>
+
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card className="text-center bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+              <CardContent className="pt-6">
+                <div className="text-3xl font-bold text-blue-600">{quizzes.length}</div>
+                <div className="text-sm text-blue-700 font-medium">Total Quizzes</div>
+              </CardContent>
+            </Card>
+            <Card className="text-center bg-gradient-to-br from-green-50 to-green-100 border-green-200">
+              <CardContent className="pt-6">
+                <div className="text-3xl font-bold text-green-600">{stats.completed}</div>
+                <div className="text-sm text-green-700 font-medium">Completed</div>
+              </CardContent>
+            </Card>
+            <Card className="text-center bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
+              <CardContent className="pt-6">
+                <div className="text-3xl font-bold text-purple-600">{stats.avgPercentage}%</div>
+                <div className="text-sm text-purple-700 font-medium">Average Score</div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Search */}
+          <Card>
+            <CardContent className="pt-6">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Search quizzes by title or topic..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Quizzes Table */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Brain className="h-5 w-5 text-purple-600" />
+                Available Quizzes ({filteredQuizzes.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Quiz Title</TableHead>
+                      <TableHead>Topic</TableHead>
+                      <TableHead>Due Date</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Score</TableHead>
+                      <TableHead>Time Limit</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredQuizzes.map((quiz) => {
+                      const submission = submissions.find(s => s.quiz_id === quiz.id)
+                      const isCompleted = !!submission
+                      const isOverdue = isAfter(new Date(), new Date(quiz.due_date))
                       
-                      {quizzes.length === 0 && (
-                        <div className="text-center py-8 text-gray-500">
-                          <Brain className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                          <p>No quizzes assigned</p>
-                        </div>
-                      )}
-                      
-                      <div className="pt-4 border-t">
-                        <Button
-                          variant="ghost"
-                          className="w-full justify-start"
-                          onClick={() => setViewState('quiz-history')}
-                        >
-                          <BarChart3 className="h-4 w-4 mr-2" />
-                          View History
-                        </Button>
-                      </div>
-                    </div>
-                  </ScrollArea>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Main Content */}
-            <div className="lg:col-span-3">
-              
-              {/* Dashboard View */}
-              {viewState === 'dashboard' && (
-                <div className="space-y-6">
-                  <div className="text-center">
-                    <h1 className="text-3xl font-bold mb-2">Quiz Dashboard</h1>
-                    <p className="text-gray-600">Track your quiz performance and progress</p>
-                  </div>
-
-                  {/* Stats Cards */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <Card className="text-center">
-                      <CardContent className="pt-6">
-                        <div className="text-2xl font-bold text-green-600">{stats.completed}</div>
-                        <div className="text-sm text-gray-600">Completed</div>
-                      </CardContent>
-                    </Card>
-                    <Card className="text-center">
-                      <CardContent className="pt-6">
-                        <div className="text-2xl font-bold text-blue-600">{stats.avgScore}</div>
-                        <div className="text-sm text-gray-600">Avg Score</div>
-                      </CardContent>
-                    </Card>
-                    <Card className="text-center">
-                      <CardContent className="pt-6">
-                        <div className="text-2xl font-bold text-purple-600">{stats.totalPoints}</div>
-                        <div className="text-sm text-gray-600">Total Points</div>
-                      </CardContent>
-                    </Card>
-                    <Card className="text-center">
-                      <CardContent className="pt-6">
-                        <div className="text-2xl font-bold text-orange-600">{stats.pending}</div>
-                        <div className="text-sm text-gray-600">Pending</div>
-                      </CardContent>
-                    </Card>
-                  </div>
-
-                  {/* Recent Activity */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Recent Activity</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3">
-                        {submissions.slice(0, 3).map(submission => {
-                          const quiz = quizzes.find(q => q.id === submission.quiz_id)
-                          return (
-                            <div key={submission.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                              <div>
-                                <div className="font-medium">{quiz?.title}</div>
-                                <div className="text-sm text-gray-600">
-                                  {format(new Date(submission.submitted_at), "MMM dd, yyyy")}
-                                </div>
-                              </div>
-                              <Badge className="bg-green-50 text-green-700">
-                                {submission.score}/{submission.total_points}
-                              </Badge>
+                      return (
+                        <TableRow key={quiz.id}>
+                          <TableCell>
+                            <div className="font-semibold">{quiz.title}</div>
+                            <div className="text-sm text-gray-500">{quiz.description}</div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{quiz.topic}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1 text-sm">
+                              <Calendar className="h-4 w-4 text-gray-400" />
+                              {format(new Date(quiz.due_date), "MMM dd, yyyy")}
                             </div>
-                          )
-                        })}
-                        
-                        {submissions.length === 0 && (
-                          <p className="text-gray-500 text-center py-4">No quiz activity yet</p>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
+                          </TableCell>
+                          <TableCell>
+                            {isCompleted ? (
+                              <Badge className="bg-green-600">Completed</Badge>
+                            ) : isOverdue ? (
+                              <Badge variant="destructive">Overdue</Badge>
+                            ) : (
+                              <Badge className="bg-blue-600">Pending</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {isCompleted ? (
+                              <div className="font-semibold text-green-700">
+                                {submission.score}/{submission.total_points}
+                              </div>
+                            ) : (
+                              <span className="text-gray-400">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1 text-sm">
+                              <Timer className="h-4 w-4 text-gray-400" />
+                              {quiz.time_limit_minutes} min
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {isCompleted ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleViewResults(quiz)}
+                                className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                              >
+                                <Eye className="h-4 w-4 mr-2" />
+                                View Results
+                              </Button>
+                            ) : (
+                              <Button
+                                size="sm"
+                                onClick={() => handleStartQuiz(quiz)}
+                                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                                disabled={isOverdue}
+                              >
+                                <PlayCircle className="h-4 w-4 mr-2" />
+                                Start Quiz
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+                
+                {filteredQuizzes.length === 0 && (
+                  <div className="text-center py-12">
+                    <Brain className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                    <h3 className="text-xl font-semibold text-gray-600 mb-2">No Quizzes Found</h3>
+                    <p className="text-gray-500">
+                      {searchTerm ? 'Try adjusting your search terms' : 'No quizzes have been assigned to you yet'}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
 
-              {/* Taking Quiz View */}
-              {viewState === 'taking-quiz' && activeQuiz && questions.length > 0 && (
+          {/* Quiz Taking Modal */}
+          <Dialog open={isQuizModalOpen} onOpenChange={setIsQuizModalOpen}>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-2xl font-bold">{activeQuiz?.title}</h2>
+                    <p className="text-sm text-gray-600">{activeQuiz?.topic}</p>
+                  </div>
+                  <QuizTimer timeLeft={timeLeft} onTimeUp={handleSubmitQuiz} />
+                </DialogTitle>
+              </DialogHeader>
+
+              {questions.length > 0 && (
                 <div className="space-y-6">
-                  {/* Quiz Header */}
-                  <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
-                    <CardContent className="pt-6">
-                      <div className="flex items-center justify-between mb-4">
-                        <div>
-                          <h1 className="text-2xl font-bold text-blue-900">{activeQuiz.title}</h1>
-                          <p className="text-blue-700">{activeQuiz.topic}</p>
-                        </div>
-                        <QuizTimer timeLeft={timeLeft} onTimeUp={handleSubmitQuiz} />
-                      </div>
-                      
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-blue-800">
-                          Question {currentQuestionIndex + 1} of {questions.length}
-                        </span>
-                        <div className="w-48">
-                          <Progress value={((currentQuestionIndex + 1) / questions.length) * 100} />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  {/* Progress */}
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-medium">
+                      Question {currentQuestionIndex + 1} of {questions.length}
+                    </span>
+                    <span className="text-gray-600">
+                      Answered: {Object.keys(answers).length}/{questions.length}
+                    </span>
+                  </div>
+                  <Progress value={((currentQuestionIndex + 1) / questions.length) * 100} />
 
-                  {/* Current Question */}
+                  {/* Question */}
                   <QuestionDisplay
                     question={questions[currentQuestionIndex]}
                     selectedAnswer={answers[questions[currentQuestionIndex].id]}
@@ -658,207 +610,106 @@ export default function StudentQuizzes() {
                   />
 
                   {/* Navigation */}
-                  <Card>
-                    <CardContent className="pt-6">
-                      <div className="flex items-center justify-between">
-                        <Button
-                          variant="outline"
-                          onClick={() => setCurrentQuestionIndex(prev => prev - 1)}
-                          disabled={currentQuestionIndex === 0}
-                        >
-                          <ArrowLeft className="h-4 w-4 mr-2" />
-                          Previous
-                        </Button>
-                        
-                        <span className="text-sm text-gray-600">
-                          Answered: {Object.keys(answers).length}/{questions.length}
-                        </span>
-                        
-                        {currentQuestionIndex === questions.length - 1 ? (
-                          <Button onClick={handleSubmitQuiz} className="bg-green-600 hover:bg-green-700">
-                            Submit Quiz
-                          </Button>
-                        ) : (
-                          <Button
-                            onClick={() => setCurrentQuestionIndex(prev => prev + 1)}
-                            disabled={currentQuestionIndex === questions.length - 1}
-                          >
-                            Next
-                            <ArrowRight className="h-4 w-4 ml-2" />
-                          </Button>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
-
-              {/* Quiz Results View */}
-              {viewState === 'quiz-results' && activeQuiz && currentSubmission && (
-                <div className="space-y-6">
-                  {/* Results Header */}
-                  <Card className="bg-gradient-to-r from-green-50 to-emerald-50 border-green-200">
-                    <CardContent className="pt-6">
-                      <div className="text-center mb-6">
-                        <h1 className="text-3xl font-bold text-green-800 mb-2">Quiz Complete!</h1>
-                        <p className="text-green-700">{activeQuiz.title}</p>
-                      </div>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
-                        <div className="bg-white rounded-lg p-4 border border-green-200">
-                          <div className="text-3xl font-bold text-green-800">
-                            {currentSubmission.score}/{currentSubmission.total_points}
-                          </div>
-                          <div className="text-sm text-green-600">Your Score</div>
-                        </div>
-                        <div className="bg-white rounded-lg p-4 border border-green-200">
-                          <div className="text-2xl font-bold text-green-800">
-                            {currentSubmission.time_taken_minutes} min
-                          </div>
-                          <div className="text-sm text-green-600">Time Taken</div>
-                        </div>
-                        <div className="bg-white rounded-lg p-4 border border-green-200">
-                          <div className="text-lg font-bold text-green-800">
-                            {format(new Date(currentSubmission.submitted_at), "MMM dd")}
-                          </div>
-                          <div className="text-sm text-green-600">Submitted</div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Question Review */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Eye className="h-5 w-5" />
-                        Question Review
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                      {questions.map((question, index) => {
-                        const studentAnswer = currentSubmission.answers[question.id]
-                        const isCorrect = studentAnswer === question.correct_option_id
-                        
-                        return (
-                          <div key={question.id}>
-                            <div className="flex items-center gap-2 mb-3">
-                              <Badge variant="outline">Q{index + 1}</Badge>
-                              <Badge variant={isCorrect ? "default" : "destructive"}>
-                                {isCorrect ? "Correct" : "Wrong"}
-                              </Badge>
-                            </div>
-                            
-                            <QuestionDisplay
-                              question={question}
-                              selectedAnswer={null}
-                              onAnswerSelect={() => {}}
-                              showResults={true}
-                              studentAnswer={studentAnswer}
-                            />
-                          </div>
-                        )
-                      })}
-                    </CardContent>
-                  </Card>
-
-                  {/* Back Button */}
-                  <div className="text-center">
-                    <Button variant="outline" onClick={() => setViewState('dashboard')}>
+                  <div className="flex items-center justify-between pt-4 border-t">
+                    <Button
+                      variant="outline"
+                      onClick={() => setCurrentQuestionIndex(prev => prev - 1)}
+                      disabled={currentQuestionIndex === 0}
+                    >
                       <ArrowLeft className="h-4 w-4 mr-2" />
-                      Back to Dashboard
+                      Previous
                     </Button>
-                  </div>
-                </div>
-              )}
-
-              {/* Quiz History View */}
-              {viewState === 'quiz-history' && (
-                <div className="space-y-6">
-                  <Card className="bg-gradient-to-r from-purple-50 to-indigo-50 border-purple-200">
-                    <CardContent className="pt-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h1 className="text-2xl font-bold text-purple-900">Quiz History</h1>
-                          <p className="text-purple-700">Your complete performance record</p>
-                        </div>
-                        <Button variant="outline" onClick={() => setViewState('dashboard')}>
-                          <ArrowLeft className="h-4 w-4 mr-2" />
-                          Back
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <div className="space-y-4">
-                    {submissions.length === 0 ? (
-                      <Card>
-                        <CardContent className="pt-6">
-                          <div className="text-center py-12 text-gray-500">
-                            <Trophy className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-                            <h3 className="text-xl font-semibold mb-2">No Quiz History</h3>
-                            <p>Complete your first quiz to see results here</p>
-                          </div>
-                        </CardContent>
-                      </Card>
+                    
+                    {currentQuestionIndex === questions.length - 1 ? (
+                      <Button onClick={handleSubmitQuiz} className="bg-green-600 hover:bg-green-700">
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Submit Quiz
+                      </Button>
                     ) : (
-                      submissions
-                        .sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime())
-                        .map(submission => {
-                          const quiz = quizzes.find(q => q.id === submission.quiz_id)
-                          if (!quiz) return null
-
-                          return (
-                            <Card key={submission.id} className="hover:shadow-md transition-shadow">
-                              <CardContent className="pt-6">
-                                <div className="flex items-center justify-between">
-                                  <div className="flex-1">
-                                    <h3 className="font-bold text-lg mb-2">{quiz.title}</h3>
-                                    <div className="flex items-center gap-4 text-sm text-gray-600">
-                                      <div className="flex items-center gap-1">
-                                        <Calendar className="h-4 w-4" />
-                                        <span>{format(new Date(submission.submitted_at), "MMM dd, yyyy")}</span>
-                                      </div>
-                                      <div className="flex items-center gap-1">
-                                        <Timer className="h-4 w-4" />
-                                        <span>{submission.time_taken_minutes} min</span>
-                                      </div>
-                                      <div className="flex items-center gap-1">
-                                        <BookOpen className="h-4 w-4" />
-                                        <span>{quiz.topic}</span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                  
-                                  <div className="flex items-center gap-4">
-                                    <div className="text-center">
-                                      <div className="text-2xl font-bold text-green-600">
-                                        {submission.score}/{submission.total_points}
-                                      </div>
-                                      <div className="text-sm text-gray-600">Score</div>
-                                    </div>
-                                    
-                                    <Button
-                                      variant="outline"
-                                      onClick={() => handleQuizAction(quiz, 'view')}
-                                      className="border-blue-300 text-blue-700 hover:bg-blue-50"
-                                    >
-                                      <Eye className="h-4 w-4 mr-2" />
-                                      View Details
-                                    </Button>
-                                  </div>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          )
-                        })
+                      <Button
+                        onClick={() => setCurrentQuestionIndex(prev => prev + 1)}
+                      >
+                        Next
+                        <ArrowRight className="h-4 w-4 ml-2" />
+                      </Button>
                     )}
                   </div>
                 </div>
               )}
+            </DialogContent>
+          </Dialog>
 
-            </div>
-          </div>
+          {/* Results Modal */}
+          <Dialog open={isResultsModalOpen} onOpenChange={setIsResultsModalOpen}>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>
+                  <div className="space-y-4">
+                    <h2 className="text-2xl font-bold text-green-800">Quiz Results</h2>
+                    <div className="grid grid-cols-3 gap-4">
+                      <Card className="text-center bg-green-50 border-green-200">
+                        <CardContent className="pt-4">
+                          <div className="text-2xl font-bold text-green-700">
+                            {currentSubmission?.score}/{currentSubmission?.total_points}
+                          </div>
+                          <div className="text-sm text-green-600">Score</div>
+                        </CardContent>
+                      </Card>
+                      <Card className="text-center bg-blue-50 border-blue-200">
+                        <CardContent className="pt-4">
+                          <div className="text-2xl font-bold text-blue-700">
+                            {currentSubmission?.time_taken_minutes} min
+                          </div>
+                          <div className="text-sm text-blue-600">Time Taken</div>
+                        </CardContent>
+                      </Card>
+                      <Card className="text-center bg-purple-50 border-purple-200">
+                        <CardContent className="pt-4">
+                          <div className="text-lg font-bold text-purple-700">
+                            {currentSubmission && Math.round((currentSubmission.score / currentSubmission.total_points) * 100)}%
+                          </div>
+                          <div className="text-sm text-purple-600">Percentage</div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </div>
+                </DialogTitle>
+              </DialogHeader>
+
+              <div className="space-y-6 mt-6">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <BookOpen className="h-5 w-5" />
+                  Question Review
+                </h3>
+                
+                {questions.map((question, index) => {
+                  const studentAnswer = currentSubmission?.answers[question.id]
+                  const isCorrect = studentAnswer === question.correct_option_id
+                  
+                  return (
+                    <div key={question.id} className="border rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-4">
+                        <Badge variant="outline">Question {index + 1}</Badge>
+                        <Badge variant={isCorrect ? "default" : "destructive"} className={isCorrect ? "bg-green-600" : ""}>
+                          {isCorrect ? "Correct" : "Incorrect"}
+                        </Badge>
+                        <span className="text-sm text-gray-600 ml-auto">{question.points} points</span>
+                      </div>
+                      
+                      <QuestionDisplay
+                        question={question}
+                        selectedAnswer={null}
+                        onAnswerSelect={() => {}}
+                        showResults={true}
+                        studentAnswer={studentAnswer}
+                      />
+                    </div>
+                  )
+                })}
+              </div>
+            </DialogContent>
+          </Dialog>
+
         </div>
       </ModernDashboardLayout>
     </AuthGuard>

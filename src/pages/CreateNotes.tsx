@@ -1,3 +1,6 @@
+
+
+
 "use client"
 
 import React, { useState, useEffect, useCallback } from "react"
@@ -38,6 +41,10 @@ import { useSpeech } from "react-text-to-speech"
 import { jsPDF } from "jspdf"
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from "docx"
 import { saveAs } from "file-saver"
+import ReactQuill from 'react-quill'
+import 'react-quill/dist/quill.snow.css'
+import { marked } from 'marked'
+import DOMPurify from 'dompurify'
 
 // Semester syllabus (reusing from CreateQuiz)
 const semester1Syllabus = {
@@ -240,6 +247,18 @@ const ClassCard = ({ classItem, isSelected, onSelect, studentCount }) => (
 
 // Note Content Editor Component
 const NoteEditor = ({ content, onChange, readOnly = false }) => {
+  const modules = {
+    toolbar: [
+      [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+      ['bold', 'italic', 'underline', 'strike'],
+      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+      [{ 'color': [] }, { 'background': [] }],
+      [{ 'align': [] }],
+      ['link'],
+      ['clean']
+    ]
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -247,97 +266,404 @@ const NoteEditor = ({ content, onChange, readOnly = false }) => {
         {!readOnly && (
           <div className="flex items-center gap-2 text-sm text-gray-600">
             <Edit3 className="h-4 w-4" />
-            <span>Click to edit content</span>
+            <span>Edit with rich text formatting</span>
           </div>
         )}
       </div>
-      <Textarea
+      <ReactQuill
         value={content}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={onChange}
         readOnly={readOnly}
-        className="min-h-[400px] resize-none text-sm leading-relaxed"
-        placeholder="AI-generated content will appear here..."
+        modules={modules}
+        theme="snow"
+        className="bg-white"
+        style={{ height: '400px', marginBottom: '50px' }}
       />
     </div>
   )
 }
 
 // Audio Player Component
+// Audio Player Component with HTML stripping
 const AudioPlayer = ({ text, disabled = false }) => {
-  const {
-    Text,
-    speechStatus,
-    isInQueue,
-    start,
-    pause,
-    stop,
-  } = useSpeech({ text })
+    // Strip HTML tags for speech
+    const stripHtmlTags = (html: string): string => {
+        const tmp = document.createElement("DIV")
+        tmp.innerHTML = html
+        return tmp.textContent || tmp.innerText || ""
+    }
+    
+    const plainText = stripHtmlTags(text)
+    
+    const {
+        speechStatus,
+        isInQueue,
+        start,
+        pause,
+        stop,
+    } = useSpeech({ text: plainText })
 
-  if (disabled || !text) {
+    if (disabled || !text) {
+        return (
+            <Button variant="outline" disabled>
+                <Volume2 className="h-4 w-4 mr-2" />
+                Audio
+            </Button>
+        )
+    }
+
     return (
-      <Button variant="outline" disabled>
-        <Volume2 className="h-4 w-4 mr-2" />
-        Audio
-      </Button>
+        <div className="flex items-center gap-2">
+            {speechStatus !== "started" ? (
+                <Button variant="outline" onClick={start}>
+                    <Volume2 className="h-4 w-4 mr-2" />
+                    Play Audio
+                </Button>
+            ) : (
+                <Button variant="outline" onClick={pause}>
+                    <Volume2 className="h-4 w-4 mr-2" />
+                    Pause
+                </Button>
+            )}
+            {isInQueue && (
+                <Button variant="outline" onClick={stop} size="sm">
+                    Stop
+                </Button>
+            )}
+        </div>
     )
-  }
-
-  return (
-    <div className="flex items-center gap-2">
-      {speechStatus !== "started" ? (
-        <Button variant="outline" onClick={start}>
-          <Volume2 className="h-4 w-4 mr-2" />
-          Play Audio
-        </Button>
-      ) : (
-        <Button variant="outline" onClick={pause}>
-          <Volume2 className="h-4 w-4 mr-2" />
-          Pause
-        </Button>
-      )}
-      {isInQueue && (
-        <Button variant="outline" onClick={stop} size="sm">
-          Stop
-        </Button>
-      )}
-    </div>
-  )
 }
 
-// Export Functions
-const exportToPDF = (title: string, content: string) => {
-  const doc = new jsPDF()
-
-  // Title
-  doc.setFontSize(20)
-  doc.text(title, 20, 30)
-
-  // Content
-  doc.setFontSize(12)
-  const splitContent = doc.splitTextToSize(content, 170)
-  doc.text(splitContent, 20, 50)
-
-  doc.save(`${title}.pdf`)
+// Enhanced PDF Export with HTML parsing
+const exportToPDF = (title: string, htmlContent: string) => {
+    const doc = new jsPDF()
+    
+    // Parse HTML content
+    const parser = new DOMParser()
+    const htmlDoc = parser.parseFromString(htmlContent, 'text/html')
+    
+    let yPosition = 20
+    const pageWidth = doc.internal.pageSize.getWidth()
+    const pageHeight = doc.internal.pageSize.getHeight()
+    const margin = 20
+    const maxWidth = pageWidth - (margin * 2)
+    
+    // Title
+    doc.setFontSize(22)
+    doc.setFont(undefined, 'bold')
+    doc.setTextColor(124, 58, 237) // Purple color
+    const titleLines = doc.splitTextToSize(title, maxWidth)
+    doc.text(titleLines, margin, yPosition)
+    yPosition += (titleLines.length * 10) + 10
+    
+    // Draw line under title
+    doc.setDrawColor(124, 58, 237)
+    doc.setLineWidth(0.5)
+    doc.line(margin, yPosition, pageWidth - margin, yPosition)
+    yPosition += 15
+    
+    // Process HTML content
+    const elements = htmlDoc.body.children
+    
+    const addNewPageIfNeeded = (requiredSpace) => {
+        if (yPosition + requiredSpace > pageHeight - margin) {
+            doc.addPage()
+            yPosition = margin
+        }
+    }
+    
+    for (let element of elements) {
+        const tagName = element.tagName.toLowerCase()
+        const text = element.textContent.trim()
+        
+        if (!text) continue
+        
+        switch(tagName) {
+            case 'h1':
+                addNewPageIfNeeded(20)
+                doc.setFontSize(18)
+                doc.setFont(undefined, 'bold')
+                doc.setTextColor(124, 58, 237) // Purple
+                const h1Lines = doc.splitTextToSize(text, maxWidth)
+                doc.text(h1Lines, margin, yPosition)
+                yPosition += (h1Lines.length * 8) + 5
+                // Underline
+                doc.setDrawColor(124, 58, 237)
+                doc.line(margin, yPosition, pageWidth - margin, yPosition)
+                yPosition += 10
+                break
+                
+            case 'h2':
+                addNewPageIfNeeded(15)
+                doc.setFontSize(14)
+                doc.setFont(undefined, 'bold')
+                doc.setTextColor(37, 99, 235) // Blue
+                const h2Lines = doc.splitTextToSize(text, maxWidth - 10)
+                // Left border line
+                doc.setDrawColor(59, 130, 246)
+                doc.setLineWidth(1)
+                doc.line(margin, yPosition - 2, margin, yPosition + (h2Lines.length * 6) + 2)
+                doc.text(h2Lines, margin + 5, yPosition)
+                yPosition += (h2Lines.length * 7) + 8
+                break
+                
+            case 'h3':
+                addNewPageIfNeeded(12)
+                doc.setFontSize(12)
+                doc.setFont(undefined, 'bold')
+                doc.setTextColor(5, 150, 105) // Green
+                const h3Lines = doc.splitTextToSize(text, maxWidth)
+                doc.text(h3Lines, margin, yPosition)
+                yPosition += (h3Lines.length * 6) + 6
+                break
+                
+            case 'p':
+                addNewPageIfNeeded(10)
+                doc.setFontSize(10)
+                doc.setFont(undefined, 'normal')
+                doc.setTextColor(55, 65, 81) // Gray
+                const pLines = doc.splitTextToSize(text, maxWidth)
+                doc.text(pLines, margin, yPosition)
+                yPosition += (pLines.length * 5) + 8
+                break
+                
+            case 'ul':
+            case 'ol':
+                addNewPageIfNeeded(10)
+                doc.setFontSize(10)
+                doc.setFont(undefined, 'normal')
+                doc.setTextColor(55, 65, 81)
+                const listItems = element.querySelectorAll('li')
+                listItems.forEach((li, index) => {
+                    addNewPageIfNeeded(6)
+                    const bullet = tagName === 'ul' ? '•' : `${index + 1}.`
+                    const liText = li.textContent.trim()
+                    const liLines = doc.splitTextToSize(liText, maxWidth - 10)
+                    doc.text(bullet, margin + 5, yPosition)
+                    doc.text(liLines, margin + 15, yPosition)
+                    yPosition += (liLines.length * 5) + 4
+                })
+                yPosition += 5
+                break
+        }
+    }
+    
+    // Footer on each page
+    const totalPages = doc.internal.pages.length - 1
+    for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i)
+        doc.setFontSize(8)
+        doc.setTextColor(156, 163, 175)
+        doc.text(`Page ${i} of ${totalPages}`, pageWidth / 2, pageHeight - 10, { align: 'center' })
+    }
+    
+    doc.save(`${title}.pdf`)
 }
 
-const exportToDocx = async (title: string, content: string) => {
-  const doc = new Document({
-    sections: [{
-      children: [
+// Enhanced DOCX Export with HTML parsing
+const exportToDocx = async (title: string, htmlContent: string) => {
+    // Parse HTML content
+    const parser = new DOMParser()
+    const htmlDoc = parser.parseFromString(htmlContent, 'text/html')
+    const elements = htmlDoc.body.children
+    
+    const docChildren = []
+    
+    // Add title
+    docChildren.push(
         new Paragraph({
-          children: [new TextRun({ text: title, bold: true, size: 32 })],
-          heading: HeadingLevel.TITLE,
-        }),
-        new Paragraph({ text: "" }), // Empty line
-        new Paragraph({
-          children: [new TextRun({ text: content, size: 24 })],
-        }),
-      ],
-    }],
-  })
+            children: [
+                new TextRun({
+                    text: title,
+                    bold: true,
+                    size: 32, // 16pt
+                    color: "7C3AED", // Purple
+                })
+            ],
+            heading: HeadingLevel.TITLE,
+            spacing: { after: 400 },
+            border: {
+                bottom: {
+                    color: "7C3AED",
+                    space: 1,
+                    value: "single",
+                    size: 6,
+                }
+            }
+        })
+    )
+    
+    // Add empty line
+    docChildren.push(new Paragraph({ text: "" }))
+    
+    // Process HTML elements
+    for (let element of elements) {
+        const tagName = element.tagName.toLowerCase()
+        const text = element.textContent.trim()
+        
+        if (!text) continue
+        
+        switch(tagName) {
+            case 'h1':
+                docChildren.push(
+                    new Paragraph({
+                        children: [
+                            new TextRun({
+                                text: text,
+                                bold: true,
+                                size: 28, // 14pt
+                                color: "7C3AED", // Purple
+                            })
+                        ],
+                        heading: HeadingLevel.HEADING_1,
+                        spacing: { before: 400, after: 200 },
+                        border: {
+                            bottom: {
+                                color: "7C3AED",
+                                space: 1,
+                                value: "single",
+                                size: 6,
+                            }
+                        }
+                    })
+                )
+                break
+                
+            case 'h2':
+                docChildren.push(
+                    new Paragraph({
+                        children: [
+                            new TextRun({
+                                text: text,
+                                bold: true,
+                                size: 24, // 12pt
+                                color: "2563EB", // Blue
+                            })
+                        ],
+                        heading: HeadingLevel.HEADING_2,
+                        spacing: { before: 300, after: 150 },
+                        border: {
+                            left: {
+                                color: "3B82F6",
+                                space: 1,
+                                value: "single",
+                                size: 12,
+                            }
+                        },
+                        indent: { left: 200 }
+                    })
+                )
+                break
+                
+            case 'h3':
+                docChildren.push(
+                    new Paragraph({
+                        children: [
+                            new TextRun({
+                                text: text,
+                                bold: true,
+                                size: 22, // 11pt
+                                color: "059669", // Green
+                            })
+                        ],
+                        heading: HeadingLevel.HEADING_3,
+                        spacing: { before: 250, after: 100 }
+                    })
+                )
+                break
+                
+            case 'p':
+                docChildren.push(
+                    new Paragraph({
+                        children: [
+                            new TextRun({
+                                text: text,
+                                size: 22, // 11pt
+                                color: "374151", // Gray
+                            })
+                        ],
+                        spacing: { after: 200 },
+                        alignment: "both" // Justified text
+                    })
+                )
+                break
+                
+            case 'ul':
+                const ulItems = element.querySelectorAll('li')
+                ulItems.forEach((li) => {
+                    docChildren.push(
+                        new Paragraph({
+                            children: [
+                                new TextRun({
+                                    text: li.textContent.trim(),
+                                    size: 22,
+                                    color: "374151",
+                                })
+                            ],
+                            bullet: {
+                                level: 0
+                            },
+                            spacing: { after: 100 }
+                        })
+                    )
+                })
+                docChildren.push(new Paragraph({ text: "" }))
+                break
+                
+            case 'ol':
+                const olItems = element.querySelectorAll('li')
+                olItems.forEach((li, index) => {
+                    docChildren.push(
+                        new Paragraph({
+                            children: [
+                                new TextRun({
+                                    text: li.textContent.trim(),
+                                    size: 22,
+                                    color: "374151",
+                                })
+                            ],
+                            numbering: {
+                                reference: "my-numbering",
+                                level: 0
+                            },
+                            spacing: { after: 100 }
+                        })
+                    )
+                })
+                docChildren.push(new Paragraph({ text: "" }))
+                break
+        }
+    }
+    
+    const doc = new Document({
+        numbering: {
+            config: [{
+                reference: "my-numbering",
+                levels: [{
+                    level: 0,
+                    format: "decimal",
+                    text: "%1.",
+                    alignment: "left"
+                }]
+            }]
+        },
+        sections: [{
+            properties: {
+                page: {
+                    margin: {
+                        top: 1440,
+                        right: 1440,
+                        bottom: 1440,
+                        left: 1440,
+                    }
+                }
+            },
+            children: docChildren
+        }]
+    })
 
-  const blob = await Packer.toBlob(doc)
-  saveAs(blob, `${title}.docx`)
+    const blob = await Packer.toBlob(doc)
+    saveAs(blob, `${title}.docx`)
 }
 
 export default function CreateNotes() {
@@ -463,40 +789,43 @@ export default function CreateNotes() {
     }
   };
 
-  const generateNotes = async () => {
-    try {
-      setWorkflowState('generating')
+const generateNotes = async () => {
+  try {
+    setWorkflowState('generating')
 
-      const generatedContent = await callNotesAgent(selectedSubtopic)
+    const generatedContent = await callNotesAgent(selectedSubtopic)
 
-      const newNote = {
-        title: noteTitle,
-        topic: availableTopics[selectedTopic]?.topic || selectedTopic,
-        subtopic: selectedSubtopic,
-        content: generatedContent,
-        aiGeneratedContent: generatedContent
-      }
+    // Convert Markdown to HTML
+    const htmlContent = DOMPurify.sanitize(marked(generatedContent))
 
-      setCurrentNote(newNote)
-      setWorkflowState('editing')
-
-      toast({
-        title: "Notes Generated Successfully!",
-        description: "Review and edit the content before saving",
-      })
-
-      return true
-    } catch (error) {
-      console.error("Notes Generation Error:", error)
-      toast({
-        title: "Generation Failed",
-        description: error instanceof Error ? error.message : "Unknown error occurred",
-        variant: "destructive",
-      })
-      setWorkflowState('form')
-      return false
+    const newNote = {
+      title: noteTitle,
+      topic: availableTopics[selectedTopic]?.topic || selectedTopic,
+      subtopic: selectedSubtopic,
+      content: htmlContent, // Store as HTML
+      aiGeneratedContent: htmlContent // Store original as HTML too
     }
+
+    setCurrentNote(newNote)
+    setWorkflowState('editing')
+
+    toast({
+      title: "Notes Generated Successfully!",
+      description: "Review and edit the content before saving",
+    })
+
+    return true
+  } catch (error) {
+    console.error("Notes Generation Error:", error)
+    toast({
+      title: "Generation Failed",
+      description: error instanceof Error ? error.message : "Unknown error occurred",
+      variant: "destructive",
+    })
+    setWorkflowState('form')
+    return false
   }
+}
 
   const handleInitialGeneration = async () => {
     if (!selectedClass || !noteTitle.trim() || !selectedSubtopic) {
@@ -1205,3 +1534,5 @@ export default function CreateNotes() {
     </AuthGuard>
   )
 }
+
+

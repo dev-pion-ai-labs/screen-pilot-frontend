@@ -44,6 +44,8 @@ import { jsPDF } from "jspdf"
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from "docx"
 import { saveAs } from "file-saver"
 import { Link } from "react-router-dom"
+import ReactQuill from 'react-quill'
+import 'react-quill/dist/quill.snow.css'
 
 // Types
 interface Note {
@@ -116,15 +118,26 @@ const DateFilterSelect = ({ value, onChange, customRange, onCustomRangeChange })
     )
 }
 
+// Helper function to strip HTML tags for audio
+const stripHtmlTags = (html: string): string => {
+    const tmp = document.createElement("DIV");
+    tmp.innerHTML = html;
+    return tmp.textContent || tmp.innerText || "";
+}
+
+// Audio Player Component
 // Audio Player Component
 const AudioPlayer = ({ text, disabled = false }) => {
+    // Strip HTML tags from text before passing to speech
+    const plainText = stripHtmlTags(text);
+    
     const {
         speechStatus,
         isInQueue,
         start,
         pause,
         stop,
-    } = useSpeech({ text })
+    } = useSpeech({ text: plainText })
 
     if (disabled || !text) {
         return (
@@ -157,33 +170,345 @@ const AudioPlayer = ({ text, disabled = false }) => {
 // Export Functions
 const exportToPDF = (title: string, content: string) => {
     const doc = new jsPDF()
-
+    
+    // Strip HTML and parse structure
+    const parser = new DOMParser()
+    const htmlDoc = parser.parseFromString(content, 'text/html')
+    
+    let yPosition = 20
+    const pageWidth = doc.internal.pageSize.getWidth()
+    const pageHeight = doc.internal.pageSize.getHeight()
+    const margin = 20
+    const maxWidth = pageWidth - (margin * 2)
+    
     // Title
-    doc.setFontSize(20)
-    doc.text(title, 20, 30)
-
-    // Content
-    doc.setFontSize(12)
-    const splitContent = doc.splitTextToSize(content, 170)
-    doc.text(splitContent, 20, 50)
-
+    doc.setFontSize(22)
+    doc.setFont(undefined, 'bold')
+    doc.setTextColor(124, 58, 237) // Purple color
+    const titleLines = doc.splitTextToSize(title, maxWidth)
+    doc.text(titleLines, margin, yPosition)
+    yPosition += (titleLines.length * 10) + 10
+    
+    // Draw line under title
+    doc.setDrawColor(124, 58, 237)
+    doc.setLineWidth(0.5)
+    doc.line(margin, yPosition, pageWidth - margin, yPosition)
+    yPosition += 15
+    
+    // Process HTML content
+    const elements = htmlDoc.body.children
+    
+    const addNewPageIfNeeded = (requiredSpace) => {
+        if (yPosition + requiredSpace > pageHeight - margin) {
+            doc.addPage()
+            yPosition = margin
+        }
+    }
+    
+    for (let element of elements) {
+        const tagName = element.tagName.toLowerCase()
+        const text = element.textContent.trim()
+        
+        if (!text) continue
+        
+        switch(tagName) {
+            case 'h1':
+                addNewPageIfNeeded(20)
+                doc.setFontSize(18)
+                doc.setFont(undefined, 'bold')
+                doc.setTextColor(124, 58, 237) // Purple
+                const h1Lines = doc.splitTextToSize(text, maxWidth)
+                doc.text(h1Lines, margin, yPosition)
+                yPosition += (h1Lines.length * 8) + 5
+                // Underline
+                doc.setDrawColor(124, 58, 237)
+                doc.line(margin, yPosition, pageWidth - margin, yPosition)
+                yPosition += 10
+                break
+                
+            case 'h2':
+                addNewPageIfNeeded(15)
+                doc.setFontSize(14)
+                doc.setFont(undefined, 'bold')
+                doc.setTextColor(37, 99, 235) // Blue
+                const h2Lines = doc.splitTextToSize(text, maxWidth - 10)
+                // Left border line
+                doc.setDrawColor(59, 130, 246)
+                doc.setLineWidth(1)
+                doc.line(margin, yPosition - 2, margin, yPosition + (h2Lines.length * 6) + 2)
+                doc.text(h2Lines, margin + 5, yPosition)
+                yPosition += (h2Lines.length * 7) + 8
+                break
+                
+            case 'h3':
+                addNewPageIfNeeded(12)
+                doc.setFontSize(12)
+                doc.setFont(undefined, 'bold')
+                doc.setTextColor(5, 150, 105) // Green
+                const h3Lines = doc.splitTextToSize(text, maxWidth)
+                doc.text(h3Lines, margin, yPosition)
+                yPosition += (h3Lines.length * 6) + 6
+                break
+                
+            case 'p':
+                addNewPageIfNeeded(10)
+                doc.setFontSize(10)
+                doc.setFont(undefined, 'normal')
+                doc.setTextColor(55, 65, 81) // Gray
+                const pLines = doc.splitTextToSize(text, maxWidth)
+                doc.text(pLines, margin, yPosition)
+                yPosition += (pLines.length * 5) + 8
+                break
+                
+            case 'ul':
+            case 'ol':
+                addNewPageIfNeeded(10)
+                doc.setFontSize(10)
+                doc.setFont(undefined, 'normal')
+                doc.setTextColor(55, 65, 81)
+                const listItems = element.querySelectorAll('li')
+                listItems.forEach((li, index) => {
+                    addNewPageIfNeeded(6)
+                    const bullet = tagName === 'ul' ? '•' : `${index + 1}.`
+                    const liText = li.textContent.trim()
+                    const liLines = doc.splitTextToSize(liText, maxWidth - 10)
+                    doc.text(bullet, margin + 5, yPosition)
+                    doc.text(liLines, margin + 15, yPosition)
+                    yPosition += (liLines.length * 5) + 4
+                })
+                yPosition += 5
+                break
+        }
+    }
+    
+    // Footer on each page
+    const totalPages = doc.internal.pages.length - 1
+    for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i)
+        doc.setFontSize(8)
+        doc.setTextColor(156, 163, 175)
+        doc.text(`Page ${i} of ${totalPages}`, pageWidth / 2, pageHeight - 10, { align: 'center' })
+    }
+    
     doc.save(`${title}.pdf`)
 }
 
 const exportToDocx = async (title: string, content: string) => {
-    const doc = new Document({
-        sections: [{
+    // Parse HTML content
+    const parser = new DOMParser()
+    const htmlDoc = parser.parseFromString(content, 'text/html')
+    const elements = htmlDoc.body.children
+    
+    const docChildren = []
+    
+    // Add title
+    docChildren.push(
+        new Paragraph({
             children: [
-                new Paragraph({
-                    children: [new TextRun({ text: title, bold: true, size: 32 })],
-                    heading: HeadingLevel.TITLE,
-                }),
-                new Paragraph({ text: "" }), // Empty line
-                new Paragraph({
-                    children: [new TextRun({ text: content, size: 24 })],
-                }),
+                new TextRun({
+                    text: title,
+                    bold: true,
+                    size: 32, // 16pt
+                    color: "7C3AED", // Purple
+                })
             ],
-        }],
+            heading: HeadingLevel.TITLE,
+            spacing: { after: 400 },
+            border: {
+                bottom: {
+                    color: "7C3AED",
+                    space: 1,
+                    value: "single",
+                    size: 6,
+                }
+            }
+        })
+    )
+    
+    // Add empty line
+    docChildren.push(new Paragraph({ text: "" }))
+    
+    // Process HTML elements
+    for (let element of elements) {
+        const tagName = element.tagName.toLowerCase()
+        const text = element.textContent.trim()
+        
+        if (!text) continue
+        
+        switch(tagName) {
+            case 'h1':
+                docChildren.push(
+                    new Paragraph({
+                        children: [
+                            new TextRun({
+                                text: text,
+                                bold: true,
+                                size: 28, // 14pt
+                                color: "7C3AED", // Purple
+                            })
+                        ],
+                        heading: HeadingLevel.HEADING_1,
+                        spacing: { before: 400, after: 200 },
+                        border: {
+                            bottom: {
+                                color: "7C3AED",
+                                space: 1,
+                                value: "single",
+                                size: 6,
+                            }
+                        }
+                    })
+                )
+                break
+                
+            case 'h2':
+                docChildren.push(
+                    new Paragraph({
+                        children: [
+                            new TextRun({
+                                text: text,
+                                bold: true,
+                                size: 24, // 12pt
+                                color: "2563EB", // Blue
+                            })
+                        ],
+                        heading: HeadingLevel.HEADING_2,
+                        spacing: { before: 300, after: 150 },
+                        border: {
+                            left: {
+                                color: "3B82F6",
+                                space: 1,
+                                value: "single",
+                                size: 12,
+                            }
+                        },
+                        indent: { left: 200 }
+                    })
+                )
+                break
+                
+            case 'h3':
+                docChildren.push(
+                    new Paragraph({
+                        children: [
+                            new TextRun({
+                                text: text,
+                                bold: true,
+                                size: 22, // 11pt
+                                color: "059669", // Green
+                            })
+                        ],
+                        heading: HeadingLevel.HEADING_3,
+                        spacing: { before: 250, after: 100 }
+                    })
+                )
+                break
+                
+            case 'p':
+                docChildren.push(
+                    new Paragraph({
+                        children: [
+                            new TextRun({
+                                text: text,
+                                size: 22, // 11pt
+                                color: "374151", // Gray
+                            })
+                        ],
+                        spacing: { after: 200 },
+                        alignment: "both" // Justified text
+                    })
+                )
+                break
+                
+            case 'ul':
+                const ulItems = element.querySelectorAll('li')
+                ulItems.forEach((li) => {
+                    docChildren.push(
+                        new Paragraph({
+                            children: [
+                                new TextRun({
+                                    text: li.textContent.trim(),
+                                    size: 22,
+                                    color: "374151",
+                                })
+                            ],
+                            bullet: {
+                                level: 0
+                            },
+                            spacing: { after: 100 }
+                        })
+                    )
+                })
+                docChildren.push(new Paragraph({ text: "" })) // Space after list
+                break
+                
+            case 'ol':
+                const olItems = element.querySelectorAll('li')
+                olItems.forEach((li, index) => {
+                    docChildren.push(
+                        new Paragraph({
+                            children: [
+                                new TextRun({
+                                    text: li.textContent.trim(),
+                                    size: 22,
+                                    color: "374151",
+                                })
+                            ],
+                            numbering: {
+                                reference: "my-numbering",
+                                level: 0
+                            },
+                            spacing: { after: 100 }
+                        })
+                    )
+                })
+                docChildren.push(new Paragraph({ text: "" }))
+                break
+                
+            case 'strong':
+            case 'b':
+                docChildren.push(
+                    new Paragraph({
+                        children: [
+                            new TextRun({
+                                text: text,
+                                bold: true,
+                                size: 22,
+                                color: "1F2937",
+                            })
+                        ],
+                        spacing: { after: 100 }
+                    })
+                )
+                break
+        }
+    }
+    
+    const doc = new Document({
+        numbering: {
+            config: [{
+                reference: "my-numbering",
+                levels: [{
+                    level: 0,
+                    format: "decimal",
+                    text: "%1.",
+                    alignment: "left"
+                }]
+            }]
+        },
+        sections: [{
+            properties: {
+                page: {
+                    margin: {
+                        top: 1440,    // 1 inch
+                        right: 1440,
+                        bottom: 1440,
+                        left: 1440,
+                    }
+                }
+            },
+            children: docChildren
+        }]
     })
 
     const blob = await Packer.toBlob(doc)
@@ -191,56 +516,165 @@ const exportToDocx = async (title: string, content: string) => {
 }
 
 // Note Viewer Component
+// Enhanced Note Viewer Component
 const NoteViewer = ({ note, onClose }) => {
+    // Function to render HTML content with enhanced styling
+    const renderNoteContent = (content) => {
+        return (
+            <div 
+                className="prose prose-lg max-w-none"
+                dangerouslySetInnerHTML={{ __html: content }}
+            />
+        )
+    }
+
     return (
         <div className="space-y-6">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900">{note.title}</h1>
-                    <p className="text-gray-600">{note.topic} • {note.class_name}</p>
+            {/* Header Section */}
+            <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-2">
+                        <BookOpen className="h-8 w-8 text-purple-600" />
+                        <h1 className="text-3xl font-bold text-gray-900 leading-tight">
+                            {note.title}
+                        </h1>
+                    </div>
+                    
+                    <div className="flex flex-wrap items-center gap-3 mt-3">
+                        <Badge variant="outline" className="text-sm py-1 px-3">
+                            📚 {note.topic}
+                        </Badge>
+                        {note.subtopic && (
+                            <Badge variant="outline" className="text-sm py-1 px-3">
+                                📖 {note.subtopic}
+                            </Badge>
+                        )}
+                        <Badge variant="outline" className="text-sm py-1 px-3">
+                            🏫 {note.class_name}
+                        </Badge>
+                    </div>
                 </div>
+                
                 <Button variant="outline" onClick={onClose}>
                     <ArrowLeft className="h-4 w-4 mr-2" />
-                    Back to Notes
+                    Back
                 </Button>
             </div>
+
+            {/* Metadata Bar */}
+            <Card className="bg-gradient-to-r from-purple-50 to-blue-50 border-purple-200">
+                <CardContent className="pt-4 pb-4">
+                    <div className="flex flex-wrap gap-6 text-sm">
+                        <div className="flex items-center gap-2">
+                            <CalendarIcon className="h-4 w-4 text-purple-600" />
+                            <span className="text-gray-600">Created:</span>
+                            <span className="font-medium">
+                                {format(new Date(note.created_at), "MMM dd, yyyy 'at' h:mm a")}
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <CalendarIcon className="h-4 w-4 text-blue-600" />
+                            <span className="text-gray-600">Updated:</span>
+                            <span className="font-medium">
+                                {format(new Date(note.updated_at), "MMM dd, yyyy 'at' h:mm a")}
+                            </span>
+                        </div>
+                        {note.student_count > 0 && (
+                            <div className="flex items-center gap-2">
+                                <Users className="h-4 w-4 text-green-600" />
+                                <span className="text-gray-600">Students:</span>
+                                <span className="font-medium">{note.student_count}</span>
+                            </div>
+                        )}
+                    </div>
+                </CardContent>
+            </Card>
 
             {/* Actions */}
             <div className="flex items-center gap-3 flex-wrap">
                 <AudioPlayer text={note.content} />
-                <Button
-                    onClick={() => exportToPDF(note.title, note.content)}
-                    variant="outline"
-                    size="sm"
-                >
+                <Button onClick={() => exportToPDF(note.title, note.content)} variant="outline" size="sm">
                     <Download className="h-4 w-4 mr-2" />
-                    PDF
+                    Export PDF
                 </Button>
-                <Button
-                    onClick={() => exportToDocx(note.title, note.content)}
-                    variant="outline"
-                    size="sm"
-                >
+                <Button onClick={() => exportToDocx(note.title, note.content)} variant="outline" size="sm">
                     <Download className="h-4 w-4 mr-2" />
-                    DOCX
+                    Export DOCX
                 </Button>
                 {note.is_shared && (
-                    <Badge variant="default" className="bg-green-600">
+                    <Badge className="bg-green-600">
                         <CheckCircle className="h-3 w-3 mr-1" />
-                        Shared with Students
+                        Shared
                     </Badge>
                 )}
             </div>
 
-            {/* Content */}
-            <Card>
-                <CardContent className="pt-6">
-                    <div className="prose max-w-none">
-                        <pre className="whitespace-pre-wrap text-sm leading-relaxed font-sans">
-                            {note.content}
-                        </pre>
-                    </div>
+            {/* Main Content Card with CSS Styling */}
+            <Card className="shadow-lg">
+                <CardContent className="pt-8 pb-8 px-8">
+                    <style>{`
+                        .prose h1 {
+                            font-size: 2rem;
+                            font-weight: 700;
+                            color: #1a1a1a;
+                            margin-top: 2rem;
+                            margin-bottom: 1rem;
+                            padding-bottom: 0.5rem;
+                            border-bottom: 3px solid #7c3aed;
+                        }
+                        
+                        .prose h2 {
+                            font-size: 1.5rem;
+                            font-weight: 600;
+                            color: #2563eb;
+                            margin-top: 1.75rem;
+                            margin-bottom: 0.75rem;
+                            padding-left: 0.75rem;
+                            border-left: 4px solid #3b82f6;
+                        }
+                        
+                        .prose h3 {
+                            font-size: 1.25rem;
+                            font-weight: 600;
+                            color: #059669;
+                            margin-top: 1.5rem;
+                            margin-bottom: 0.5rem;
+                        }
+                        
+                        .prose p {
+                            font-size: 1.0625rem;
+                            line-height: 1.8;
+                            color: #374151;
+                            margin-bottom: 1rem;
+                            text-align: justify;
+                        }
+                        
+                        .prose strong {
+                            font-weight: 600;
+                            color: #1f2937;
+                        }
+                        
+                        .prose ul, .prose ol {
+                            margin-left: 1.5rem;
+                            margin-bottom: 1rem;
+                        }
+                        
+                        .prose li {
+                            margin-bottom: 0.5rem;
+                            line-height: 1.75;
+                        }
+                    `}</style>
+                    
+                    {renderNoteContent(note.content)}
+                </CardContent>
+            </Card>
+
+            {/* Footer Tip */}
+            <Card className="bg-gray-50">
+                <CardContent className="pt-4 pb-4">
+                    <p className="text-sm text-gray-600 text-center">
+                        💡 <strong>Tip:</strong> Use the export buttons to download this note or click audio to listen
+                    </p>
                 </CardContent>
             </Card>
         </div>
@@ -248,10 +682,33 @@ const NoteViewer = ({ note, onClose }) => {
 }
 
 // Note Editor Component
+// Note Editor Component with ReactQuill
 const NoteEditor = ({ note, onSave, onCancel }) => {
     const [editedContent, setEditedContent] = useState(note.content)
     const [saving, setSaving] = useState(false)
     const { toast } = useToast()
+
+    // ReactQuill modules configuration
+    const modules = {
+        toolbar: [
+            [{ 'header': [1, 2, 3, false] }],
+            ['bold', 'italic', 'underline', 'strike'],
+            [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+            [{ 'color': [] }, { 'background': [] }],
+            [{ 'align': [] }],
+            ['link'],
+            ['clean']
+        ],
+    }
+
+    const formats = [
+        'header',
+        'bold', 'italic', 'underline', 'strike',
+        'list', 'bullet',
+        'color', 'background',
+        'align',
+        'link'
+    ]
 
     const handleSave = async () => {
         try {
@@ -310,12 +767,63 @@ const NoteEditor = ({ note, onSave, onCancel }) => {
             {/* Editor */}
             <Card>
                 <CardContent className="pt-6">
-                    <Textarea
+                    <style>{`
+                        .quill-editor {
+                            height: 500px;
+                        }
+                        .quill-editor .ql-container {
+                            height: calc(100% - 42px);
+                            font-size: 16px;
+                        }
+                        .quill-editor .ql-editor {
+                            min-height: 450px;
+                        }
+                        .quill-editor .ql-editor h1 {
+                            font-size: 2rem;
+                            font-weight: 700;
+                            color: #1a1a1a;
+                            margin-top: 1.5rem;
+                            margin-bottom: 0.75rem;
+                        }
+                        .quill-editor .ql-editor h2 {
+                            font-size: 1.5rem;
+                            font-weight: 600;
+                            color: #2563eb;
+                            margin-top: 1.25rem;
+                            margin-bottom: 0.5rem;
+                        }
+                        .quill-editor .ql-editor h3 {
+                            font-size: 1.25rem;
+                            font-weight: 600;
+                            color: #059669;
+                            margin-top: 1rem;
+                            margin-bottom: 0.5rem;
+                        }
+                        .quill-editor .ql-editor p {
+                            line-height: 1.8;
+                            margin-bottom: 0.75rem;
+                        }
+                    `}</style>
+                    
+                    <ReactQuill
+                        theme="snow"
                         value={editedContent}
-                        onChange={(e) => setEditedContent(e.target.value)}
-                        className="min-h-[500px] resize-none text-sm leading-relaxed"
+                        onChange={setEditedContent}
+                        modules={modules}
+                        formats={formats}
+                        className="quill-editor"
                         placeholder="Edit your note content..."
                     />
+                </CardContent>
+            </Card>
+
+            {/* Tips */}
+            <Card className="bg-blue-50 border-blue-200">
+                <CardContent className="pt-4 pb-4">
+                    <p className="text-sm text-blue-800">
+                        <strong>Editing Tips:</strong> Use the toolbar to format your text. 
+                        Headers (H1, H2, H3) will automatically be styled with colors when viewed.
+                    </p>
                 </CardContent>
             </Card>
         </div>

@@ -526,155 +526,164 @@ export default function Glossary() {
     return (
         <AuthGuard allowedRoles={["teacher", "student"]}>
             <ModernDashboardLayout>
-                <div className="max-w-7xl mx-auto space-y-6">
-                    {/* Header */}
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-                                Film Terminology Glossary
-                            </h1>
-                            <p className="text-gray-600 mt-1">
-                                {entries.length} terms available
-                            </p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            {isStudent && (
-                                <>
-                                    <Button
-                                        variant="outline"
-                                        onClick={() => setMyRequestsOpen(true)}
-                                    >
-                                        <Clock className="h-4 w-4 mr-2" />
-                                        My Requests
-                                    </Button>
-                                    <Button
-                                        onClick={() => setRequestModalOpen(true)}
-                                        className="bg-gradient-to-r from-purple-600 to-blue-600"
-                                    >
-                                        <Plus className="h-4 w-4 mr-2" />
-                                        Request Word
-                                    </Button>
-                                </>
-                            )}
-                            {isTeacher && (
-                                <>
-                                    <Button
-                                        variant="outline"
-                                        onClick={() => setNotificationsOpen(true)}
-                                        className="relative"
-                                    >
-                                        <Bell className="h-4 w-4 mr-2" />
-                                        Requests
-                                        {pendingNotifications.length > 0 && (
-                                            <Badge className="ml-2 bg-red-500">
-                                                {pendingNotifications.length}
-                                            </Badge>
-                                        )}
-                                    </Button>
-                                    <Button
-                                        onClick={() => {
-                                            resetForm()
-                                            setAddModalOpen(true)
-                                        }}
-                                        className="bg-gradient-to-r from-purple-600 to-blue-600"
-                                    >
-                                        <Plus className="h-4 w-4 mr-2" />
-                                        Add New Word
-                                    </Button>
-                                </>
-                            )}
-                        </div>
-                    </div>
+            <div className="max-w-7xl mx-auto">
+  {/* Sticky header + filters */}
+  <div className="sticky top-0 z-30 bg-white/80 backdrop-blur-md supports-[backdrop-filter]:bg-white/60 border-b">
+    <div className="px-2 md:px-0 py-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+            Film Terminology Glossary
+          </h1>
+          <p className="text-gray-600 mt-1">{entries.length} terms available</p>
+        </div>
 
-                    {/* Search and Filter */}
-                    <Card>
-                        <CardContent className="pt-6">
-                            <div className="flex gap-4">
-                                <div className="flex-1 relative">
-                                    <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-                                    <Input
-                                        placeholder="Search terms..."
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                        className="pl-10"
-                                    />
-                                </div>
-                                <Select value={filterLetter} onValueChange={setFilterLetter}>
-                                    <SelectTrigger className="w-32">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All</SelectItem>
-                                        {Array.from('ABCDEFGHIJKLMNOPQRSTUVWXYZ').map(letter => (
-                                            <SelectItem key={letter} value={letter}>{letter}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        </CardContent>
-                    </Card>
+        <div className="flex items-center gap-3">
+          {isStudent && (
+            <>
+              <Button variant="outline" onClick={() => setMyRequestsOpen(true)}>
+                <Clock className="h-4 w-4 mr-2" />
+                My Requests
+              </Button>
+              <Button
+                onClick={() => setRequestModalOpen(true)}
+                className="bg-gradient-to-r from-purple-600 to-blue-600"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Request Word
+              </Button>
+            </>
+          )}
 
-                    {/* Glossary Entries */}
-                    <div className="space-y-4">
-                        {filteredEntries.map(entry => (
-                            <Card key={entry.id}>
-                                <CardContent className="pt-6">
-                                    <div className="flex items-start justify-between">
-                                        <div className="flex-1">
-                                            <h3 className="text-xl font-bold text-gray-900 mb-2">
-                                                {entry.word}
-                                            </h3>
-                                            <p className="text-gray-700 mb-3">{entry.meaning}</p>
-                                            {entry.examples && entry.examples.length > 0 && (
-                                                <div className="space-y-1">
-                                                    <p className="text-sm font-semibold text-gray-600">Examples:</p>
-                                                    <ul className="list-disc list-inside space-y-1">
-                                                        {entry.examples.map((ex, idx) => (
-                                                            <li key={idx} className="text-sm text-gray-600">{ex}</li>
-                                                        ))}
-                                                    </ul>
-                                                </div>
-                                            )}
-                                            <div className="flex items-center gap-4 mt-4 text-sm text-gray-500">
-                                                <span>Added by: {entry.added_by_profile?.full_name}</span>
-                                                {entry.requested_by_profile && (
-                                                    <span>Requested by: {entry.requested_by_profile.full_name}</span>
-                                                )}
-                                                <span>{new Date(entry.created_at).toLocaleDateString()}</span>
-                                            </div>
-                                        </div>
-                                        {isTeacher && (
-                                            <div className="flex gap-2">
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() => openEditModal(entry)}
-                                                >
-                                                    <Edit3 className="h-4 w-4" />
-                                                </Button>
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() => handleDeleteWord(entry.id)}
-                                                >
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
-                                            </div>
-                                        )}
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        ))}
-                        {filteredEntries.length === 0 && (
-                            <Card>
-                                <CardContent className="pt-6 text-center py-12">
-                                    <BookOpen className="h-12 w-12 mx-auto text-gray-300 mb-4" />
-                                    <p className="text-gray-500">No terms found</p>
-                                </CardContent>
-                            </Card>
-                        )}
-                    </div>
+          {isTeacher && (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => setNotificationsOpen(true)}
+                className="relative"
+              >
+                <Bell className="h-4 w-4 mr-2" />
+                Requests
+                {pendingNotifications.length > 0 && (
+                  <Badge className="ml-2 bg-red-500">
+                    {pendingNotifications.length}
+                  </Badge>
+                )}
+              </Button>
+              <Button
+                onClick={() => {
+                  resetForm();
+                  setAddModalOpen(true);
+                }}
+                className="bg-gradient-to-r from-purple-600 to-blue-600"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add New Word
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="mt-4">
+        <Card className="shadow-none border-gray-200">
+          <CardContent className="pt-6">
+            <div className="grid grid-cols-1 md:grid-cols-[1fr,160px] gap-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+                <Input
+                  placeholder="Search terms..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+
+              <Select value={filterLetter} onValueChange={setFilterLetter}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  {Array.from('ABCDEFGHIJKLMNOPQRSTUVWXYZ').map((letter) => (
+                    <SelectItem key={letter} value={letter}>
+                      {letter}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  </div>
+
+  {/* Scrollable entries area */}
+  {/* Adjust the height number if your page header is taller/shorter */}
+  <div className="pt-4 h-[calc(100vh-220px)] overflow-y-auto pr-1 space-y-4">
+    {filteredEntries.map((entry) => (
+      <Card key={entry.id} className="hover:shadow-md transition-shadow">
+        <CardContent className="pt-6">
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <div className="flex items-center gap-3 mb-2">
+                
+                <h3 className="text-xl font-bold text-gray-900">{entry.word}</h3>
+              </div>
+
+              <p className="text-gray-700 mb-3">{entry.meaning}</p>
+
+              {entry.examples && entry.examples.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-gray-600">Examples:</p>
+                  <ul className="list-disc list-inside space-y-1">
+                    {entry.examples.map((ex: string, idx: number) => (
+                      <li key={idx} className="text-sm text-gray-600">
+                        {ex}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
+              )}
+
+              <div className="flex flex-wrap items-center gap-4 mt-4 text-sm text-gray-500">
+                <span>Added by: {entry.added_by_profile?.full_name}</span>
+                {entry.requested_by_profile && (
+                  <span>Requested by: {entry.requested_by_profile.full_name}</span>
+                )}
+                <span>{new Date(entry.created_at).toLocaleDateString()}</span>
+              </div>
+            </div>
+
+            {isTeacher && (
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => openEditModal(entry)}>
+                  <Edit3 className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => handleDeleteWord(entry.id)}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    ))}
+
+    {filteredEntries.length === 0 && (
+      <Card>
+        <CardContent className="pt-6 text-center py-12">
+          <BookOpen className="h-12 w-12 mx-auto text-gray-300 mb-4" />
+          <p className="text-gray-500">No terms found</p>
+        </CardContent>
+      </Card>
+    )}
+  </div>
+</div>
+
 
                 {/* Student: Request Word Modal */}
                 <Dialog open={requestModalOpen} onOpenChange={setRequestModalOpen}>

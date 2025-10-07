@@ -127,60 +127,62 @@ const stripHtmlTags = (html: string): string => {
 
 // Audio Player Component
 // Audio Player Component
-const AudioPlayer = ({ text, disabled = false }) => {
-    // Strip HTML tags from text before passing to speech
-    const plainText = stripHtmlTags(text);
-    
-    const {
-        speechStatus,
-        isInQueue,
-        start,
-        pause,
-        stop,
-    } = useSpeech({ text: plainText })
+// const AudioPlayer = ({ text, disabled = false }) => {
+//     // Strip HTML tags from text before passing to speech
+//     const plainText = stripHtmlTags(text);
 
-    if (disabled || !text) {
-        return (
-            <Button variant="outline" size="sm" disabled>
-                <Volume2 className="h-4 w-4" />
-            </Button>
-        )
-    }
+//     const {
+//         speechStatus,
+//         isInQueue,
+//         start,
+//         pause,
+//         stop,
+//     } = useSpeech({ text: plainText })
 
-    return (
-        <div className="flex items-center gap-1">
-            {speechStatus !== "started" ? (
-                <Button variant="outline" size="sm" onClick={start} title="Play Audio">
-                    <Volume2 className="h-4 w-4" />
-                </Button>
-            ) : (
-                <Button variant="outline" size="sm" onClick={pause} title="Pause Audio">
-                    <Volume2 className="h-4 w-4" />
-                </Button>
-            )}
-            {isInQueue && (
-                <Button variant="outline" size="sm" onClick={stop} title="Stop">
-                    <X className="h-3 w-3" />
-                </Button>
-            )}
-        </div>
-    )
-}
+//     if (disabled || !text) {
+//         return (
+//             <Button variant="outline" size="sm" disabled>
+//                 <Volume2 className="h-4 w-4" />
+//             </Button>
+//         )
+//     }
+
+//     return (
+//         <div className="flex items-center gap-1">
+//             {speechStatus !== "started" ? (
+//                 <Button variant="outline" size="sm" onClick={start} title="Play Audio">
+//                     <Volume2 className="h-4 w-4" />
+//                 </Button>
+//             ) : (
+//                 <Button variant="outline" size="sm" onClick={pause} title="Pause Audio">
+//                     <Volume2 className="h-4 w-4" />
+//                 </Button>
+//             )}
+//             {isInQueue && (
+//                 <Button variant="outline" size="sm" onClick={stop} title="Stop">
+//                     <X className="h-3 w-3" />
+//                 </Button>
+//             )}
+//         </div>
+//     )
+// }
+
+import { AudioPlayer } from "./StudentNotes"
 
 // Export Functions
 const exportToPDF = (title: string, content: string) => {
     const doc = new jsPDF()
-    
+
     // Strip HTML and parse structure
     const parser = new DOMParser()
     const htmlDoc = parser.parseFromString(content, 'text/html')
-    
+
     let yPosition = 20
     const pageWidth = doc.internal.pageSize.getWidth()
     const pageHeight = doc.internal.pageSize.getHeight()
     const margin = 20
     const maxWidth = pageWidth - (margin * 2)
-    
+
     // Title
     doc.setFontSize(22)
     doc.setFont(undefined, 'bold')
@@ -188,30 +190,30 @@ const exportToPDF = (title: string, content: string) => {
     const titleLines = doc.splitTextToSize(title, maxWidth)
     doc.text(titleLines, margin, yPosition)
     yPosition += (titleLines.length * 10) + 10
-    
+
     // Draw line under title
     doc.setDrawColor(124, 58, 237)
     doc.setLineWidth(0.5)
     doc.line(margin, yPosition, pageWidth - margin, yPosition)
     yPosition += 15
-    
+
     // Process HTML content
     const elements = htmlDoc.body.children
-    
+
     const addNewPageIfNeeded = (requiredSpace) => {
         if (yPosition + requiredSpace > pageHeight - margin) {
             doc.addPage()
             yPosition = margin
         }
     }
-    
+
     for (let element of elements) {
         const tagName = element.tagName.toLowerCase()
         const text = element.textContent.trim()
-        
+
         if (!text) continue
-        
-        switch(tagName) {
+
+        switch (tagName) {
             case 'h1':
                 addNewPageIfNeeded(20)
                 doc.setFontSize(18)
@@ -225,7 +227,7 @@ const exportToPDF = (title: string, content: string) => {
                 doc.line(margin, yPosition, pageWidth - margin, yPosition)
                 yPosition += 10
                 break
-                
+
             case 'h2':
                 addNewPageIfNeeded(15)
                 doc.setFontSize(14)
@@ -239,7 +241,7 @@ const exportToPDF = (title: string, content: string) => {
                 doc.text(h2Lines, margin + 5, yPosition)
                 yPosition += (h2Lines.length * 7) + 8
                 break
-                
+
             case 'h3':
                 addNewPageIfNeeded(12)
                 doc.setFontSize(12)
@@ -249,7 +251,7 @@ const exportToPDF = (title: string, content: string) => {
                 doc.text(h3Lines, margin, yPosition)
                 yPosition += (h3Lines.length * 6) + 6
                 break
-                
+
             case 'p':
                 addNewPageIfNeeded(10)
                 doc.setFontSize(10)
@@ -259,7 +261,7 @@ const exportToPDF = (title: string, content: string) => {
                 doc.text(pLines, margin, yPosition)
                 yPosition += (pLines.length * 5) + 8
                 break
-                
+
             case 'ul':
             case 'ol':
                 addNewPageIfNeeded(10)
@@ -280,7 +282,7 @@ const exportToPDF = (title: string, content: string) => {
                 break
         }
     }
-    
+
     // Footer on each page
     const totalPages = doc.internal.pages.length - 1
     for (let i = 1; i <= totalPages; i++) {
@@ -289,7 +291,7 @@ const exportToPDF = (title: string, content: string) => {
         doc.setTextColor(156, 163, 175)
         doc.text(`Page ${i} of ${totalPages}`, pageWidth / 2, pageHeight - 10, { align: 'center' })
     }
-    
+
     doc.save(`${title}.pdf`)
 }
 
@@ -298,9 +300,9 @@ const exportToDocx = async (title: string, content: string) => {
     const parser = new DOMParser()
     const htmlDoc = parser.parseFromString(content, 'text/html')
     const elements = htmlDoc.body.children
-    
+
     const docChildren = []
-    
+
     // Add title
     docChildren.push(
         new Paragraph({
@@ -324,18 +326,18 @@ const exportToDocx = async (title: string, content: string) => {
             }
         })
     )
-    
+
     // Add empty line
     docChildren.push(new Paragraph({ text: "" }))
-    
+
     // Process HTML elements
     for (let element of elements) {
         const tagName = element.tagName.toLowerCase()
         const text = element.textContent.trim()
-        
+
         if (!text) continue
-        
-        switch(tagName) {
+
+        switch (tagName) {
             case 'h1':
                 docChildren.push(
                     new Paragraph({
@@ -360,7 +362,7 @@ const exportToDocx = async (title: string, content: string) => {
                     })
                 )
                 break
-                
+
             case 'h2':
                 docChildren.push(
                     new Paragraph({
@@ -386,7 +388,7 @@ const exportToDocx = async (title: string, content: string) => {
                     })
                 )
                 break
-                
+
             case 'h3':
                 docChildren.push(
                     new Paragraph({
@@ -403,7 +405,7 @@ const exportToDocx = async (title: string, content: string) => {
                     })
                 )
                 break
-                
+
             case 'p':
                 docChildren.push(
                     new Paragraph({
@@ -419,7 +421,7 @@ const exportToDocx = async (title: string, content: string) => {
                     })
                 )
                 break
-                
+
             case 'ul':
                 const ulItems = element.querySelectorAll('li')
                 ulItems.forEach((li) => {
@@ -441,7 +443,7 @@ const exportToDocx = async (title: string, content: string) => {
                 })
                 docChildren.push(new Paragraph({ text: "" })) // Space after list
                 break
-                
+
             case 'ol':
                 const olItems = element.querySelectorAll('li')
                 olItems.forEach((li, index) => {
@@ -464,7 +466,7 @@ const exportToDocx = async (title: string, content: string) => {
                 })
                 docChildren.push(new Paragraph({ text: "" }))
                 break
-                
+
             case 'strong':
             case 'b':
                 docChildren.push(
@@ -483,7 +485,7 @@ const exportToDocx = async (title: string, content: string) => {
                 break
         }
     }
-    
+
     const doc = new Document({
         numbering: {
             config: [{
@@ -521,7 +523,7 @@ const NoteViewer = ({ note, onClose }) => {
     // Function to render HTML content with enhanced styling
     const renderNoteContent = (content) => {
         return (
-            <div 
+            <div
                 className="prose prose-lg max-w-none"
                 dangerouslySetInnerHTML={{ __html: content }}
             />
@@ -539,7 +541,7 @@ const NoteViewer = ({ note, onClose }) => {
                             {note.title}
                         </h1>
                     </div>
-                    
+
                     <div className="flex flex-wrap items-center gap-3 mt-3">
                         <Badge variant="outline" className="text-sm py-1 px-3">
                             📚 {note.topic}
@@ -554,7 +556,7 @@ const NoteViewer = ({ note, onClose }) => {
                         </Badge>
                     </div>
                 </div>
-                
+
                 <Button variant="outline" onClick={onClose}>
                     <ArrowLeft className="h-4 w-4 mr-2" />
                     Back
@@ -592,7 +594,7 @@ const NoteViewer = ({ note, onClose }) => {
 
             {/* Actions */}
             <div className="flex items-center gap-3 flex-wrap">
-                <AudioPlayer text={note.content} />
+            <AudioPlayer text={note.content} skipSelectors={["h1", "h2", "blockquote"]} />
                 <Button onClick={() => exportToPDF(note.title, note.content)} variant="outline" size="sm">
                     <Download className="h-4 w-4 mr-2" />
                     Export PDF
@@ -664,7 +666,7 @@ const NoteViewer = ({ note, onClose }) => {
                             line-height: 1.75;
                         }
                     `}</style>
-                    
+
                     {renderNoteContent(note.content)}
                 </CardContent>
             </Card>
@@ -693,7 +695,7 @@ const NoteEditor = ({ note, onSave, onCancel }) => {
         toolbar: [
             [{ 'header': [1, 2, 3, false] }],
             ['bold', 'italic', 'underline', 'strike'],
-            [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+            [{ 'list': 'ordered' }, { 'list': 'bullet' }],
             [{ 'color': [] }, { 'background': [] }],
             [{ 'align': [] }],
             ['link'],
@@ -804,7 +806,7 @@ const NoteEditor = ({ note, onSave, onCancel }) => {
                             margin-bottom: 0.75rem;
                         }
                     `}</style>
-                    
+
                     <ReactQuill
                         theme="snow"
                         value={editedContent}
@@ -821,7 +823,7 @@ const NoteEditor = ({ note, onSave, onCancel }) => {
             <Card className="bg-blue-50 border-blue-200">
                 <CardContent className="pt-4 pb-4">
                     <p className="text-sm text-blue-800">
-                        <strong>Editing Tips:</strong> Use the toolbar to format your text. 
+                        <strong>Editing Tips:</strong> Use the toolbar to format your text.
                         Headers (H1, H2, H3) will automatically be styled with colors when viewed.
                     </p>
                 </CardContent>
@@ -1275,7 +1277,7 @@ export default function TeacherNotes() {
                                                                     <Edit className="h-4 w-4" />
                                                                 </Button>
 
-                                                                <AudioPlayer text={note.content} />
+                                                              
 
                                                                 <Button
                                                                     variant="outline"

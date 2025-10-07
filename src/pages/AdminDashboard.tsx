@@ -56,6 +56,40 @@ import {
   Legend,
 } from "recharts";
 import { format, subDays, startOfWeek, endOfWeek } from "date-fns";
+import { addDays } from "date-fns";
+
+
+// ------------------------------------------------------------
+interface QuizKPIs {
+  total: number;
+  open: number;
+  dueSoon: number;
+  completionRate: number;
+  avgScore: number;
+  lateRate: number;
+}
+
+interface QuizAnalytics {
+  scoreTrend: Array<{ date: string; avg: number }>;
+  completionBySemester: Array<{ semester: string; assigned: number; submitted: number; completion: number }>;
+  upcoming: Array<{ id: string; title: string; due_date: string; class_name?: string; semester: number }>;
+}
+
+interface NoteKPIs {
+  total: number;
+  newThisPeriod: number;
+  sharedPct: number;
+  coverage: number; // unique classes with new notes in period
+  medianAgeDays: number;
+}
+
+interface NoteAnalytics {
+  notesTrend: Array<{ date: string; count: number }>;
+  bySemester: Array<{ semester: string; shared: number; total: number }>;
+  recentNotes: Array<{ id: string; title: string; semester: number; created_at: string; class_name?: string }>;
+}
+
+// ------------------------------------------------------------
 
 interface DashboardStats {
   totalUsers: number;
@@ -108,7 +142,7 @@ interface AnalyticsData {
     students: number;
     avg_grade: number;
   }>;
-  
+
 }
 
 const AdminDashboard = () => {
@@ -132,7 +166,7 @@ const AdminDashboard = () => {
     subjectPerformance: [],
     dailyActivity: [],
     teacherProductivity: [],
-    
+
   });
 
   const [loading, setLoading] = useState(true);
@@ -144,7 +178,7 @@ const AdminDashboard = () => {
 
   const fetchDashboardData = async () => {
     try {
-      await Promise.all([fetchBasicStats(), fetchAnalytics()]);
+      await Promise.all([fetchBasicStats(), fetchAnalytics(), fetchQuizData(), fetchNoteData()]);
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
       toast({
@@ -347,37 +381,57 @@ const AdminDashboard = () => {
 
     const subjectPerformance = await Promise.all(
       (classesData || []).map(async (cls) => {
-        const [{ count: totalAssignments }, { data: submissions }] =
+        // 1) Get published assignments for this class + student count
+        const [{ data: classAssignments, count: totalAssignments }, { count: studentCount }] =
           await Promise.all([
             supabase
               .from("assignments")
+              .select("id", { count: "exact" })
+              .eq("class_id", cls.id)
+              .eq("status", "published"),
+            supabase
+              .from("class_students")
               .select("*", { count: "exact", head: true })
               .eq("class_id", cls.id),
-            supabase
-              .from("submissions")
-              .select("grade, assignments!inner(class_id)")
-              .not("grade", "is", null)
-              .eq("assignments.class_id", cls.id),
           ]);
 
-        const completed = submissions?.length || 0;
-        const averageGrade = submissions?.length
-          ? submissions.reduce((sum, sub) => sum + (sub.grade || 0), 0) /
-            submissions.length
+        const assignmentIds = (classAssignments || []).map((a) => a.id);
+
+        // 2) Total submissions across those assignments
+        const { count: totalSubmissions } = assignmentIds.length
+          ? await supabase
+            .from("submissions")
+            .select("*", { count: "exact", head: true })
+            .in("assignment_id", assignmentIds)
+          : { count: 0 };
+
+        // 3) Average grade (keep using graded submissions)
+        const { data: gradedSubs } = await supabase
+          .from("submissions")
+          .select("grade, assignments!inner(class_id)")
+          .not("grade", "is", null)
+          .eq("assignments.class_id", cls.id);
+
+        const averageGrade = gradedSubs?.length
+          ? gradedSubs.reduce((sum, sub) => sum + (sub.grade || 0), 0) / gradedSubs.length
           : 0;
-        const completionRate = totalAssignments
-          ? Math.round((completed / totalAssignments) * 100)
+
+        // 4) Correct completion rate: submissions / (assignments * students)
+        const expected = (totalAssignments || 0) * (studentCount || 0);
+        const completionRate = expected
+          ? Math.min(Math.round(((totalSubmissions || 0) / expected) * 100), 100)
           : 0;
 
         return {
           subject: cls.name,
           total: totalAssignments || 0,
-          completed,
+          completed: totalSubmissions || 0,   // you’re showing this in the card
           average_grade: Math.round(averageGrade * 10) / 10,
           completion_rate: completionRate,
         };
       })
     );
+
 
     // Daily activity
     const dailyActivityData = [];
@@ -445,7 +499,7 @@ const AdminDashboard = () => {
           ) || 0;
         const avgGrade = grades?.length
           ? grades.reduce((sum, sub) => sum + (sub.grade || 0), 0) /
-            grades.length
+          grades.length
           : 0;
 
         return {
@@ -466,7 +520,7 @@ const AdminDashboard = () => {
       teacherProductivity: teacherProductivity.filter(
         (tp) => tp.assignments > 0
       ),
-      
+
     });
   };
 
@@ -482,6 +536,250 @@ const AdminDashboard = () => {
       </div>
     );
   };
+
+  const [quizKPIs, setQuizKPIs] = useState<QuizKPIs>({
+    total: 0,
+    open: 0,
+    dueSoon: 0,
+    completionRate: 0,
+    avgScore: 0,
+    lateRate: 0,
+  });
+
+  const [quizAnalytics, setQuizAnalytics] = useState<QuizAnalytics>({
+    scoreTrend: [],
+    completionBySemester: [],
+    upcoming: [],
+  });
+
+  const [noteKPIs, setNoteKPIs] = useState<NoteKPIs>({
+    total: 0,
+    newThisPeriod: 0,
+    sharedPct: 0,
+    coverage: 0,
+    medianAgeDays: 0,
+  });
+
+  const [noteAnalytics, setNoteAnalytics] = useState<NoteAnalytics>({
+    notesTrend: [],
+    bySemester: [],
+    recentNotes: [],
+  });
+
+
+  const fetchQuizData = async () => {
+    const days = selectedPeriod === "7d" ? 7 : selectedPeriod === "30d" ? 30 : 90;
+    const startISO = subDays(new Date(), days).toISOString();
+    const nowISO = new Date().toISOString();
+    const soonISO = addDays(new Date(), 7).toISOString();
+
+    // KPIs
+    const [{ count: total }, { count: open }, { count: dueSoon }] = await Promise.all([
+      supabase.from("quizzes").select("*", { count: "exact", head: true }),
+      supabase.from("quizzes").select("*", { count: "exact", head: true }).eq("status", "published").gt("due_date", nowISO),
+      supabase.from("quizzes").select("*", { count: "exact", head: true })
+        .eq("status", "published")
+        .gte("due_date", nowISO)
+        .lte("due_date", soonISO),
+    ]);
+
+    const { data: subs } = await supabase
+      .from("quiz_submissions")
+      .select("quiz_id, submitted_at, percentage, score, total_points")
+      .gte("submitted_at", startISO);
+
+    const { data: enrollmentsSem } = await supabase
+      .from("quiz_enrollments")
+      .select("quiz_id, assigned_at, quizzes:quiz_id(semester)")
+      .gte("assigned_at", startISO);
+
+    const { data: submissionsSem } = await supabase
+      .from("quiz_submissions")
+      .select("quiz_id, submitted_at, quizzes:quiz_id(semester)")
+      .gte("submitted_at", startISO);
+
+    // avg score overall
+    const percentages = (subs || []).map(s => {
+      if (typeof s.percentage === "number") return s.percentage;
+      if (s.total_points && s.total_points > 0 && typeof s.score === "number") {
+        return (s.score / s.total_points) * 100;
+      }
+      return null;
+    }).filter((v): v is number => v !== null);
+    const avgScore = percentages.length ? Math.round(percentages.reduce((a, b) => a + b, 0) / percentages.length) : 0;
+
+    // late rate
+    const quizIds = Array.from(new Set((subs || []).map(s => s.quiz_id))).filter(Boolean);
+    let lateRate = 0;
+    if (quizIds.length) {
+      const { data: quizMeta } = await supabase
+        .from("quizzes")
+        .select("id, due_date")
+        .in("id", quizIds);
+      const dueMap = new Map((quizMeta || []).map(q => [q.id, q.due_date]));
+      const lateCount = (subs || []).reduce((acc, s) => {
+        const due = dueMap.get(s.quiz_id);
+        if (!due) return acc;
+        return acc + (new Date(s.submitted_at) > new Date(due) ? 1 : 0);
+      }, 0);
+      lateRate = subs && subs.length ? Math.round((lateCount / subs.length) * 100) : 0;
+    }
+
+    // completion rate overall (period)
+    const assignedCount = enrollmentsSem?.length || 0;
+    const submittedCount = submissionsSem?.length || 0;
+    const completionRate = assignedCount ? Math.min(Math.round((submittedCount / assignedCount) * 100), 100) : 0;
+
+    // score trend per day
+    const dayKey = (d: string) => format(new Date(d), "MMM dd");
+    const byDay: Record<string, number[]> = {};
+    (subs || []).forEach(s => {
+      const k = dayKey(s.submitted_at);
+      const p = typeof s.percentage === "number"
+        ? s.percentage
+        : (s.total_points && s.total_points > 0 && typeof s.score === "number")
+          ? (s.score / s.total_points) * 100
+          : null;
+      if (p !== null) {
+        byDay[k] = byDay[k] || [];
+        byDay[k].push(p);
+      }
+    });
+    const scoreTrend = Object.entries(byDay).map(([date, arr]) => ({
+      date,
+      avg: Math.round(arr.reduce((a, b) => a + b, 0) / arr.length),
+    })).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    // completion by semester
+    const semAssigned: Record<string, number> = {};
+    const semSubmitted: Record<string, number> = {};
+    (enrollmentsSem || []).forEach(e => {
+      const sem = e.quizzes?.semester ? `Semester ${e.quizzes.semester}` : "Unknown";
+      semAssigned[sem] = (semAssigned[sem] || 0) + 1;
+    });
+    (submissionsSem || []).forEach(s => {
+      const sem = s.quizzes?.semester ? `Semester ${s.quizzes.semester}` : "Unknown";
+      semSubmitted[sem] = (semSubmitted[sem] || 0) + 1;
+    });
+    const semesters = Array.from(new Set([...Object.keys(semAssigned), ...Object.keys(semSubmitted)]));
+    const completionBySemester = semesters.map(sem => {
+      const a = semAssigned[sem] || 0;
+      const sub = semSubmitted[sem] || 0;
+      return { semester: sem, assigned: a, submitted: sub, completion: a ? Math.min(Math.round((sub / a) * 100), 100) : 0 };
+    });
+
+    // upcoming quizzes (next 7 days)
+    const { data: upcomingData } = await supabase
+      .from("quizzes")
+      .select("id, title, due_date, semester, classes:class_id(name)")
+      .eq("status", "published")
+      .gte("due_date", nowISO)
+      .lte("due_date", soonISO)
+      .order("due_date", { ascending: true })
+      .limit(6);
+
+    setQuizKPIs({
+      total: total || 0,
+      open: open || 0,
+      dueSoon: dueSoon || 0,
+      completionRate,
+      avgScore,
+      lateRate,
+    });
+
+    setQuizAnalytics({
+      scoreTrend,
+      completionBySemester,
+      upcoming: (upcomingData || []).map(q => ({
+        id: q.id,
+        title: q.title,
+        due_date: q.due_date,
+        class_name: q.classes?.name,
+        semester: q.semester,
+      })),
+    });
+  };
+
+  const fetchNoteData = async () => {
+    const days = selectedPeriod === "7d" ? 7 : selectedPeriod === "30d" ? 30 : 90;
+    const startISO = subDays(new Date(), days).toISOString();
+
+    // KPIs
+    const [{ count: total }, { data: newNotes }, { count: sharedCount }, { data: allNotes }] = await Promise.all([
+      supabase.from("notes").select("*", { count: "exact", head: true }),
+      supabase.from("notes").select("created_at, class_id").gte("created_at", startISO),
+      supabase.from("notes").select("*", { count: "exact", head: true }).eq("is_shared", true),
+      supabase.from("notes").select("created_at"),
+    ]);
+
+    const coverage = new Set((newNotes || []).map(n => n.class_id)).size;
+
+    const ages = (allNotes || []).map(n => {
+      const daysOld = Math.floor((Date.now() - new Date(n.created_at).getTime()) / (1000 * 60 * 60 * 24));
+      return daysOld;
+    }).sort((a, b) => a - b);
+    const medianAgeDays = ages.length
+      ? (ages.length % 2 === 1
+        ? ages[(ages.length - 1) / 2]
+        : Math.round((ages[ages.length / 2 - 1] + ages[ages.length / 2]) / 2))
+      : 0;
+
+    const sharedPct = total ? Math.round(((sharedCount || 0) / total) * 100) : 0;
+
+    // notes trend (per day)
+    const dayKey = (d: string) => format(new Date(d), "MMM dd");
+    const dayCounts: Record<string, number> = {};
+    (newNotes || []).forEach(n => {
+      const k = dayKey(n.created_at);
+      dayCounts[k] = (dayCounts[k] || 0) + 1;
+    });
+    const notesTrend = Object.entries(dayCounts).map(([date, count]) => ({ date, count }))
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    // notes by semester
+    const { data: notesSem } = await supabase.from("notes").select("semester, is_shared");
+    const semTotals: Record<string, { total: number; shared: number }> = {};
+    (notesSem || []).forEach(n => {
+      const sem = n.semester ? `Semester ${n.semester}` : "Unknown";
+      if (!semTotals[sem]) semTotals[sem] = { total: 0, shared: 0 };
+      semTotals[sem].total += 1;
+      if (n.is_shared) semTotals[sem].shared += 1;
+    });
+    const bySemester = Object.entries(semTotals).map(([semester, v]) => ({
+      semester,
+      total: v.total,
+      shared: v.shared,
+    }));
+
+    // recent shared notes
+    const { data: recent } = await supabase
+      .from("notes")
+      .select("id, title, semester, created_at, classes:class_id(name)")
+      .eq("is_shared", true)
+      .order("created_at", { ascending: false })
+      .limit(5);
+
+    setNoteKPIs({
+      total: total || 0,
+      newThisPeriod: newNotes?.length || 0,
+      sharedPct,
+      coverage,
+      medianAgeDays,
+    });
+
+    setNoteAnalytics({
+      notesTrend,
+      bySemester,
+      recentNotes: (recent || []).map(r => ({
+        id: r.id,
+        title: r.title,
+        semester: r.semester,
+        created_at: r.created_at,
+        class_name: r.classes?.name,
+      })),
+    });
+  };
+
 
   if (loading) {
     return (
@@ -517,7 +815,7 @@ const AdminDashboard = () => {
                   <p className="text-xl text-white/90 mb-6">
                     Complete system oversight and analytics
                   </p>
-                 
+
                 </div>
                 <div className="hidden lg:block">
                   <div className="w-32 h-32 bg-white/10 rounded-full flex items-center justify-center backdrop-blur-sm">
@@ -526,7 +824,7 @@ const AdminDashboard = () => {
                 </div>
               </div>
 
-              
+
             </div>
             <div className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full -translate-y-48 translate-x-48"></div>
             <div className="absolute bottom-0 left-0 w-64 h-64 bg-white/5 rounded-full translate-y-32 -translate-x-32"></div>
@@ -653,6 +951,80 @@ const AdminDashboard = () => {
             </Card>
           </div>
 
+          {/* Quizzes & Notes KPIs */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card className="border-0 shadow-lg bg-gradient-to-br from-indigo-50 to-indigo-100">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5 text-indigo-600" />
+                  Quiz KPIs
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <div className="p-4 rounded-lg bg-white">
+                    <div className="text-xs text-gray-500">Total</div>
+                    <div className="text-2xl font-bold">{quizKPIs.total}</div>
+                  </div>
+                  <div className="p-4 rounded-lg bg-white">
+                    <div className="text-xs text-gray-500">Open</div>
+                    <div className="text-2xl font-bold">{quizKPIs.open}</div>
+                  </div>
+                  <div className="p-4 rounded-lg bg-white">
+                    <div className="text-xs text-gray-500">Due (7d)</div>
+                    <div className="text-2xl font-bold">{quizKPIs.dueSoon}</div>
+                  </div>
+                  <div className="p-4 rounded-lg bg-white">
+                    <div className="text-xs text-gray-500">Completion</div>
+                    <div className="text-2xl font-bold">{quizKPIs.completionRate}%</div>
+                  </div>
+                  <div className="p-4 rounded-lg bg-white">
+                    <div className="text-xs text-gray-500">Avg Score</div>
+                    <div className="text-2xl font-bold">{quizKPIs.avgScore}%</div>
+                  </div>
+                  <div className="p-4 rounded-lg bg-white">
+                    <div className="text-xs text-gray-500">Late Rate</div>
+                    <div className="text-2xl font-bold">{quizKPIs.lateRate}%</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-lg bg-gradient-to-br from-purple-50 to-purple-100">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BookOpen className="h-5 w-5 text-purple-600" />
+                  Notes KPIs
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <div className="p-4 rounded-lg bg-white">
+                    <div className="text-xs text-gray-500">Total</div>
+                    <div className="text-2xl font-bold">{noteKPIs.total}</div>
+                  </div>
+                  <div className="p-4 rounded-lg bg-white">
+                    <div className="text-xs text-gray-500">New (period)</div>
+                    <div className="text-2xl font-bold">{noteKPIs.newThisPeriod}</div>
+                  </div>
+                  <div className="p-4 rounded-lg bg-white">
+                    <div className="text-xs text-gray-500">% Shared</div>
+                    <div className="text-2xl font-bold">{noteKPIs.sharedPct}%</div>
+                  </div>
+                  <div className="p-4 rounded-lg bg-white">
+                    <div className="text-xs text-gray-500">Coverage</div>
+                    <div className="text-2xl font-bold">{noteKPIs.coverage}</div>
+                  </div>
+                  <div className="p-4 rounded-lg bg-white">
+                    <div className="text-xs text-gray-500">Median Age</div>
+                    <div className="text-2xl font-bold">{noteKPIs.medianAgeDays}d</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+
           {/* Main Analytics */}
           <Tabs defaultValue="overview" className="space-y-6">
             <TabsList className="grid w-full grid-cols-4 lg:w-[600px]">
@@ -679,7 +1051,7 @@ const AdminDashboard = () => {
 
             <TabsContent value="overview" className="space-y-6">
               {/* System Health Cards */}
-              
+
 
               {/* Daily Activity Chart */}
               <Card className="border-0 shadow-lg">
@@ -723,6 +1095,52 @@ const AdminDashboard = () => {
                   </div>
                 </CardContent>
               </Card>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card className="border-0 shadow-lg">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <LineChart className="h-5 w-5 text-indigo-600" />
+                      Average Quiz Score (trend)
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-[260px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <RechartsLineChart data={quizAnalytics.scoreTrend}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="date" />
+                          <YAxis />
+                          <Tooltip />
+                          <Line type="monotone" dataKey="avg" stroke="#6366F1" strokeWidth={3} name="Avg %" />
+                        </RechartsLineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-0 shadow-lg">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <AreaChart className="h-5 w-5 text-purple-600" />
+                      Notes Created (trend)
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-[260px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={noteAnalytics.notesTrend}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="date" />
+                          <YAxis />
+                          <Tooltip />
+                          <Area type="monotone" dataKey="count" stroke="#8B5CF6" fill="#8B5CF6" fillOpacity={0.3} name="Notes" />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
             </TabsContent>
 
             <TabsContent value="users" className="space-y-6">
@@ -861,26 +1279,31 @@ const AdminDashboard = () => {
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart
                         data={analytics.semesterDistribution}
-                        layout="horizontal"
+                        layout="vertical"
+                        margin={{ left: 12, right: 12, top: 8, bottom: 8 }}
                       >
                         <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis type="number" />
-                        <YAxis dataKey="semester" type="category" width={100} />
+                        <XAxis type="number" domain={[0, 'dataMax + 5']} />
+                        <YAxis type="category" dataKey="semester" width={110} />
                         <Tooltip />
+                        <Legend />
                         <Bar
                           dataKey="students"
-                          fill="#3B82F6"
-                          radius={[0, 4, 4, 0]}
                           name="Students"
+                          fill="#3B82F6"
+                          radius={[0, 6, 6, 0]}
+                          barSize={14}
                         />
                         <Bar
                           dataKey="assignments"
-                          fill="#10B981"
-                          radius={[0, 4, 4, 0]}
                           name="Assignments"
+                          fill="#10B981"
+                          radius={[0, 6, 6, 0]}
+                          barSize={14}
                         />
                       </BarChart>
                     </ResponsiveContainer>
+
                   </div>
                 </CardContent>
               </Card>
@@ -966,6 +1389,121 @@ const AdminDashboard = () => {
                 </Card>
               </div>
 
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card className="border-0 shadow-lg">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <BarChart3 className="h-5 w-5 text-indigo-600" />
+                      Quiz Completion by Semester
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-[300px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={quizAnalytics.completionBySemester}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="semester" />
+                          <YAxis />
+                          <Tooltip />
+                          <Legend />
+                          <Bar dataKey="assigned" fill="#3B82F6" name="Assigned" />
+                          <Bar dataKey="submitted" fill="#10B981" name="Submitted" />
+                          <Bar dataKey="completion" fill="#6366F1" name="Completion %" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-0 shadow-lg">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <PieChart className="h-5 w-5 text-purple-600" />
+                      Notes by Semester
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-[300px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={noteAnalytics.bySemester}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="semester" />
+                          <YAxis />
+                          <Tooltip />
+                          <Legend />
+                          <Bar dataKey="total" fill="#8B5CF6" name="Total" />
+                          <Bar dataKey="shared" fill="#10B981" name="Shared" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card className="border-0 shadow-lg">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Calendar className="h-5 w-5 text-indigo-600" />
+                      Upcoming Quizzes (7 days)
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {quizAnalytics.upcoming.length > 0 ? (
+                        quizAnalytics.upcoming.map(q => (
+                          <div key={q.id} className="p-3 rounded-lg border bg-white flex items-center justify-between">
+                            <div>
+                              <div className="font-medium text-gray-900">{q.title}</div>
+                              <div className="text-xs text-gray-600">
+                                {q.class_name ? `${q.class_name} • ` : ""}Sem {q.semester}
+                              </div>
+                            </div>
+                            <div className="text-sm font-semibold text-indigo-600">
+                              {format(new Date(q.due_date), "MMM dd, yyyy")}
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-sm text-gray-500">No quizzes due soon</div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-0 shadow-lg">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <BookOpen className="h-5 w-5 text-purple-600" />
+                      Recently Shared Notes
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {noteAnalytics.recentNotes.length > 0 ? (
+                        noteAnalytics.recentNotes.map(n => (
+                          <div key={n.id} className="p-3 rounded-lg border bg-white flex items-center justify-between">
+                            <div>
+                              <div className="font-medium text-gray-900">{n.title}</div>
+                              <div className="text-xs text-gray-600">
+                                {n.class_name ? `${n.class_name} • ` : ""}Sem {n.semester}
+                              </div>
+                            </div>
+                            <div className="text-sm font-semibold text-purple-600">
+                              {format(new Date(n.created_at), "MMM dd")}
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-sm text-gray-500">No shared notes yet</div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+
+
               {/* Detailed Subject Analytics */}
               <Card className="border-0 shadow-lg">
                 <CardHeader>
@@ -1037,31 +1575,47 @@ const AdminDashboard = () => {
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart
                         data={analytics.teacherProductivity}
-                        layout="horizontal"
+                        layout="vertical"                          // <— key fix
+                        margin={{ left: 12, right: 12, top: 8, bottom: 8 }}
+                        barCategoryGap={14}
                       >
                         <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis type="number" />
-                        <YAxis dataKey="teacher" type="category" width={100} />
+                        <XAxis
+                          type="number"
+                          domain={[0, 'dataMax + 5']}              // keeps bars visible even for small values
+                          allowDecimals={false}
+                        />
+                        <YAxis
+                          type="category"
+                          dataKey="teacher"
+                          width={120}
+                          interval={0}                             // show all labels
+                        />
                         <Tooltip />
                         <Legend />
                         <Bar
                           dataKey="assignments"
-                          fill="#3B82F6"
                           name="Assignments Created"
+                          fill="#3B82F6"
+                          barSize={14}
+                          radius={[0, 6, 6, 0]}
                         />
                         <Bar
                           dataKey="students"
-                          fill="#10B981"
                           name="Students Taught"
+                          fill="#10B981"
+                          barSize={14}
+                          radius={[0, 6, 6, 0]}
                         />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
+
                 </CardContent>
               </Card>
 
               {/* Performance Metrics */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {/* <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <Card className="border-0 shadow-lg bg-gradient-to-br from-green-50 to-emerald-50">
                   <CardContent className="p-6 text-center">
                     <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-3">
@@ -1109,8 +1663,8 @@ const AdminDashboard = () => {
                   </CardContent>
                 </Card>
 
-                
-              </div>
+
+              </div> */}
 
               {/* Top Performers */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1133,15 +1687,14 @@ const AdminDashboard = () => {
                           >
                             <div className="flex items-center gap-3">
                               <div
-                                className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold ${
-                                  index === 0
-                                    ? "bg-yellow-500"
-                                    : index === 1
+                                className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold ${index === 0
+                                  ? "bg-yellow-500"
+                                  : index === 1
                                     ? "bg-gray-400"
                                     : index === 2
-                                    ? "bg-orange-500"
-                                    : "bg-blue-500"
-                                }`}
+                                      ? "bg-orange-500"
+                                      : "bg-blue-500"
+                                  }`}
                               >
                                 {index + 1}
                               </div>
@@ -1187,15 +1740,14 @@ const AdminDashboard = () => {
                           >
                             <div className="flex items-center gap-3">
                               <div
-                                className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold ${
-                                  index === 0
-                                    ? "bg-purple-500"
-                                    : index === 1
+                                className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold ${index === 0
+                                  ? "bg-purple-500"
+                                  : index === 1
                                     ? "bg-blue-500"
                                     : index === 2
-                                    ? "bg-green-500"
-                                    : "bg-gray-500"
-                                }`}
+                                      ? "bg-green-500"
+                                      : "bg-gray-500"
+                                  }`}
                               >
                                 {index + 1}
                               </div>

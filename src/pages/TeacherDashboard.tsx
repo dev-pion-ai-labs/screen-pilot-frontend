@@ -49,6 +49,20 @@ import {
   TrophyIcon,
   Sparkles,
   Trophy,
+  Film,
+  Camera,
+  Video,
+  Clapperboard,
+  Megaphone,
+  Monitor,
+  Mic,
+  Zap,
+  Layers,
+  Palette,
+  Lightbulb,
+  ListChecks,
+  HelpCircle,
+  Book,
 } from "lucide-react";
 import {
   format,
@@ -76,6 +90,7 @@ import {
   RadialBarChart,
   RadialBar,
 } from "recharts";
+
 
 interface TeacherClass {
   id: string;
@@ -138,6 +153,53 @@ interface StudentPerformance {
   completion_rate: number;
 }
 
+
+interface Quiz {
+  id: string;
+  title: string;
+  topic: string;
+  subtopic: string;
+  due_date: string;
+  status: string;
+  total_points: number;
+  time_limit_minutes: number;
+  class_id: string;
+  classes: { id: string; name: string; semester: number };
+  enrollment_count: number;
+  submission_count: number;
+  avg_percentage: number; // 0-100
+}
+
+interface QuizSubmissionRow {
+  id: string;
+  quiz_id: string;
+  student_id: string;
+  submitted_at: string | null;
+  percentage: number | null;
+  quizzes: { title: string; classes: { name: string } };
+  profiles: { full_name: string };
+}
+
+interface NoteRow {
+  id: string;
+  title: string;
+  class_id: string;
+  is_shared: boolean;
+  created_at: string;
+  updated_at: string;
+  classes: { name: string; semester: number };
+}
+
+interface GlossaryRequest {
+  id: string;
+  word: string;
+  status: "pending" | "approved" | "rejected";
+  created_at: string;
+  requested_by_ids: any; // jsonb
+  context: string | null;
+}
+
+
 export default function TeacherDashboard() {
   const { profile } = useAuth();
   const { toast } = useToast();
@@ -147,6 +209,12 @@ export default function TeacherDashboard() {
   const [studentPerformance, setStudentPerformance] = useState<
     StudentPerformance[]
   >([]);
+  // under existing useState declarations
+  const [quizzes, setQuizzes] = useState<Quiz[]>([]);
+  const [quizSubmissions, setQuizSubmissions] = useState<QuizSubmissionRow[]>([]);
+  const [recentNotes, setRecentNotes] = useState<NoteRow[]>([]);
+  const [pendingGlossary, setPendingGlossary] = useState<GlossaryRequest[]>([]);
+
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -162,6 +230,10 @@ export default function TeacherDashboard() {
         fetchTeacherAssignments(),
         fetchRecentSubmissions(),
         fetchStudentPerformance(),
+        fetchTeacherQuizzes(),           // ✅ NEW
+        fetchRecentQuizSubmissions(),    // ✅ NEW
+        fetchRecentNotes(),              // ✅ NEW
+        fetchPendingGlossaryRequests(),  // ✅ NEW
       ]);
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
@@ -235,11 +307,11 @@ export default function TeacherDashboard() {
             avgCompletionRate =
               expectedSubmissions > 0
                 ? Math.min(
-                    Math.round(
-                      ((totalSubmissions || 0) / expectedSubmissions) * 100
-                    ),
-                    100
-                  )
+                  Math.round(
+                    ((totalSubmissions || 0) / expectedSubmissions) * 100
+                  ),
+                  100
+                )
                 : 0;
           }
 
@@ -432,9 +504,9 @@ export default function TeacherDashboard() {
           const completionRate =
             totalAssignments > 0
               ? Math.min(
-                  Math.round((submissionsCount / totalAssignments) * 100),
-                  100
-                )
+                Math.round((submissionsCount / totalAssignments) * 100),
+                100
+              )
               : 0;
 
           // Calculate average grade
@@ -468,6 +540,161 @@ export default function TeacherDashboard() {
       console.error("Error fetching student performance:", error);
     }
   };
+
+  const fetchTeacherQuizzes = async () => {
+    try {
+      const { data: quizzesData } = await supabase
+        .from("quizzes")
+        .select(
+          `
+          *,
+          classes:class_id (
+            id, name, semester
+          )
+        `
+        )
+        .eq("teacher_id", profile?.id)
+        .eq("status", "published")
+        .order("due_date", { ascending: true });
+
+      if (!quizzesData?.length) {
+        setQuizzes([]);
+        return;
+      }
+
+      // For each quiz, collect enrollment/submission counts + avg %
+      const enhanced = await Promise.all(
+        quizzesData.map(async (q) => {
+          const [{ count: enrollmentCount }, { count: submissionCount }, { data: percRows }] =
+            await Promise.all([
+              supabase
+                .from("quiz_enrollments")
+                .select("*", { count: "exact", head: true })
+                .eq("quiz_id", q.id),
+              supabase
+                .from("quiz_submissions")
+                .select("*", { count: "exact", head: true })
+                .eq("quiz_id", q.id),
+              supabase
+                .from("quiz_submissions")
+                .select("percentage")
+                .eq("quiz_id", q.id)
+                .not("percentage", "is", null),
+            ]);
+
+          let avg = 0;
+          if (percRows?.length) {
+            const nums = percRows.map((r: any) => Number(r.percentage) || 0);
+            avg = Math.round(nums.reduce((a, b) => a + b, 0) / nums.length);
+          }
+
+          return {
+            ...q,
+            enrollment_count: enrollmentCount || 0,
+            submission_count: submissionCount || 0,
+            avg_percentage: avg,
+          } as Quiz;
+        })
+      );
+
+      setQuizzes(enhanced);
+    } catch (e) {
+      console.error("Error fetching quizzes:", e);
+      setQuizzes([]);
+    }
+  };
+
+  const fetchRecentQuizSubmissions = async () => {
+    try {
+      // gather quiz ids for this teacher
+      const { data: teacherQuizzes } = await supabase
+        .from("quizzes")
+        .select("id")
+        .eq("teacher_id", profile?.id);
+
+      if (!teacherQuizzes?.length) {
+        setQuizSubmissions([]);
+        return;
+      }
+
+      const quizIds = teacherQuizzes.map((q) => q.id);
+
+      const { data: subs } = await supabase
+        .from("quiz_submissions")
+        .select(
+          `
+          id, quiz_id, student_id, submitted_at, percentage,
+          quizzes:quiz_id (
+            title,
+            classes:class_id ( name )
+          ),
+          profiles:student_id ( full_name )
+        `
+        )
+        .in("quiz_id", quizIds)
+        .order("submitted_at", { ascending: false })
+        .limit(20);
+
+      setQuizSubmissions((subs || []) as unknown as QuizSubmissionRow[]);
+    } catch (e) {
+      console.error("Error fetching quiz submissions:", e);
+      setQuizSubmissions([]);
+    }
+  };
+
+  const fetchRecentNotes = async () => {
+    try {
+      const { data } = await supabase
+        .from("notes")
+        .select(
+          `
+          id, title, class_id, is_shared, created_at, updated_at,
+          classes:class_id ( name, semester )
+        `
+        )
+        .eq("teacher_id", profile?.id)
+        .order("created_at", { ascending: false })
+        .limit(5);
+
+      setRecentNotes((data || []) as unknown as NoteRow[]);
+    } catch (e) {
+      console.error("Error fetching notes:", e);
+      setRecentNotes([]);
+    }
+  };
+
+  const fetchPendingGlossaryRequests = async () => {
+    try {
+      const { data } = await supabase
+        .from("glossary_requests")
+        .select("id, word, status, created_at, requested_by_ids, context")
+        .eq("status", "pending")
+        .order("created_at", { ascending: false })
+        .limit(6);
+
+      setPendingGlossary((data || []) as GlossaryRequest[]);
+    } catch (e) {
+      console.error("Error fetching glossary requests:", e);
+      setPendingGlossary([]);
+    }
+  };
+
+
+  const upcomingQuizzes = quizzes
+    .filter((q) => new Date(q.due_date) >= new Date())
+    .slice(0, 5);
+
+  const totalQuizzes = quizzes.length;
+
+  const avgQuizScoreOverall =
+    quizzes.length > 0
+      ? Math.round(
+        quizzes.reduce((acc, q) => acc + (q.avg_percentage || 0), 0) / quizzes.length
+      )
+      : 0;
+
+
+
 
   // Analytics calculations
   const totalStudents = classes.reduce(
@@ -611,400 +838,256 @@ export default function TeacherDashboard() {
   return (
     <AuthGuard allowedRoles={["teacher"]}>
       <ModernDashboardLayout>
-        <div className="space-y-6">
-          {/* Hero Section */}
-          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-violet-600 via-purple-600 to-indigo-600 p-8 text-white shadow-2xl">
-            <div className="relative z-10">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
-                      <Sparkles className="h-6 w-6 text-yellow-300" />
+
+        <div className="min-h-screen">
+          {/* Professional Header */}
+          <div className="relative mx-8 overflow-hidden rounded-3xl bg-gradient-to-r from-yellow-400 via-red-500 to-emerald-500 text-white shadow-2xl">
+            {/* Contrast overlay + soft glows */}
+            <div className="absolute inset-0 bg-black/25" />
+            <div className="pointer-events-none absolute -top-24 -right-24 h-96 w-96 rounded-full bg-white/10 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-28 -left-28 h-[28rem] w-[28rem] rounded-full bg-black/20 blur-3xl" />
+
+            <div className="relative px-8 py-12">
+              <div className="mx-auto max-w-7xl">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <div className="mb-4 flex items-center gap-4">
+                      <div className="rounded-xl bg-black/30 p-3 ring-1 ring-white/20">
+                        <Film className="h-8 w-8 text-white" />
+                      </div>
+                      <div>
+                        <h1 className="mb-2 text-4xl font-bold">
+                          Welcome back, {profile?.full_name?.split(" ")[0]}
+                        </h1>
+                        <p className="text-xl text-white/90">
+                          Film &amp; Media Arts Department Dashboard
+                        </p>
+                      </div>
                     </div>
-                    <h1 className="text-4xl font-bold">
-                      Welcome, {profile?.full_name?.split(" ")[0]}!
-                    </h1>
+
+                    {/* Stats — mapped to logo colors */}
+                    <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-4">
+                      {/* Students (Yellow) */}
+                      <div className="rounded-xl border border-white/20 bg-white/10 p-6 backdrop-blur-sm transition-all duration-300 hover:bg-white/15">
+                        <div className="flex items-center gap-4">
+                          <div className="rounded-lg bg-yellow-500/25 p-3 ring-1 ring-yellow-300/40">
+                            <Users className="h-6 w-6 text-yellow-200" />
+                          </div>
+                          <div>
+                            <div className="text-3xl font-bold text-white">
+                              {totalStudents}
+                            </div>
+                            <div className="text-sm text-yellow-100/90">Students</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Assignments (Red) */}
+                      <div className="rounded-xl border border-white/20 bg-white/10 p-6 backdrop-blur-sm transition-all duration-300 hover:bg-white/15">
+                        <div className="flex items-center gap-4">
+                          <div className="rounded-lg bg-red-500/25 p-3 ring-1 ring-red-300/40">
+                            <Clapperboard className="h-6 w-6 text-red-100" />
+                          </div>
+                          <div>
+                            <div className="text-3xl font-bold text-white">
+                              {totalAssignments}
+                            </div>
+                            <div className="text-sm text-red-100/90">Assignments</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Submissions (Emerald/Green) */}
+                      <div className="rounded-xl border border-white/20 bg-white/10 p-6 backdrop-blur-sm transition-all duration-300 hover:bg-white/15">
+                        <div className="flex items-center gap-4">
+                          <div className="rounded-lg bg-emerald-500/25 p-3 ring-1 ring-emerald-300/40">
+                            <ClipboardCheck className="h-6 w-6 text-emerald-100" />
+                          </div>
+                          <div>
+                            <div className="text-3xl font-bold text-white">
+                              {totalSubmissions}
+                            </div>
+                            <div className="text-sm text-emerald-100/90">Submissions</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Classes (Green end of logo) */}
+                      <div className="rounded-xl border border-white/20 bg-white/10 p-6 backdrop-blur-sm transition-all duration-300 hover:bg-white/15">
+                        <div className="flex items-center gap-4">
+                          <div className="rounded-lg bg-green-600/25 p-3 ring-1 ring-green-300/40">
+                            <School className="h-6 w-6 text-green-100" />
+                          </div>
+                          <div>
+                            <div className="text-3xl font-bold text-white">
+                              {classes.length}
+                            </div>
+                            <div className="text-sm text-green-100/90">Classes</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <p className="text-xl text-white/90 mb-6 max-w-md">
-                    Empowering the next generation with AI-enhanced teaching
-                    tools
-                  </p>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="flex items-center gap-3 bg-white/10 rounded-lg p-3 backdrop-blur-sm">
-                      <Users className="h-5 w-5 text-blue-300" />
-                      <div>
-                        <div className="text-2xl font-bold">
-                          {totalStudents}
-                        </div>
-                        <div className="text-sm text-white/80">Students</div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 bg-white/10 rounded-lg p-3 backdrop-blur-sm">
-                      <BookOpen className="h-5 w-5 text-green-300" />
-                      <div>
-                        <div className="text-2xl font-bold">
-                          {totalAssignments}
-                        </div>
-                        <div className="text-sm text-white/80">Assignments</div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 bg-white/10 rounded-lg p-3 backdrop-blur-sm">
-                      <ClipboardCheck className="h-5 w-5 text-yellow-300" />
-                      <div>
-                        <div className="text-2xl font-bold">
-                          {totalSubmissions}
-                        </div>
-                        <div className="text-sm text-white/80">Submissions</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div className="hidden lg:block">
-                  <div className="w-40 h-40 bg-gradient-to-br from-white/20 to-white/5 rounded-full flex items-center justify-center backdrop-blur-sm border border-white/20">
-                    <div className="w-32 h-32 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center">
-                      <GraduationCap className="h-16 w-16 text-white" />
+
+                  {/* Optional logo “swoosh” glow placeholder on large screens */}
+                  <div className="hidden lg:block">
+                    <div className="flex h-32 w-32 items-center justify-center rounded-full bg-white/10 ring-1 ring-white/20 backdrop-blur-sm">
+                      {/* Keep this empty or place a small logo image here if you want */}
                     </div>
                   </div>
                 </div>
               </div>
             </div>
-            <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-white/10 to-transparent rounded-full -translate-y-48 translate-x-48"></div>
-            <div className="absolute bottom-0 left-0 w-64 h-64 bg-gradient-to-tr from-white/10 to-transparent rounded-full translate-y-32 -translate-x-32"></div>
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent"></div>
           </div>
 
-          {/* Main Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-3 gap-6">
-            {/* Left Column - Stats and Quick Actions */}
-            <div className="space-y-6">
-              {/* Stats Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-50 to-blue-100">
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-blue-600 mb-1">
-                          Classes
-                        </p>
-                        <p className="text-2xl font-bold text-blue-900">
-                          {classes.length}
-                        </p>
-                      </div>
-                      <School className="h-8 w-8 text-blue-500" />
-                    </div>
-                  </CardContent>
-                </Card>
 
-                <Card className="border-0 shadow-lg bg-gradient-to-br from-emerald-50 to-emerald-100">
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-emerald-600 mb-1">
-                          Students
-                        </p>
-                        <p className="text-2xl font-bold text-emerald-900">
-                          {totalStudents}
-                        </p>
-                      </div>
-                      <Users className="h-8 w-8 text-emerald-500" />
-                    </div>
-                  </CardContent>
-                </Card>
+          <div className="max-w-7xl mx-auto px-8 py-8 space-y-8">
 
-                <Card className="border-0 shadow-lg bg-gradient-to-br from-purple-50 to-purple-100">
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-purple-600 mb-1">
-                          Assignments
-                        </p>
-                        <p className="text-2xl font-bold text-purple-900">
-                          {totalAssignments}
-                        </p>
-                      </div>
-                      <BookOpen className="h-8 w-8 text-purple-500" />
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="border-0 shadow-lg bg-gradient-to-br from-amber-50 to-amber-100">
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-amber-600 mb-1">
-                          Pending
-                        </p>
-                        <p className="text-2xl font-bold text-amber-900">
-                          {pendingGrading}
-                        </p>
-                      </div>
-                      <Clock className="h-8 w-8 text-amber-500" />
-                    </div>
-                  </CardContent>
-                </Card>
+            {/* Quick Actions Section */}
+            {/* Quick Actions Section */}
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+              {/* Header themed to logo colors */}
+              <div className="bg-gradient-to-r from-yellow-500 via-red-500 to-emerald-600 px-6 py-4">
+                <h2 className="text-xl font-bold text-white flex items-center gap-3">
+                  <Zap className="h-6 w-6 text-white/90" />
+                  Quick Actions
+                </h2>
+                <p className="text-white/90 text-sm mt-1">Streamline your workflow</p>
               </div>
 
-              {/* AI-Powered Quick Actions */}
-              <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-purple-50">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Brain className="h-5 w-5 text-purple-600" />
-                    AI-Powered Quick Actions
-                  </CardTitle>
-                  <p className="text-sm text-gray-600">
-                    Enhanced tools for modern teaching
-                  </p>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {/* AI Assignment Generator */}
-                  <div className="group">
-                    <Link to="/teacher/create-assignment">
-                      <Button className="w-full justify-start bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 transition-all duration-200 group-hover:shadow-lg">
-                        <Sparkles className="h-4 w-4 mr-2" />
-                        AI Assignment Generator
-                      </Button>
-                    </Link>
-                    <p className="text-xs text-gray-500 mt-1 ml-1">
-                      Create assignments with AI assistance
-                    </p>
-                  </div>
+              {/* Use grid + gap for reliable vertical spacing */}
+              <div className="p-6 grid grid-cols-1 gap-4">
+                <Link to="/teacher/create-assignment">
+                  <Button className="w-full justify-start bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white h-12 text-left">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-white/20 rounded-lg">
+                        <Clapperboard className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <div className="font-semibold">Create Film Assignment</div>
+                        <div className="text-xs text-red-100">New assignment with AI assistance</div>
+                      </div>
+                    </div>
+                  </Button>
+                </Link>
 
-                  {/* Smart Grading Assistant */}
-                  <div className="group">
-                    <Link to="/teacher/assignments">
-                      <Button className="w-full justify-start bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 transition-all duration-200 group-hover:shadow-lg">
-                        <Brain className="h-4 w-4 mr-2" />
-                        Smart Grading Assistant
-                      </Button>
-                    </Link>
-                    <p className="text-xs text-gray-500 mt-1 ml-1">
-                      AI-powered grading and feedback
-                    </p>
-                  </div>
+                <Link to="/teacher/create-quiz">
+                  <Button className="w-full justify-start bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white h-12 text-left">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-white/20 rounded-lg">
+                        <Timer className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <div className="font-semibold">Create Quiz</div>
+                        <div className="text-xs text-emerald-100">Knowledge assessment</div>
+                      </div>
+                    </div>
+                  </Button>
+                </Link>
 
-                  {/* Automated Class Management */}
-                  <div className="group">
-                    <Link to="/teacher/classes">
-                      <Button className="w-full justify-start bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 transition-all duration-200 group-hover:shadow-lg">
-                        <School className="h-4 w-4 mr-2" />
-                        Automated Class Management
-                      </Button>
-                    </Link>
-                    <p className="text-xs text-gray-500 mt-1 ml-1">
-                      Streamline class administration
-                    </p>
-                  </div>
+                <Link to="/teacher/create-notes">
+                  <Button className="w-full justify-start bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-white h-12 text-left">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-white/20 rounded-lg">
+                        <Book className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <div className="font-semibold">Create Lecture Notes</div>
+                        <div className="text-xs text-yellow-100">Share with students</div>
+                      </div>
+                    </div>
+                  </Button>
+                </Link>
 
-                  {/* Divider */}
-                </CardContent>
-              </Card>
+                <Link to="/teacher/classes">
+                  <Button className="w-full justify-start bg-gradient-to-r from-green-700 to-emerald-800 hover:from-green-800 hover:to-emerald-900 text-white h-12 text-left">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-white/20 rounded-lg">
+                        <Monitor className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <div className="font-semibold">Manage Classes</div>
+                        <div className="text-xs text-emerald-100">View and organize</div>
+                      </div>
+                    </div>
+                  </Button>
+                </Link>
+              </div>
+            </div>
 
-              {/* Weekly Submissions */}
-              <Card className="border-0 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Activity className="h-5 w-5 text-indigo-600" />
+
+            {/* Analytics Dashboard */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Weekly Submissions Chart */}
+              <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4">
+                  <h3 className="text-lg font-bold text-white flex items-center gap-3">
+                    <Activity className="h-5 w-5" />
                     Weekly Submissions
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-[200px]">
+                  </h3>
+                  <p className="text-blue-100 text-sm mt-1">Submission trends over time</p>
+                </div>
+                <div className="p-6">
+                  <div className="h-[250px]">
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart data={getWeeklySubmissions()}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="week" />
-                        <YAxis />
-                        <Tooltip />
+                        <defs>
+                          <linearGradient id="colorSubmissions" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3} />
+                            <stop offset="95%" stopColor="#3B82F6" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                        <XAxis
+                          dataKey="week"
+                          stroke="#6B7280"
+                          fontSize={12}
+                        />
+                        <YAxis
+                          stroke="#6B7280"
+                          fontSize={12}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: '#1F2937',
+                            border: 'none',
+                            borderRadius: '8px',
+                            color: '#F9FAFB'
+                          }}
+                        />
                         <Area
                           type="monotone"
                           dataKey="submissions"
-                          stroke="#6366f1"
-                          fill="#6366f1"
-                          fillOpacity={0.3}
+                          stroke="#3B82F6"
+                          fill="url(#colorSubmissions)"
+                          strokeWidth={2}
                         />
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>
-                </CardContent>
-              </Card>
-            </div>
+                </div>
+              </div>
 
-            {/* Middle Column - Assignments and Classes */}
-            <div className="space-y-6">
-              {/* Recent Assignments */}
-              <Card className="border-0 shadow-lg">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="flex items-center gap-2">
-                      <BookMarked className="h-5 w-5 text-indigo-600" />
-                      Recent Assignments
-                    </CardTitle>
-                    <Link to="/teacher/create-assignment">
-                      <Button size="sm">
-                        <Plus className="h-4 w-4 mr-1" />
-                        Create New
-                      </Button>
-                    </Link>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3 max-h-96 overflow-y-auto">
-                    {assignments.slice(0, 5).map((assignment) => (
-                      <div
-                        key={assignment.id}
-                        className="border rounded-lg p-4 hover:shadow-md transition-shadow"
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <h4 className="font-semibold text-gray-900 truncate flex-1 mr-2">
-                            {assignment.title}
-                          </h4>
-                          <Badge
-                            className={
-                              assignment.difficulty === "easy"
-                                ? "bg-green-100 text-green-700 border-green-200"
-                                : assignment.difficulty === "medium"
-                                ? "bg-yellow-100 text-yellow-700 border-yellow-200"
-                                : "bg-red-100 text-red-700 border-red-200"
-                            }
-                          >
-                            {assignment.difficulty?.charAt(0).toUpperCase() +
-                              assignment.difficulty?.slice(1)}
-                          </Badge>
-                        </div>
-                        <div className="text-sm text-gray-600 mb-2">
-                          <div className="flex items-center gap-1">
-                            <School className="h-3 w-3" />
-                            {assignment.classes?.name}
-                          </div>
-                        </div>
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-500">
-                            {assignment.submission_count}/
-                            {assignment.total_students} submitted
-                          </span>
-                          <div className="flex items-center gap-2">
-                            {assignment.avg_grade > 0 && (
-                              <span className="text-green-600 font-medium">
-                                Avg: {assignment.avg_grade}%
-                              </span>
-                            )}
-                            <Link to={`/teacher/assignments`}>
-                              <Button size="sm" variant="ghost">
-                                View
-                                <ChevronRight className="h-3 w-3 ml-1" />
-                              </Button>
-                            </Link>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                    {assignments.length === 0 && (
-                      <div className="text-center py-8 text-gray-500">
-                        <BookOpen className="h-12 w-12 mx-auto mb-2 text-gray-300" />
-                        <p>No assignments created yet</p>
-                        <Link to="/teacher/create-assignment">
-                          <Button className="mt-3">
-                            Create Your First Assignment
-                          </Button>
-                        </Link>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* My Classes */}
-              <Card className="border-0 shadow-lg">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="flex items-center gap-2">
-                      <School className="h-5 w-5 text-indigo-600" />
-                      My Classes
-                    </CardTitle>
-                    <Link to="/teacher/classes">
-                      <Button size="sm" variant="outline">
-                        Manage All
-                      </Button>
-                    </Link>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3 max-h-80 overflow-y-auto">
-                    {classes.map((classItem) => (
-                      <div key={classItem.id} className="border rounded-lg p-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <h4 className="font-semibold text-gray-900">
-                            {classItem.name}
-                          </h4>
-                          <Badge variant="secondary">
-                            Sem {classItem.semester}
-                          </Badge>
-                        </div>
-                        <div className="grid grid-cols-3 gap-2 text-sm text-gray-600 mb-3">
-                          <div className="flex items-center gap-1">
-                            <Users className="h-3 w-3" />
-                            {classItem.student_count} students
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <BookOpen className="h-3 w-3" />
-                            {classItem.assignment_count} assignments
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Target className="h-3 w-3" />
-                            {classItem.avg_completion_rate}% completion
-                          </div>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div
-                            className="bg-indigo-600 h-2 rounded-full transition-all duration-300"
-                            style={{
-                              width: `${Math.min(
-                                classItem.avg_completion_rate,
-                                100
-                              )}%`,
-                            }}
-                          ></div>
-                        </div>
-                      </div>
-                    ))}
-                    {classes.length === 0 && (
-                      <div className="text-center py-8 text-gray-500">
-                        <School className="h-12 w-12 mx-auto mb-2 text-gray-300" />
-                        <p>No classes assigned yet</p>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Right Column - Analytics and Recent Activity */}
-            <div className="space-y-6">
               {/* Grade Distribution */}
-              <Card className="border-0 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <PieChart className="h-5 w-5 text-purple-600" />
+              <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 px-6 py-4">
+                  <h3 className="text-lg font-bold text-white flex items-center gap-3">
+                    <PieChart className="h-5 w-5" />
                     Grade Distribution
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
+                  </h3>
+                  <p className="text-emerald-100 text-sm mt-1">Student performance overview</p>
+                </div>
+                <div className="p-6">
                   {getGradeDistribution().length > 0 ? (
                     <>
-                      <div className="h-[200px]">
+                      <div className="h-[200px] mb-4">
                         <ResponsiveContainer width="100%" height="100%">
                           <RechartsPieChart>
-                            <Tooltip
-                              formatter={(value: any, name: string) => [
-                                `${value}%`,
-                                name,
-                              ]}
-                            />
                             <Pie
                               data={getGradeDistribution()}
                               cx="50%"
                               cy="50%"
-                              innerRadius={40}
+                              innerRadius={50}
                               outerRadius={80}
                               paddingAngle={5}
                               dataKey="value"
@@ -1013,6 +1096,15 @@ export default function TeacherDashboard() {
                                 <Cell key={`cell-${index}`} fill={entry.fill} />
                               ))}
                             </Pie>
+                            <Tooltip
+                              formatter={(value: any) => [`${value}%`, '']}
+                              contentStyle={{
+                                backgroundColor: '#1F2937',
+                                border: 'none',
+                                borderRadius: '8px',
+                                color: '#F9FAFB'
+                              }}
+                            />
                           </RechartsPieChart>
                         </ResponsiveContainer>
                       </div>
@@ -1020,149 +1112,353 @@ export default function TeacherDashboard() {
                         {getGradeDistribution().map((entry) => (
                           <div
                             key={entry.name}
-                            className="flex items-center justify-between text-xs"
+                            className="flex items-center justify-between text-sm"
                           >
                             <div className="flex items-center gap-2">
                               <div
                                 className="w-3 h-3 rounded-full"
                                 style={{ backgroundColor: entry.fill }}
                               ></div>
-                              <span className="text-gray-600">
-                                {entry.name}
-                              </span>
+                              <span className="text-gray-600">{entry.name}</span>
                             </div>
-                            <span className="font-medium">{entry.count}</span>
+                            <span className="font-medium text-gray-900">{entry.count}</span>
                           </div>
                         ))}
                       </div>
                     </>
                   ) : (
-                    <div className="text-center py-8 text-gray-500">
-                      <BarChart3 className="h-12 w-12 mx-auto mb-2 text-gray-300" />
+                    <div className="text-center py-12 text-gray-500">
+                      <BarChart3 className="h-12 w-12 mx-auto mb-4 text-gray-300" />
                       <p className="text-sm">No graded submissions yet</p>
                     </div>
                   )}
-                </CardContent>
-              </Card>
+                </div>
+              </div>
+            </div>
 
-              {/* Assignment Difficulty */}
-              <Card className="border-0 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Target className="h-5 w-5 text-orange-600" />
-                    Assignment Difficulty
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {getDifficultyDistribution().length > 0 ? (
-                    <>
-                      <div className="h-[200px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <RechartsPieChart>
-                            <Tooltip
-                              formatter={(value: any, name: string) => [
-                                `${value}%`,
-                                name,
-                              ]}
-                            />
-                            <Pie
-                              data={getDifficultyDistribution()}
-                              cx="50%"
-                              cy="50%"
-                              innerRadius={40}
-                              outerRadius={80}
-                              paddingAngle={5}
-                              dataKey="value"
-                            >
-                              {getDifficultyDistribution().map(
-                                (entry, index) => (
-                                  <Cell
-                                    key={`cell-${index}`}
-                                    fill={entry.fill}
-                                  />
-                                )
-                              )}
-                            </Pie>
-                          </RechartsPieChart>
-                        </ResponsiveContainer>
+            {/* Film Assignments Section */}
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+              <div className="bg-gradient-to-r from-indigo-600 to-indigo-700 px-6 py-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-bold text-white flex items-center gap-3">
+                      <Clapperboard className="h-5 w-5" />
+                      Recent Film Assignments
+                    </h3>
+                    <p className="text-indigo-100 text-sm mt-1">Latest assignments and submissions</p>
+                  </div>
+                  <Link to="/teacher/create-assignment">
+                    <Button size="sm" className="bg-white/20 hover:bg-white/30 text-white border-white/30">
+                      <Plus className="h-4 w-4 mr-1" />
+                      New Assignment
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+              <div className="p-6">
+                <div className="space-y-4 max-h-96 overflow-y-auto">
+                  {assignments.slice(0, 5).map((assignment) => (
+                    <div
+                      key={assignment.id}
+                      className="border border-gray-200 rounded-xl p-4 hover:shadow-md hover:border-gray-300 transition-all duration-200 bg-gradient-to-r from-gray-50 to-white"
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-semibold text-gray-900 truncate flex-1 mr-2">
+                          {assignment.title}
+                        </h4>
+                        <Badge
+                          className={
+                            assignment.difficulty === "easy"
+                              ? "bg-green-100 text-green-700 border-green-200"
+                              : assignment.difficulty === "medium"
+                                ? "bg-yellow-100 text-yellow-700 border-yellow-200"
+                                : "bg-red-100 text-red-700 border-red-200"
+                          }
+                        >
+                          {assignment.difficulty?.charAt(0).toUpperCase() +
+                            assignment.difficulty?.slice(1)}
+                        </Badge>
                       </div>
-                      <div className="space-y-2">
-                        {getDifficultyDistribution().map((entry) => (
-                          <div
-                            key={entry.name}
-                            className="flex items-center justify-between text-xs"
-                          >
-                            <div className="flex items-center gap-2">
-                              <div
-                                className="w-3 h-3 rounded-full"
-                                style={{ backgroundColor: entry.fill }}
-                              ></div>
-                              <span className="text-gray-600">
-                                {entry.name}
-                              </span>
-                            </div>
-                            <span className="font-medium">{entry.count}</span>
-                          </div>
-                        ))}
+                      <div className="text-sm text-gray-600 mb-3">
+                        <div className="flex items-center gap-2">
+                          <School className="h-4 w-4" />
+                          {assignment.classes?.name} • Sem {assignment.classes?.semester}
+                        </div>
                       </div>
-                    </>
-                  ) : (
-                    <div className="text-center py-8 text-gray-500">
-                      <Target className="h-12 w-12 mx-auto mb-2 text-gray-300" />
-                      <p className="text-sm">No assignments created yet</p>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4 text-sm">
+                          <span className="text-gray-500 flex items-center gap-1">
+                            <Users className="h-4 w-4" />
+                            {assignment.submission_count}/{assignment.total_students}
+                          </span>
+                          {assignment.avg_grade > 0 && (
+                            <span className="text-emerald-600 font-medium flex items-center gap-1">
+                              <Star className="h-4 w-4" />
+                              Avg: {assignment.avg_grade}%
+                            </span>
+                          )}
+                        </div>
+                        <Link to={`/teacher/assignments`}>
+                          <Button size="sm" variant="ghost" className="text-indigo-600 hover:text-indigo-700">
+                            View Details
+                            <ChevronRight className="h-3 w-3 ml-1" />
+                          </Button>
+                        </Link>
+                      </div>
+                    </div>
+                  ))}
+                  {assignments.length === 0 && (
+                    <div className="text-center py-12 text-gray-500">
+                      <Clapperboard className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                      <h4 className="text-lg font-medium mb-2">No Assignments yet</h4>
+                      <p className="text-sm mb-4">Create your first film Assignment to get started</p>
+                      <Link to="/teacher/create-assignment">
+                        <Button className="bg-indigo-600 hover:bg-indigo-700">
+                          <Plus className="h-4 w-4 mr-2" />
+                          Create Your First Assignment
+                        </Button>
+                      </Link>
                     </div>
                   )}
-                </CardContent>
-              </Card>
+                </div>
+              </div>
+            </div>
 
+            {/* Classes Section */}
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+              <div className="bg-gradient-to-r from-purple-600 to-purple-700 px-6 py-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-bold text-white flex items-center gap-3">
+                      <Monitor className="h-5 w-5" />
+                      My Classes
+                    </h3>
+                    <p className="text-purple-100 text-sm mt-1">Manage your film classes</p>
+                  </div>
+                  <Link to="/teacher/classes">
+                    <Button size="sm" className="bg-white/20 hover:bg-white/30 text-white border-white/30">
+                      Manage All
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+              <div className="p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {classes.map((classItem) => (
+                    <div key={classItem.id} className="border border-gray-200 rounded-xl p-4 hover:shadow-md transition-all duration-200 bg-gradient-to-br from-gray-50 to-white">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-semibold text-gray-900">
+                          {classItem.name}
+                        </h4>
+                        <Badge className="bg-purple-100 text-purple-700 border-purple-200">
+                          Sem {classItem.semester}
+                        </Badge>
+                      </div>
+                      <div className="space-y-2 mb-4">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-600 flex items-center gap-1">
+                            <Users className="h-4 w-4" />
+                            Students
+                          </span>
+                          <span className="font-medium">{classItem.student_count}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-600 flex items-center gap-1">
+                            <Clapperboard className="h-4 w-4" />
+                            Assignments
+                          </span>
+                          <span className="font-medium">{classItem.assignment_count}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-600 flex items-center gap-1">
+                            <Target className="h-4 w-4" />
+                            Completion
+                          </span>
+                          <span className="font-medium text-emerald-600">{classItem.avg_completion_rate}%</span>
+                        </div>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div
+                          className="bg-gradient-to-r from-purple-500 to-purple-600 h-2 rounded-full transition-all duration-300"
+                          style={{
+                            width: `${Math.min(classItem.avg_completion_rate, 100)}%`,
+                          }}
+                        ></div>
+                      </div>
+                    </div>
+                  ))}
+                  {classes.length === 0 && (
+                    <div className="col-span-full text-center py-12 text-gray-500">
+                      <Monitor className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                      <h4 className="text-lg font-medium mb-2">No classes assigned</h4>
+                      <p className="text-sm">Contact your administrator to get assigned to classes</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Quizzes and Notes Section */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Upcoming Quizzes */}
+              <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 px-6 py-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-bold text-white flex items-center gap-3">
+                        <Timer className="h-5 w-5" />
+                        Upcoming Quizzes
+                      </h3>
+                      <p className="text-emerald-100 text-sm mt-1">Knowledge assessments</p>
+                    </div>
+                    <Link to="/teacher/quizzes">
+                      <Button size="sm" className="bg-white/20 hover:bg-white/30 text-white border-white/30">
+                        Manage
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+                <div className="p-6">
+                  <div className="space-y-3 max-h-80 overflow-y-auto">
+                    {upcomingQuizzes.map((q) => (
+                      <div key={q.id} className="border border-gray-200 rounded-xl p-4 hover:shadow-md transition-all duration-200">
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="font-semibold text-gray-900 truncate mr-2">{q.title}</h4>
+                          <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">Sem {q.classes?.semester}</Badge>
+                        </div>
+                        <div className="text-sm text-gray-600 mb-3">
+                          <div className="flex items-center gap-2">
+                            <School className="h-4 w-4" />
+                            {q.classes?.name}
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-500">
+                            Due {format(new Date(q.due_date), "MMM dd, yyyy")}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            {q.avg_percentage > 0 && (
+                              <span className="text-emerald-600 font-medium">
+                                Avg: {q.avg_percentage}%
+                              </span>
+                            )}
+                            <Badge className="bg-gray-100 text-gray-700">
+                              {q.submission_count}/{q.enrollment_count}
+                            </Badge>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {upcomingQuizzes.length === 0 && (
+                      <div className="text-center py-8 text-gray-500">
+                        <Timer className="h-12 w-12 mx-auto mb-2 text-gray-300" />
+                        <p>No upcoming quizzes</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Recent Notes */}
+              <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                <div className="bg-gradient-to-r from-amber-600 to-amber-700 px-6 py-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-bold text-white flex items-center gap-3">
+                        <Book className="h-5 w-5" />
+                        Recent Notes
+                      </h3>
+                      <p className="text-amber-100 text-sm mt-1">Lecture materials</p>
+                    </div>
+                    <Link to="/teacher/notes">
+                      <Button size="sm" className="bg-white/20 hover:bg-white/30 text-white border-white/30">
+                        View All
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+                <div className="p-6">
+                  <div className="space-y-3 max-h-80 overflow-y-auto">
+                    {recentNotes.map((n) => (
+                      <div key={n.id} className="border border-gray-200 rounded-xl p-4 hover:shadow-md transition-all duration-200">
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="font-semibold text-gray-900 truncate mr-2">{n.title}</h4>
+                          {n.is_shared ? (
+                            <Badge className="bg-green-100 text-green-700 border-green-200">Shared</Badge>
+                          ) : (
+                            <Badge variant="outline">Private</Badge>
+                          )}
+                        </div>
+                        <div className="text-sm text-gray-600 mb-3">
+                          <div className="flex items-center gap-2">
+                            <School className="h-4 w-4" />
+                            {n.classes?.name} • Sem {n.classes?.semester}
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-500">
+                            {format(new Date(n.updated_at || n.created_at), "MMM dd")}
+                          </span>
+                          <Link to="/teacher/notes">
+                            <Button size="sm" variant="ghost" className="text-amber-600 hover:text-amber-700">
+                              Open
+                              <ChevronRight className="h-3 w-3 ml-1" />
+                            </Button>
+                          </Link>
+                        </div>
+                      </div>
+                    ))}
+                    {recentNotes.length === 0 && (
+                      <div className="text-center py-8 text-gray-500">
+                        <Book className="h-12 w-12 mx-auto mb-2 text-gray-300" />
+                        <p>No notes yet</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+
+
+            {/* Recent Activity Section */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* Recent Submissions */}
-              <Card className="border-0 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <ClipboardCheck className="h-5 w-5 text-green-600" />
+              <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                <div className="bg-gradient-to-r from-green-600 to-green-700 px-6 py-4">
+                  <h3 className="text-lg font-bold text-white flex items-center gap-3">
+                    <ClipboardCheck className="h-5 w-5" />
                     Recent Submissions
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
+                  </h3>
+                  <p className="text-green-100 text-sm mt-1">Latest student work</p>
+                </div>
+                <div className="p-6">
                   <div className="space-y-3 max-h-64 overflow-y-auto">
                     {submissions.slice(0, 5).map((submission) => (
-                      <div
-                        key={submission.id}
-                        className="border rounded-lg p-3"
-                      >
-                        <div className="flex items-center justify-between mb-1">
+                      <div key={submission.id} className="border border-gray-200 rounded-xl p-3 hover:shadow-md transition-all duration-200">
+                        <div className="flex items-center justify-between mb-2">
                           <h5 className="text-sm font-medium text-gray-900 truncate flex-1 mr-2">
-                            {submission.assignment?.title ||
-                              "Unknown Assignment"}
+                            {submission.assignment?.title || "Unknown Assignment"}
                           </h5>
-                          <Badge
-                            className={`text-xs ${
-                              submission.status === "graded"
-                                ? "bg-green-100 text-green-700 border-green-200"
-                                : "bg-blue-100 text-blue-700 border-blue-200"
-                            }`}
-                          >
-                            {submission.status === "graded"
-                              ? "Graded"
-                              : "Pending"}
+                          <Badge className={`text-xs ${submission.status === "graded"
+                            ? "bg-green-100 text-green-700 border-green-200"
+                            : "bg-blue-100 text-blue-700 border-blue-200"
+                            }`}>
+                            {submission.status === "graded" ? "Graded" : "Pending"}
                           </Badge>
                         </div>
                         <div className="text-xs text-gray-600 mb-2">
-                          {submission.profiles?.full_name} •{" "}
-                          {submission.assignment?.classes?.name}
+                          {submission.profiles?.full_name} • {submission.assignment?.classes?.name}
                         </div>
                         <div className="flex items-center justify-between">
                           <span className="text-xs text-gray-500">
                             {format(new Date(submission.created_at), "MMM dd")}
                           </span>
-                          {(submission.teacher_grade ||
-                            submission.ai_grade) && (
+                          {(submission.teacher_grade || submission.ai_grade) && (
                             <div className="flex items-center gap-1">
                               <Star className="h-3 w-3 text-yellow-500" />
                               <span className="text-sm font-medium text-gray-700">
-                                {submission.teacher_grade ||
-                                  submission.ai_grade}
-                                %
+                                {submission.teacher_grade || submission.ai_grade}%
                               </span>
                             </div>
                           )}
@@ -1176,210 +1472,270 @@ export default function TeacherDashboard() {
                       </div>
                     )}
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
+
+              {/* Quiz Submissions */}
+              <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                <div className="bg-gradient-to-r from-indigo-600 to-indigo-700 px-6 py-4">
+                  <h3 className="text-lg font-bold text-white flex items-center gap-3">
+                    <ListChecks className="h-5 w-5" />
+                    Quiz Submissions
+                  </h3>
+                  <p className="text-indigo-100 text-sm mt-1">Assessment results</p>
+                </div>
+                <div className="p-6">
+                  <div className="space-y-3 max-h-64 overflow-y-auto">
+                    {quizSubmissions.slice(0, 5).map((s) => (
+                      <div key={s.id} className="border border-gray-200 rounded-xl p-3 hover:shadow-md transition-all duration-200">
+                        <div className="flex items-center justify-between mb-2">
+                          <h5 className="text-sm font-medium text-gray-900 truncate mr-2">
+                            {s.quizzes?.title || "Unknown Quiz"}
+                          </h5>
+                          <Badge className={`text-xs ${s.percentage != null
+                            ? "bg-green-100 text-green-700 border-green-200"
+                            : "bg-blue-100 text-blue-700 border-blue-200"
+                            }`}>
+                            {s.percentage != null ? "Scored" : "Submitted"}
+                          </Badge>
+                        </div>
+                        <div className="text-xs text-gray-600 mb-2">
+                          {s.profiles?.full_name} • {s.quizzes?.classes?.name}
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-gray-500">
+                            {s.submitted_at ? format(new Date(s.submitted_at), "MMM dd") : ""}
+                          </span>
+                          {s.percentage != null && (
+                            <div className="flex items-center gap-1">
+                              <Star className="h-3 w-3 text-yellow-500" />
+                              <span className="text-sm font-medium text-gray-700">
+                                {Math.round(Number(s.percentage))}%
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    {quizSubmissions.length === 0 && (
+                      <div className="text-center py-8 text-gray-500">
+                        <ListChecks className="h-12 w-12 mx-auto mb-2 text-gray-300" />
+                        <p className="text-sm">No quiz submissions yet</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Glossary Requests */}
+              <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                <div className="bg-gradient-to-r from-amber-600 to-amber-700 px-6 py-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-bold text-white flex items-center gap-3">
+                        <HelpCircle className="h-5 w-5" />
+                        Glossary Requests
+                      </h3>
+                      <p className="text-amber-100 text-sm mt-1">Pending review</p>
+                    </div>
+                    <Link to="/teacher/glossary">
+                      <Button size="sm" className="bg-white/20 hover:bg-white/30 text-white border-white/30">
+                        Review
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+                <div className="p-6">
+                  <div className="space-y-3 max-h-64 overflow-y-auto">
+                    {pendingGlossary.map((g) => (
+                      <div key={g.id} className="border border-gray-200 rounded-xl p-3 hover:shadow-md transition-all duration-200">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="font-semibold text-gray-900 truncate">{g.word}</div>
+                          <Badge className="bg-amber-100 text-amber-700 border-amber-200">Pending</Badge>
+                        </div>
+                        {g.context && (
+                          <div className="text-xs text-gray-600 mt-1 line-clamp-2">
+                            {g.context}
+                          </div>
+                        )}
+                        <div className="text-xs text-gray-500 mt-2">
+                          Requested on {format(new Date(g.created_at), "MMM dd, yyyy")}
+                        </div>
+                      </div>
+                    ))}
+                    {pendingGlossary.length === 0 && (
+                      <div className="text-center py-8 text-gray-500">
+                        <HelpCircle className="h-12 w-12 mx-auto mb-2 text-gray-300" />
+                        <p>No new glossary requests</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Class Performance Section */}
-          <Card className="border-0 shadow-lg">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrophyIcon className="h-5 w-5 text-yellow-600" />
-                Class Performance Overview
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {getClassPerformance().length > 0 ? (
-                <div className="h-[300px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={getClassPerformance()}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" />
-                      <YAxis />
-                      <Tooltip
-                        formatter={(value: any, name: string) => {
-                          if (name === "students")
-                            return [`${value}`, "Students"];
-                          if (name === "assignments")
-                            return [`${value}`, "Assignments"];
-                          if (name === "completion")
-                            return [`${value}%`, "Completion Rate"];
-                          return [value, name];
-                        }}
-                        labelFormatter={(label: string) => {
-                          const item = getClassPerformance().find(
-                            (c) => c.name === label
-                          );
-                          return item ? item.fullName : label;
-                        }}
-                      />
-                      <Bar dataKey="students" fill="#3B82F6" name="students" />
-                      <Bar
-                        dataKey="assignments"
-                        fill="#10B981"
-                        name="assignments"
-                      />
-                      <Bar
-                        dataKey="completion"
-                        fill="#6366F1"
-                        name="completion"
-                      />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <div className="text-center py-12 text-gray-500">
-                  <Trophy className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-                  <h3 className="text-lg font-medium mb-2">
-                    No classes to display
-                  </h3>
-                  <p>
-                    Classes will appear here once you're assigned to teach them.
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Student Performance Section */}
-          <Card className="border-0 shadow-lg">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <UserCheck className="h-5 w-5 text-blue-600" />
-                Top Performing Students
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
-                {studentPerformance
-                  .filter((student) => student.avg_grade > 0)
-                  .sort((a, b) => b.avg_grade - a.avg_grade)
-                  .slice(0, 6)
-                  .map((student) => (
-                    <div
-                      key={student.student_id}
-                      className="border rounded-lg p-4 bg-gradient-to-br from-white to-gray-50"
-                    >
-                      <div className="flex items-center gap-3 mb-3">
-                        <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
-                          <User className="h-5 w-5 text-indigo-600" />
-                        </div>
-                        <div className="flex-1">
-                          <h4 className="font-semibold text-gray-900">
-                            {student.student_name}
-                          </h4>
-                          <p className="text-sm text-gray-600">
-                            {student.class_name}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-600">Average Grade:</span>
-                          <span className="font-medium text-green-600">
-                            {student.avg_grade}%
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-600">
-                            Completion Rate:
-                          </span>
-                          <span className="font-medium text-blue-600">
-                            {student.completion_rate}%
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-600">Submissions:</span>
-                          <span className="font-medium text-gray-700">
-                            {student.submissions_count}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                {studentPerformance.filter((s) => s.avg_grade > 0).length ===
-                  0 && (
-                  <div className="col-span-full text-center py-8 text-gray-500">
-                    <UserCheck className="h-12 w-12 mx-auto mb-2 text-gray-300" />
-                    <p>No student performance data available yet</p>
+          {/* Performance Overview Section */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Class Performance Chart */}
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+              <div className="bg-gradient-to-r from-yellow-600 to-yellow-700 px-6 py-4">
+                <h3 className="text-lg font-bold text-white flex items-center gap-3">
+                  <TrophyIcon className="h-5 w-5" />
+                  Class Performance
+                </h3>
+                <p className="text-yellow-100 text-sm mt-1">Overview of all classes</p>
+              </div>
+              <div className="p-6">
+                {getClassPerformance().length > 0 ? (
+                  <div className="h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={getClassPerformance()}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                        <XAxis dataKey="name" stroke="#6B7280" fontSize={12} />
+                        <YAxis stroke="#6B7280" fontSize={12} />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: '#1F2937',
+                            border: 'none',
+                            borderRadius: '8px',
+                            color: '#F9FAFB'
+                          }}
+                          formatter={(value: any, name: string) => {
+                            if (name === "students") return [`${value}`, "Students"];
+                            if (name === "assignments") return [`${value}`, "Assignments"];
+                            if (name === "completion") return [`${value}%`, "Completion Rate"];
+                            return [value, name];
+                          }}
+                          labelFormatter={(label: string) => {
+                            const item = getClassPerformance().find((c) => c.name === label);
+                            return item ? item.fullName : label;
+                          }}
+                        />
+                        <Bar dataKey="students" fill="#3B82F6" name="students" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="assignments" fill="#10B981" name="assignments" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="completion" fill="#6366F1" name="completion" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <div className="text-center py-12 text-gray-500">
+                    <Trophy className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                    <h3 className="text-lg font-medium mb-2">No classes to display</h3>
+                    <p>Classes will appear here once you're assigned to teach them.</p>
                   </div>
                 )}
               </div>
-            </CardContent>
-          </Card>
+            </div>
 
-          {/* Assignments Requiring Attention */}
+            {/* Top Students */}
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+              <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4">
+                <h3 className="text-lg font-bold text-white flex items-center gap-3">
+                  <UserCheck className="h-5 w-5" />
+                  Top Performing Students
+                </h3>
+                <p className="text-blue-100 text-sm mt-1">Best performers across classes</p>
+              </div>
+              <div className="p-6">
+                <div className="space-y-4 max-h-80 overflow-y-auto">
+                  {studentPerformance
+                    .filter((student) => student.avg_grade > 0)
+                    .sort((a, b) => b.avg_grade - a.avg_grade)
+                    .slice(0, 6)
+                    .map((student, index) => (
+                      <div key={student.student_id} className="border border-gray-200 rounded-xl p-4 hover:shadow-md transition-all duration-200 bg-gradient-to-r from-gray-50 to-white">
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center justify-center w-8 h-8 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full text-white font-bold text-sm">
+                            {index + 1}
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-gray-900">{student.student_name}</h4>
+                            <p className="text-sm text-gray-600">{student.class_name}</p>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-lg font-bold text-emerald-600">{student.avg_grade}%</div>
+                            <div className="text-xs text-gray-500">Average</div>
+                          </div>
+                        </div>
+                        <div className="mt-3 flex items-center justify-between text-sm">
+                          <span className="text-gray-600">Completion: {student.completion_rate}%</span>
+                          <span className="text-gray-600">{student.submissions_count} submissions</span>
+                        </div>
+                      </div>
+                    ))}
+                  {studentPerformance.filter((s) => s.avg_grade > 0).length === 0 && (
+                    <div className="text-center py-12 text-gray-500">
+                      <UserCheck className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                      <p>No student performance data available yet</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Alerts Section */}
           {assignments.filter(
             (a) =>
               a.submission_count < a.total_students &&
               new Date(a.due_date) < new Date()
           ).length > 0 && (
-            <Card className="border-0 shadow-lg border-amber-200">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-amber-700">
-                  <AlertCircle className="h-5 w-5" />
-                  Assignments Requiring Attention
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
-                  {assignments
-                    .filter(
-                      (a) =>
-                        a.submission_count < a.total_students &&
-                        new Date(a.due_date) < new Date()
-                    )
-                    .slice(0, 6)
-                    .map((assignment) => (
-                      <div
-                        key={assignment.id}
-                        className="border border-amber-200 rounded-lg p-4 bg-amber-50"
-                      >
-                        <div className="flex items-center gap-2 mb-2">
-                          <AlertCircle className="h-4 w-4 text-amber-600" />
-                          <h4 className="font-semibold text-gray-900 truncate flex-1">
-                            {assignment.title}
-                          </h4>
-                        </div>
-                        <div className="text-sm text-gray-600 mb-3">
-                          <div className="flex items-center gap-1 mb-1">
-                            <School className="h-3 w-3" />
-                            {assignment.classes?.name}
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            Due:{" "}
-                            {format(
-                              new Date(assignment.due_date),
-                              "MMM dd, yyyy"
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-amber-700 font-medium">
-                            {assignment.submission_count}/
-                            {assignment.total_students} submitted
-                          </span>
-                          <Link to="/teacher/assignments">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="border-amber-300 text-amber-700 hover:bg-amber-100"
-                            >
-                              Review
-                              <ChevronRight className="h-3 w-3 ml-1" />
-                            </Button>
-                          </Link>
-                        </div>
-                      </div>
-                    ))}
+              <div className="bg-white rounded-2xl shadow-lg border border-amber-200 overflow-hidden">
+                <div className="bg-gradient-to-r from-amber-600 to-amber-700 px-6 py-4">
+                  <h3 className="text-lg font-bold text-white flex items-center gap-3">
+                    <AlertCircle className="h-5 w-5" />
+                    Assignments Requiring Attention
+                  </h3>
+                  <p className="text-amber-100 text-sm mt-1">Overdue Assignments with missing submissions</p>
                 </div>
-              </CardContent>
-            </Card>
-          )}
+                <div className="p-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {assignments
+                      .filter(
+                        (a) =>
+                          a.submission_count < a.total_students &&
+                          new Date(a.due_date) < new Date()
+                      )
+                      .slice(0, 6)
+                      .map((assignment) => (
+                        <div key={assignment.id} className="border border-amber-200 rounded-xl p-4 bg-amber-50 hover:shadow-md transition-all duration-200">
+                          <div className="flex items-center gap-2 mb-3">
+                            <AlertCircle className="h-4 w-4 text-amber-600" />
+                            <h4 className="font-semibold text-gray-900 truncate flex-1">
+                              {assignment.title}
+                            </h4>
+                          </div>
+                          <div className="text-sm text-gray-600 mb-3 space-y-1">
+                            <div className="flex items-center gap-2">
+                              <School className="h-4 w-4" />
+                              {assignment.classes?.name}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Calendar className="h-4 w-4" />
+                              Due: {format(new Date(assignment.due_date), "MMM dd, yyyy")}
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-amber-700 font-medium">
+                              {assignment.submission_count}/{assignment.total_students} submitted
+                            </span>
+                            <Link to="/teacher/assignments">
+                              <Button size="sm" variant="outline" className="border-amber-300 text-amber-700 hover:bg-amber-100">
+                                Review
+                                <ChevronRight className="h-3 w-3 ml-1" />
+                              </Button>
+                            </Link>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              </div>
+            )}
         </div>
+
       </ModernDashboardLayout>
-    </AuthGuard>
+    </AuthGuard >
   );
 }

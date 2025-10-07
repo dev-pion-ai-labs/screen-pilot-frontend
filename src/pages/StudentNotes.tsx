@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useCallback } from "react"
+import React, { useState, useEffect, useCallback, useMemo } from "react"
 import { useAuth } from "@/hooks/useAuth"
 import { AuthGuard } from "@/components/AuthGuard"
 import { Button } from "@/components/ui/button"
@@ -31,10 +31,13 @@ import { format, subDays, isAfter, isBefore } from "date-fns"
 import { ModernDashboardLayout } from "@/components/ModernDashboardLayout"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
-import { useSpeech } from "react-text-to-speech"
+import { useSpeech, useVoices } from "react-text-to-speech"
 import { jsPDF } from "jspdf"
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from "docx"
 import { saveAs } from "file-saver"
+import { Slider } from "@/components/ui/slider"
+
+
 
 // Types
 interface StudentNote {
@@ -80,13 +83,13 @@ const DateFilterSelect = ({ value, onChange, customRange, onCustomRangeChange })
           <SelectItem value="custom">Custom Range</SelectItem>
         </SelectContent>
       </Select>
-      
+
       {value === 'custom' && (
         <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
           <PopoverTrigger asChild>
             <Button variant="outline" className="w-64 justify-start">
               <CalendarIcon className="mr-2 h-4 w-4" />
-              {customRange.from && customRange.to 
+              {customRange.from && customRange.to
                 ? `${format(customRange.from, "MMM dd")} - ${format(customRange.to, "MMM dd")}`
                 : "Pick date range"
               }
@@ -106,27 +109,173 @@ const DateFilterSelect = ({ value, onChange, customRange, onCustomRangeChange })
   )
 }
 
-// Audio Player Component
-// Audio Player Component with HTML stripping
-const AudioPlayer = ({ text, disabled = false }) => {
-  // Strip HTML tags for speech
-  const stripHtmlTags = (html: string): string => {
-    const tmp = document.createElement("DIV")
-    tmp.innerHTML = html
-    return tmp.textContent || tmp.innerText || ""
+
+
+
+
+
+
+// Natural + Voice-Selectable Audio Player
+// - Skips <h2>, citation tokens like , and the whole "Reference Materials" section
+// - Slower, warmer defaults; inserts pauses between paragraphs with directives
+// - Lets user pick language/voice via useVoices(); persists settings locally
+
+type AudioPlayerProps = {
+  text: string
+  disabled?: boolean
+  skipSelectors?: string[] // optional extra selectors to skip
+}
+
+const LS_KEY = "ssp_tts_prefs"
+
+function loadPrefs() {
+  try {
+    return JSON.parse(localStorage.getItem(LS_KEY) || "{}")
+  } catch {
+    return {}
   }
-  
-  const plainText = stripHtmlTags(text)
-  
+}
+function savePrefs(p: any) {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify(p))
+  } catch { }
+}
+
+export const AudioPlayer: React.FC<AudioPlayerProps> = ({
+  text,
+  disabled = false,
+  skipSelectors = ["h2"],
+}) => {
+  const { languages, voices } = useVoices()
+
+  // sensible defaults for India; user can override
+  const AUTO_LANG = "auto"
+  const DEFAULT_VOICE = "defaultVoice"
+  const prefs = useMemo(loadPrefs, [])
+  const [lang, setLang] = useState<string>(prefs.lang ? String(prefs.lang) : AUTO_LANG)
+  const [voiceURI, setVoiceURI] = useState<string>(prefs.voiceURI ? String(prefs.voiceURI) : DEFAULT_VOICE)
+
+  const [rate, setRate] = useState<number>(prefs.rate ?? 0.85);
+  const [pitch, setPitch] = useState<number>(prefs.pitch ?? 0.92);
+
+  const [volume, setVolume] = useState<number>(prefs.volume ?? 1)
+  // add sentinels at top of component file
+
+
+
+  useEffect(() => {
+    savePrefs({ lang, voiceURI, rate, pitch, volume })
+  }, [lang, voiceURI, rate, pitch, volume])
+
+  // try to auto-pick a good Indian English voice on first mount if none saved
+  useEffect(() => {
+    if (voiceURI === DEFAULT_VOICE && voices.length) {
+      const preferred =
+        voices.find(v => v.lang === "en-IN") ||
+        voices.find(v => /India|Heera|Neural|Google.*English.*India/i.test(v.voiceURI)) ||
+        voices.find(v => v.lang?.startsWith("en-"))
+      if (preferred) setVoiceURI(preferred.voiceURI)
+    }
+  }, [voices.length]) // eslint-disable-line react-hooks/exhaustive-deps
+
+
+  const prepareSpeechText = (html: string): string => {
+    if (!html) return ""
+    const parser = new DOMParser()
+    const doc = parser.parseFromString(html, "text/html")
+    const body = doc.body || doc
+
+    // remove scripts/styles + requested tags
+    body.querySelectorAll("script, style").forEach(n => n.remove())
+    if (skipSelectors?.length) body.querySelectorAll(skipSelectors.join(",")).forEach(n => n.remove())
+
+    // drop "Reference Materials" heading and its following nodes up to next heading
+    const refHeading = Array.from(body.querySelectorAll("h1,h2,h3,h4,h5,h6")).find(h =>
+      /reference\s*materials?/i.test(h.textContent || "")
+    )
+    if (refHeading) {
+      let n: ChildNode | null = refHeading
+      // remove heading and siblings until next heading
+      while (n) {
+        const next = n.nextSibling
+        n.remove()
+        if (next && next.nodeType === Node.ELEMENT_NODE) {
+          const tag = (next as Element).tagName.toLowerCase()
+          if (/^h[1-6]$/.test(tag)) break
+        }
+        n = next
+      }
+    }
+
+    // gather block text with bullets for <li>
+    const blocks: string[] = []
+    const blockTags = new Set(["p", "li", "h1", "h2", "h3", "h4", "h5", "h6"])
+    let current = ""
+
+    const flush = () => {
+      const cleaned = current
+        .replace(/【[^】]+】/g, "") // strip citation boxes
+        .replace(/\s+/g, " ")
+        .trim()
+      if (cleaned) blocks.push(cleaned)
+      current = ""
+    }
+
+    const walker = doc.createTreeWalker(body, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT)
+    let node: Node | null = walker.nextNode()
+    while (node) {
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        const el = node as Element
+        const tag = el.tagName.toLowerCase()
+        if (blockTags.has(tag)) flush()
+        if (tag === "li") current += " • "
+      } else if (node.nodeType === Node.TEXT_NODE) {
+        const t = (node.nodeValue || "").replace(/\s+/g, " ").trim()
+        if (t) current += (current ? " " : "") + t
+      }
+      node = walker.nextNode()
+    }
+    flush()
+
+    // Insert short pauses between paragraphs using directives.
+    // The library processes directives only if enableDirectives=true in useSpeech().
+    return blocks.join(" [[delay=350]]\n\n")
+  }
+
+  const speechText = useMemo(() => prepareSpeechText(text), [text])
+
+  // If text is full of long sentences, slow a touch more
+  const longest = useMemo(
+    () => speechText.split(/[.!?]\s/).reduce((m, s) => Math.max(m, s.length), 0),
+    [speechText]
+  )
+  const chosenRate = longest > 220 ? Math.min(rate, 0.85) : rate
+
+  const langForSpeech = lang === AUTO_LANG ? undefined : lang
+  const voiceForSpeech = voiceURI === DEFAULT_VOICE ? undefined : voiceURI
+
+
   const {
     speechStatus,
     isInQueue,
     start,
     pause,
     stop,
-  } = useSpeech({ text: plainText })
+  } = useSpeech({
+    text: speechText,
+    rate: chosenRate,
+    pitch,
+    volume,
+    lang: langForSpeech,        // <-- use translated value
+    voiceURI: voiceForSpeech,   // <-- use translated value
+    maxChunkSize: 180,        // tighter chunks = clearer articulation + natural breathing
+    highlightText: false,
+    highlightMode: "sentence",
+    preserveUtteranceQueue: false,
+    enableDirectives: true,   // enables [[delay=...]] we embedded
+  })
 
-  if (disabled || !text) {
+  if (disabled || !speechText) {
     return (
       <Button variant="outline" size="sm" disabled>
         <Volume2 className="h-4 w-4" />
@@ -134,41 +283,131 @@ const AudioPlayer = ({ text, disabled = false }) => {
     )
   }
 
+
+  const filteredVoices = lang === AUTO_LANG ? voices : voices.filter(v => v.lang === lang);
+
+
   return (
-    <div className="flex items-center gap-1">
-      {speechStatus !== "started" ? (
-        <Button variant="outline" size="sm" onClick={start} title="Play Audio">
-          <Volume2 className="h-4 w-4" />
-        </Button>
-      ) : (
-        <Button variant="outline" size="sm" onClick={pause} title="Pause Audio">
-          <Volume2 className="h-4 w-4" />
-        </Button>
-      )}
-      {isInQueue && (
-        <Button variant="outline" size="sm" onClick={stop} title="Stop">
-          <X className="h-3 w-3" />
-        </Button>
-      )}
+    <div className="flex flex-col gap-2">
+      {/* Controls row */}
+      <div className="flex items-center gap-1">
+        {speechStatus !== "started" ? (
+          <Button variant="outline" size="sm" onClick={start} title="Play">
+            <Volume2 className="h-4 w-4" />
+          </Button>
+        ) : (
+          <Button variant="outline" size="sm" onClick={pause} title="Pause">
+            <Volume2 className="h-4 w-4" />
+          </Button>
+        )}
+        {isInQueue && (
+          <Button variant="outline" size="sm" onClick={stop} title="Stop">
+            <X className="h-3 w-3" />
+          </Button>
+        )}
+
+        {/* Language */}
+        <Select
+          value={lang}
+          onValueChange={(val) => {
+            setLang(val)
+            setVoiceURI(DEFAULT_VOICE) // reset to default for new language
+          }}
+        >
+          <SelectTrigger className="h-8 w-40">
+            <SelectValue placeholder="Language" />
+          </SelectTrigger>
+          <SelectContent className="max-h-64">
+            <SelectItem value={AUTO_LANG}>Auto (system default)</SelectItem>
+            {languages.map((l) => (
+              <SelectItem key={l} value={l}>{l}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+
+        {/* Voice */}
+
+        <Select value={voiceURI} onValueChange={setVoiceURI}>
+          <SelectTrigger className="h-8 w-56">
+            <SelectValue placeholder="Voice" />
+          </SelectTrigger>
+          <SelectContent className="max-h-64">
+            <SelectItem value={DEFAULT_VOICE}>Default voice</SelectItem>
+            {filteredVoices.map((v) => (
+              <SelectItem key={v.voiceURI} value={v.voiceURI}>
+                {v.voiceURI}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+      </div>
+
+      {/* Sliders row (Rate / Pitch / Volume) */}
+      {/* <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-center">
+        <div className="flex items-center gap-3">
+          <span className="text-xs w-10">Rate</span>
+          <Slider
+            value={[rate]}
+            min={0.5}
+            max={1.3}
+            step={0.01}
+            onValueChange={([v]) => setRate(v)}
+            className="w-40"
+          />
+          <span className="text-xs w-8">{rate.toFixed(2)}</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-xs w-10">Pitch</span>
+          <Slider
+            value={[pitch]}
+            min={0.7}
+            max={1.3}
+            step={0.01}
+            onValueChange={([v]) => setPitch(v)}
+            className="w-40"
+          />
+          <span className="text-xs w-8">{pitch.toFixed(2)}</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-xs w-10">Vol</span>
+          <Slider
+            value={[volume]}
+            min={0}
+            max={1}
+            step={0.01}
+            onValueChange={([v]) => setVolume(v)}
+            className="w-40"
+          />
+          <span className="text-xs w-8">{volume.toFixed(2)}</span>
+        </div>
+      </div> */}
     </div>
   )
 }
+
+
+
+
+
+
 
 // Export Functions
 // Enhanced PDF Export with HTML parsing
 const exportToPDF = (title: string, htmlContent: string, teacherName: string) => {
   const doc = new jsPDF()
-  
+
   // Parse HTML content
   const parser = new DOMParser()
   const htmlDoc = parser.parseFromString(htmlContent, 'text/html')
-  
+
   let yPosition = 20
   const pageWidth = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
   const margin = 20
   const maxWidth = pageWidth - (margin * 2)
-  
+
   // Title
   doc.setFontSize(22)
   doc.setFont(undefined, 'bold')
@@ -176,37 +415,37 @@ const exportToPDF = (title: string, htmlContent: string, teacherName: string) =>
   const titleLines = doc.splitTextToSize(title, maxWidth)
   doc.text(titleLines, margin, yPosition)
   yPosition += (titleLines.length * 10) + 5
-  
+
   // Teacher info
   doc.setFontSize(11)
   doc.setFont(undefined, 'italic')
   doc.setTextColor(100, 100, 100)
   doc.text(`By: Prof. ${teacherName}`, margin, yPosition)
   yPosition += 10
-  
+
   // Draw line
   doc.setDrawColor(124, 58, 237)
   doc.setLineWidth(0.5)
   doc.line(margin, yPosition, pageWidth - margin, yPosition)
   yPosition += 15
-  
+
   // Process HTML content
   const elements = htmlDoc.body.children
-  
+
   const addNewPageIfNeeded = (requiredSpace) => {
     if (yPosition + requiredSpace > pageHeight - margin) {
       doc.addPage()
       yPosition = margin
     }
   }
-  
+
   for (let element of elements) {
     const tagName = element.tagName.toLowerCase()
     const text = element.textContent.trim()
-    
+
     if (!text) continue
-    
-    switch(tagName) {
+
+    switch (tagName) {
       case 'h1':
         addNewPageIfNeeded(20)
         doc.setFontSize(18)
@@ -219,7 +458,7 @@ const exportToPDF = (title: string, htmlContent: string, teacherName: string) =>
         doc.line(margin, yPosition, pageWidth - margin, yPosition)
         yPosition += 10
         break
-        
+
       case 'h2':
         addNewPageIfNeeded(15)
         doc.setFontSize(14)
@@ -232,7 +471,7 @@ const exportToPDF = (title: string, htmlContent: string, teacherName: string) =>
         doc.text(h2Lines, margin + 5, yPosition)
         yPosition += (h2Lines.length * 7) + 8
         break
-        
+
       case 'h3':
         addNewPageIfNeeded(12)
         doc.setFontSize(12)
@@ -242,7 +481,7 @@ const exportToPDF = (title: string, htmlContent: string, teacherName: string) =>
         doc.text(h3Lines, margin, yPosition)
         yPosition += (h3Lines.length * 6) + 6
         break
-        
+
       case 'p':
         addNewPageIfNeeded(10)
         doc.setFontSize(10)
@@ -252,7 +491,7 @@ const exportToPDF = (title: string, htmlContent: string, teacherName: string) =>
         doc.text(pLines, margin, yPosition)
         yPosition += (pLines.length * 5) + 8
         break
-        
+
       case 'ul':
       case 'ol':
         addNewPageIfNeeded(10)
@@ -273,7 +512,7 @@ const exportToPDF = (title: string, htmlContent: string, teacherName: string) =>
         break
     }
   }
-  
+
   // Footer
   const totalPages = doc.internal.pages.length - 1
   for (let i = 1; i <= totalPages; i++) {
@@ -282,7 +521,7 @@ const exportToPDF = (title: string, htmlContent: string, teacherName: string) =>
     doc.setTextColor(156, 163, 175)
     doc.text(`Page ${i} of ${totalPages}`, pageWidth / 2, pageHeight - 10, { align: 'center' })
   }
-  
+
   doc.save(`${title}.pdf`)
 }
 
@@ -291,9 +530,9 @@ const exportToDocx = async (title: string, htmlContent: string, teacherName: str
   const parser = new DOMParser()
   const htmlDoc = parser.parseFromString(htmlContent, 'text/html')
   const elements = htmlDoc.body.children
-  
+
   const docChildren = []
-  
+
   // Title
   docChildren.push(
     new Paragraph({
@@ -317,7 +556,7 @@ const exportToDocx = async (title: string, htmlContent: string, teacherName: str
       }
     })
   )
-  
+
   // Teacher info
   docChildren.push(
     new Paragraph({
@@ -332,15 +571,15 @@ const exportToDocx = async (title: string, htmlContent: string, teacherName: str
       spacing: { after: 400 }
     })
   )
-  
+
   // Process HTML
   for (let element of elements) {
     const tagName = element.tagName.toLowerCase()
     const text = element.textContent.trim()
-    
+
     if (!text) continue
-    
-    switch(tagName) {
+
+    switch (tagName) {
       case 'h1':
         docChildren.push(
           new Paragraph({
@@ -365,7 +604,7 @@ const exportToDocx = async (title: string, htmlContent: string, teacherName: str
           })
         )
         break
-        
+
       case 'h2':
         docChildren.push(
           new Paragraph({
@@ -391,7 +630,7 @@ const exportToDocx = async (title: string, htmlContent: string, teacherName: str
           })
         )
         break
-        
+
       case 'h3':
         docChildren.push(
           new Paragraph({
@@ -408,7 +647,7 @@ const exportToDocx = async (title: string, htmlContent: string, teacherName: str
           })
         )
         break
-        
+
       case 'p':
         docChildren.push(
           new Paragraph({
@@ -424,7 +663,7 @@ const exportToDocx = async (title: string, htmlContent: string, teacherName: str
           })
         )
         break
-        
+
       case 'ul':
         const ulItems = element.querySelectorAll('li')
         ulItems.forEach((li) => {
@@ -444,7 +683,7 @@ const exportToDocx = async (title: string, htmlContent: string, teacherName: str
         })
         docChildren.push(new Paragraph({ text: "" }))
         break
-        
+
       case 'ol':
         const olItems = element.querySelectorAll('li')
         olItems.forEach((li) => {
@@ -469,7 +708,7 @@ const exportToDocx = async (title: string, htmlContent: string, teacherName: str
         break
     }
   }
-  
+
   const doc = new Document({
     numbering: {
       config: [{
@@ -507,7 +746,7 @@ const NoteViewer = ({ note, onClose }) => {
   // Render HTML content
   const renderNoteContent = (content) => {
     return (
-      <div 
+      <div
         className="prose prose-lg max-w-none"
         dangerouslySetInnerHTML={{ __html: content }}
       />
@@ -523,7 +762,7 @@ const NoteViewer = ({ note, onClose }) => {
             <BookOpen className="h-8 w-8 text-purple-600" />
             <h1 className="text-3xl font-bold text-gray-900">{note.title}</h1>
           </div>
-          
+
           <div className="flex flex-wrap items-center gap-3 mt-3">
             <Badge variant="outline" className="text-sm py-1 px-3">
               👨‍🏫 Prof. {note.teacher_name}
@@ -536,7 +775,7 @@ const NoteViewer = ({ note, onClose }) => {
             </Badge>
           </div>
         </div>
-        
+
         <Button variant="outline" onClick={onClose}>
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back
@@ -563,7 +802,8 @@ const NoteViewer = ({ note, onClose }) => {
 
       {/* Actions */}
       <div className="flex items-center gap-3 flex-wrap">
-        <AudioPlayer text={note.content} />
+        <AudioPlayer text={note.content} skipSelectors={["h1", "h2", "blockquote"]} />
+
         <Button
           onClick={() => exportToPDF(note.title, note.content, note.teacher_name)}
           variant="outline"
@@ -633,7 +873,7 @@ const NoteViewer = ({ note, onClose }) => {
               line-height: 1.75;
             }
           `}</style>
-          
+
           {renderNoteContent(note.content)}
         </CardContent>
       </Card>
@@ -654,7 +894,7 @@ const NoteViewer = ({ note, onClose }) => {
 export default function StudentNotes() {
   const { profile } = useAuth()
   const { toast } = useToast()
-  
+
   // State
   const [viewMode, setViewMode] = useState<ViewMode>('table')
   const [loading, setLoading] = useState(true)
@@ -662,7 +902,7 @@ export default function StudentNotes() {
   const [classes, setClasses] = useState<Class[]>([])
   const [filteredNotes, setFilteredNotes] = useState<StudentNote[]>([])
   const [selectedNote, setSelectedNote] = useState<StudentNote | null>(null)
-  
+
   // Filters
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedClass, setSelectedClass] = useState('all')
@@ -695,7 +935,7 @@ export default function StudentNotes() {
   const fetchNotes = useCallback(async () => {
     try {
       setLoading(true)
-      
+
       // Get note enrollments for this student with full note details
       const { data: enrollmentsData, error: enrollmentsError } = await supabase
         .from('note_enrollments')
@@ -754,7 +994,7 @@ export default function StudentNotes() {
 
     // Search filter
     if (searchTerm) {
-      filtered = filtered.filter(note => 
+      filtered = filtered.filter(note =>
         note.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         note.topic.toLowerCase().includes(searchTerm.toLowerCase()) ||
         note.subtopic.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -832,7 +1072,7 @@ export default function StudentNotes() {
     <AuthGuard allowedRoles={["student"]}>
       <ModernDashboardLayout>
         <div className="max-w-7xl mx-auto space-y-6">
-          
+
           {/* Table View */}
           {viewMode === 'table' && (
             <>
@@ -879,7 +1119,7 @@ export default function StudentNotes() {
                         className="pl-10"
                       />
                     </div>
-                    
+
                     <Select value={selectedClass} onValueChange={setSelectedClass}>
                       <SelectTrigger className="w-48">
                         <SelectValue placeholder="Filter by class" />
@@ -960,8 +1200,8 @@ export default function StudentNotes() {
                                   <Eye className="h-4 w-4" />
                                 </Button>
 
-                                <AudioPlayer text={note.content} />
-                                
+
+
                                 <Button
                                   variant="outline"
                                   size="sm"
@@ -970,7 +1210,7 @@ export default function StudentNotes() {
                                 >
                                   <Download className="h-4 w-4" />
                                 </Button>
-                                
+
                                 <Button
                                   variant="outline"
                                   size="sm"
@@ -985,7 +1225,7 @@ export default function StudentNotes() {
                         ))}
                       </TableBody>
                     </Table>
-                    
+
                     {filteredNotes.length === 0 && (
                       <div className="text-center py-12">
                         <BookOpen className="h-16 w-16 mx-auto mb-4 text-gray-300" />
@@ -1018,9 +1258,9 @@ export default function StudentNotes() {
 
           {/* View Mode */}
           {viewMode === 'view' && selectedNote && (
-            <NoteViewer 
-              note={selectedNote} 
-              onClose={() => setViewMode('table')} 
+            <NoteViewer
+              note={selectedNote}
+              onClose={() => setViewMode('table')}
             />
           )}
         </div>

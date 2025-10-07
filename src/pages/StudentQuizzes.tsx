@@ -104,15 +104,15 @@ const QuestionDisplay = ({ question, selectedAnswer, onAnswerSelect, showResults
   return (
     <div className="space-y-4">
       <h3 className="text-lg font-semibold">{question.question_text}</h3>
-      
+
       <div className="space-y-3">
         {question.options.map((option, index) => {
           const isSelected = selectedAnswer === index
           const isCorrect = question.correct_option_id === index
           const isStudentChoice = studentAnswer === index
-          
+
           let cardStyle = "border-2 border-gray-200 hover:border-blue-300 bg-white"
-          
+
           if (showResults) {
             if (isCorrect) {
               cardStyle = "border-2 border-green-300 bg-green-50"
@@ -122,7 +122,7 @@ const QuestionDisplay = ({ question, selectedAnswer, onAnswerSelect, showResults
           } else if (isSelected) {
             cardStyle = "border-2 border-blue-500 bg-blue-50"
           }
-          
+
           return (
             <div
               key={index}
@@ -146,7 +146,7 @@ const QuestionDisplay = ({ question, selectedAnswer, onAnswerSelect, showResults
           )
         })}
       </div>
-      
+
       {showResults && question.explanation && (
         <div className="mt-4">
           <Button
@@ -157,7 +157,7 @@ const QuestionDisplay = ({ question, selectedAnswer, onAnswerSelect, showResults
             <span>{showExplanation ? 'Hide' : 'Show'} Explanation</span>
             {showExplanation ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
           </Button>
-          
+
           {showExplanation && (
             <div className="mt-3 p-4 bg-blue-50 border rounded-lg">
               <p className="text-sm text-blue-800">{question.explanation}</p>
@@ -173,17 +173,17 @@ const QuestionDisplay = ({ question, selectedAnswer, onAnswerSelect, showResults
 export default function StudentQuizzes() {
   const { profile } = useAuth()
   const { toast } = useToast()
-  
+
   // State
   const [loading, setLoading] = useState(true)
   const [quizzes, setQuizzes] = useState<Quiz[]>([])
   const [submissions, setSubmissions] = useState<QuizSubmission[]>([])
   const [searchTerm, setSearchTerm] = useState('')
-  
+
   // Modal states
   const [isQuizModalOpen, setIsQuizModalOpen] = useState(false)
   const [isResultsModalOpen, setIsResultsModalOpen] = useState(false)
-  
+
   // Quiz taking state
   const [activeQuiz, setActiveQuiz] = useState<Quiz | null>(null)
   const [questions, setQuestions] = useState<QuizQuestion[]>([])
@@ -191,7 +191,7 @@ export default function StudentQuizzes() {
   const [answers, setAnswers] = useState<Record<string, number>>({})
   const [timeLeft, setTimeLeft] = useState(0)
   const [startTime, setStartTime] = useState<Date | null>(null)
-  
+
   // Results state
   const [currentSubmission, setCurrentSubmission] = useState<QuizSubmission | null>(null)
 
@@ -199,7 +199,7 @@ export default function StudentQuizzes() {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true)
-      
+
       const { data: enrollments, error: enrollError } = await supabase
         .from('quiz_enrollments')
         .select('quiz_id')
@@ -208,13 +208,13 @@ export default function StudentQuizzes() {
       if (enrollError) throw enrollError
 
       const quizIds = enrollments?.map(e => e.quiz_id) || []
-      
+
       if (quizIds.length > 0) {
         const { data: quizData, error: quizError } = await supabase
           .from('quizzes')
           .select('*')
           .in('id', quizIds)
-          .order('due_date', { ascending: true })
+          .order('created_at', { ascending: false })
 
         if (quizError) throw quizError
         setQuizzes(quizData || [])
@@ -246,7 +246,7 @@ export default function StudentQuizzes() {
   // Timer effect
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null
-    
+
     if (isQuizModalOpen && timeLeft > 0) {
       interval = setInterval(() => {
         setTimeLeft(prev => {
@@ -258,7 +258,7 @@ export default function StudentQuizzes() {
         })
       }, 1000)
     }
-    
+
     return () => {
       if (interval) clearInterval(interval)
     }
@@ -423,7 +423,7 @@ export default function StudentQuizzes() {
     <AuthGuard allowedRoles={["student"]}>
       <ModernDashboardLayout>
         <div className="max-w-7xl mx-auto space-y-6">
-          
+
           {/* Header */}
           <div className="text-center space-y-2">
             <h1 className="text-3xl font-bold text-gray-900">My Quizzes</h1>
@@ -494,7 +494,7 @@ export default function StudentQuizzes() {
                       const submission = submissions.find(s => s.quiz_id === quiz.id)
                       const isCompleted = !!submission
                       const isOverdue = isAfter(new Date(), new Date(quiz.due_date))
-                      
+
                       return (
                         <TableRow key={quiz.id}>
                           <TableCell>
@@ -562,7 +562,7 @@ export default function StudentQuizzes() {
                     })}
                   </TableBody>
                 </Table>
-                
+
                 {filteredQuizzes.length === 0 && (
                   <div className="text-center py-12">
                     <Brain className="h-16 w-16 mx-auto mb-4 text-gray-300" />
@@ -619,7 +619,7 @@ export default function StudentQuizzes() {
                       <ArrowLeft className="h-4 w-4 mr-2" />
                       Previous
                     </Button>
-                    
+
                     {currentQuestionIndex === questions.length - 1 ? (
                       <Button onClick={handleSubmitQuiz} className="bg-green-600 hover:bg-green-700">
                         <CheckCircle className="h-4 w-4 mr-2" />
@@ -681,11 +681,11 @@ export default function StudentQuizzes() {
                   <BookOpen className="h-5 w-5" />
                   Question Review
                 </h3>
-                
+
                 {questions.map((question, index) => {
                   const studentAnswer = currentSubmission?.answers[question.id]
                   const isCorrect = studentAnswer === question.correct_option_id
-                  
+
                   return (
                     <div key={question.id} className="border rounded-lg p-4">
                       <div className="flex items-center gap-2 mb-4">
@@ -695,11 +695,11 @@ export default function StudentQuizzes() {
                         </Badge>
                         <span className="text-sm text-gray-600 ml-auto">{question.points} points</span>
                       </div>
-                      
+
                       <QuestionDisplay
                         question={question}
                         selectedAnswer={null}
-                        onAnswerSelect={() => {}}
+                        onAnswerSelect={() => { }}
                         showResults={true}
                         studentAnswer={studentAnswer}
                       />

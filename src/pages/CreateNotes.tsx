@@ -285,54 +285,7 @@ const NoteEditor = ({ content, onChange, readOnly = false }) => {
 
 // Audio Player Component
 // Audio Player Component with HTML stripping
-const AudioPlayer = ({ text, disabled = false }) => {
-    // Strip HTML tags for speech
-    const stripHtmlTags = (html: string): string => {
-        const tmp = document.createElement("DIV")
-        tmp.innerHTML = html
-        return tmp.textContent || tmp.innerText || ""
-    }
-    
-    const plainText = stripHtmlTags(text)
-    
-    const {
-        speechStatus,
-        isInQueue,
-        start,
-        pause,
-        stop,
-    } = useSpeech({ text: plainText })
-
-    if (disabled || !text) {
-        return (
-            <Button variant="outline" disabled>
-                <Volume2 className="h-4 w-4 mr-2" />
-                Audio
-            </Button>
-        )
-    }
-
-    return (
-        <div className="flex items-center gap-2">
-            {speechStatus !== "started" ? (
-                <Button variant="outline" onClick={start}>
-                    <Volume2 className="h-4 w-4 mr-2" />
-                    Play Audio
-                </Button>
-            ) : (
-                <Button variant="outline" onClick={pause}>
-                    <Volume2 className="h-4 w-4 mr-2" />
-                    Pause
-                </Button>
-            )}
-            {isInQueue && (
-                <Button variant="outline" onClick={stop} size="sm">
-                    Stop
-                </Button>
-            )}
-        </div>
-    )
-}
+import { AudioPlayer } from "@/pages/StudentNotes";
 
 // Enhanced PDF Export with HTML parsing
 const exportToPDF = (title: string, htmlContent: string) => {
@@ -1328,7 +1281,8 @@ const generateNotes = async () => {
 
                   {/* Action Buttons */}
                   <div className="flex flex-col sm:flex-row gap-4 pt-4">
-                    <AudioPlayer text={currentNote.content} />
+                   
+                    <AudioPlayer text={currentNote.content} skipSelectors={["h1", "h2", "blockquote"]} />
 
                     <Button
                       onClick={() => exportToPDF(currentNote.title, currentNote.content)}

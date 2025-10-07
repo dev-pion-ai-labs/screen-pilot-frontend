@@ -1098,130 +1098,9 @@ return (
             {/* === END NEW ROW === */}
 
             {/* Row 2: AI Tools and Grade Distribution - 2 columns */}
-            <div className="col-span-1 md:col-span-1 lg:col-span-2">
-              <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 h-full overflow-hidden">
-                <CardHeader className="pb-4 bg-gradient-to-r from-indigo-50 to-purple-50">
-                  <CardTitle className="flex items-center gap-3">
-                    <div className="p-2 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl">
-                      <Zap className="h-5 w-5 text-white" />
-                    </div>
-                    AI Learning Tools
-                    <Badge
-                      variant="secondary"
-                      className="ml-auto bg-purple-100 text-purple-700"
-                    >
-                      4 Tools
-                    </Badge>
-                  </CardTitle>
-                  <p className="text-sm text-gray-600 mt-2">
-                    Enhance your learning with AI-powered tools
-                  </p>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <div className="space-y-0">
-                    <Link to="/quiz" className="block">
-                      <div className="group relative p-6 hover:bg-gradient-to-r hover:from-blue-50 hover:to-blue-100 transition-all duration-300 border-b border-gray-100 last:border-b-0">
-                        <div className="flex items-center gap-4">
-                          <div className="p-3 bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl group-hover:scale-110 transition-transform duration-300 shadow-lg">
-                            <MessageSquare className="h-6 w-6 text-white" />
-                          </div>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <h3 className="font-bold text-gray-900 text-lg">
-                                AI Mentor - Syllabus
-                              </h3>
-                              <Sparkles className="h-4 w-4 text-blue-500 group-hover:animate-pulse" />
-                            </div>
-                            <p className="text-sm text-gray-600 group-hover:text-gray-700">
-                              Get personalized guidance and explanations from
-                              your AI mentor
-                            </p>
-                          </div>
-                          <ChevronRight className="h-5 w-5 text-gray-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all duration-300" />
-                        </div>
-                        <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-blue-600/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                      </div>
-                    </Link>
+           
 
-                    <Link to="/student/assignments" className="block">
-                      <div className="group relative p-6 hover:bg-gradient-to-r hover:from-orange-50 hover:to-orange-100 transition-all duration-300 border-b border-gray-100 last:border-b-0">
-                        <div className="flex items-center gap-4">
-                          <div className="p-3 bg-gradient-to-r from-orange-500 to-orange-600 rounded-2xl group-hover:scale-110 transition-transform duration-300 shadow-lg">
-                            <FileText className="h-6 w-6 text-white" />
-                          </div>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <h3 className="font-bold text-gray-900 text-lg">
-                                Assignment
-                              </h3>
-                              <Sparkles className="h-4 w-4 text-orange-500 group-hover:animate-pulse" />
-                            </div>
-                            <p className="text-sm text-gray-600 group-hover:text-gray-700">
-                              Access and complete your assignments with
-                              AI-powered assistance
-                            </p>
-                          </div>
-                          <ChevronRight className="h-5 w-5 text-gray-400 group-hover:text-orange-600 group-hover:translate-x-1 transition-all duration-300" />
-                        </div>
-                        <div className="absolute inset-0 bg-gradient-to-r from-orange-500/5 to-orange-600/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                      </div>
-                    </Link>
-
-                    <div className="block cursor-not-allowed opacity-60">
-                      <div className="relative p-6 border-b border-gray-100 last:border-b-0">
-                        <div className="flex items-center gap-4">
-                          <div className="p-3 bg-gradient-to-r from-purple-500 to-purple-600 rounded-2xl shadow-lg">
-                            <Brain className="h-6 w-6 text-white" />
-                          </div>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <h3 className="font-bold text-gray-900 text-lg">
-                                Consult AI Mentor
-                              </h3>
-                              <Badge
-                                variant="outline"
-                                className="bg-yellow-50 text-yellow-700 border-yellow-200"
-                              >
-                                Coming Soon
-                              </Badge>
-                            </div>
-                            <p className="text-sm text-gray-600">
-                              Voice AI agent
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <Link to="/script-analyzer" className="block">
-                      <div className="group relative p-6 hover:bg-gradient-to-r hover:from-emerald-50 hover:to-emerald-100 transition-all duration-300 border-b border-gray-100 last:border-b-0">
-                        <div className="flex items-center gap-4">
-                          <div className="p-3 bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-2xl group-hover:scale-110 transition-transform duration-300 shadow-lg">
-                            <FileText className="h-6 w-6 text-white" />
-                          </div>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <h3 className="font-bold text-gray-900 text-lg">
-                                Script Analyser
-                              </h3>
-                              <Sparkles className="h-4 w-4 text-emerald-500 group-hover:animate-pulse" />
-                            </div>
-                            <p className="text-sm text-gray-600 group-hover:text-gray-700">
-                              Analyze scripts and screenplays with advanced AI
-                              insights
-                            </p>
-                          </div>
-                          <ChevronRight className="h-5 w-5 text-gray-400 group-hover:text-emerald-600 group-hover:translate-x-1 transition-all duration-300" />
-                        </div>
-                        <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 to-emerald-600/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                      </div>
-                    </Link>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            <div className="col-span-1 md:col-span-1 lg:col-span-2">
+            {/* <div className="col-span-1 md:col-span-1 lg:col-span-2">
               <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 h-full">
                 <CardHeader className="pb-4">
                   <CardTitle className="flex items-center gap-3">
@@ -1299,7 +1178,7 @@ return (
                   )}
                 </CardContent>
               </Card>
-            </div>
+            </div> */}
 
             {/* Row 3: My Classes Carousel - Full width */}
             <div className="col-span-1 md:col-span-2 lg:col-span-4">

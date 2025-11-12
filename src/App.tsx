@@ -35,6 +35,7 @@ import CreateNotes from "./pages/CreateNotes";
 import TeacherNotes from "./pages/TeacherNotes";
 import StudentNotes from "./pages/StudentNotes";
 import Glossary from "./pages/Glossary";
+import ExploreBeyondSyllabus from "./pages/ExploreBeyondSyllabus";
 
 const queryClient = new QueryClient();
 
@@ -77,6 +78,7 @@ const App = () => (
             <Route path="/teacher/glossary" element={<Glossary />} />
             <Route path="/student/glossary" element={<Glossary />} />
             <Route path="/student/notes" element={<StudentNotes />} />
+            <Route path="/student/explore-beyond-syllabus" element={<ExploreBeyondSyllabus />} />
             <Route path="/script-analyzer" element={<ScriptAnalyzer />} />
             <Route path="/assignment/:id" element={<AssignmentDetail />} />
             <Route path="/unauthorized" element={<Unauthorized />} />

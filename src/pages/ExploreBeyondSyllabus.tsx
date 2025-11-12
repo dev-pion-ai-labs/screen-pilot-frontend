@@ -7,7 +7,7 @@ import { useNavigate, useSearchParams } from "react-router-dom"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { ModernDashboardLayout } from "@/components/ModernDashboardLayout"
-import { Compass, Eye, Frame, Scissors, Lightbulb, PenTool, ArrowRight, ArrowLeft, Target, Upload, History, Save, X, FileText, Image, Video, File } from "lucide-react"
+import { Compass, Eye, Frame, Scissors, Lightbulb, PenTool, ArrowRight, ArrowLeft, Target, Upload, History, Save, X, FileText, Image, Video, File, Users, Clock, Globe, Film, Layers, BookMarked } from "lucide-react"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
@@ -24,14 +24,23 @@ export default function ExploreBeyondSyllabus() {
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([])
   const [historyOpen, setHistoryOpen] = useState(false)
   const [selectedHistoryItem, setSelectedHistoryItem] = useState<any>(null)
+  const [isLoading, setIsLoading] = useState(true)
 
   // Get student's semester from profile
   const semester = profile?.semester || 1
 
-  // Dummy history data
-  const historyData = [
+  // Wait for profile to load
+  useEffect(() => {
+    if (profile) {
+      setIsLoading(false)
+    }
+  }, [profile])
+
+  // Dummy history data - Semester 1
+  const semester1HistoryData = [
     {
       id: "hist-1",
+      semester: 1,
       topicId: "seeing-cinematically",
       topicTitle: "Seeing Cinematically",
       exerciseId: "sc-frame-ordinary",
@@ -45,6 +54,7 @@ export default function ExploreBeyondSyllabus() {
     },
     {
       id: "hist-2",
+      semester: 1,
       topicId: "frame-feel",
       topicTitle: "Frame & Feel",
       exerciseId: "ff-moodboard-generator",
@@ -58,6 +68,7 @@ export default function ExploreBeyondSyllabus() {
     },
     {
       id: "hist-3",
+      semester: 1,
       topicId: "cut-connect",
       topicTitle: "Cut & Connect",
       exerciseId: "cc-edit-in-mind",
@@ -69,6 +80,53 @@ export default function ExploreBeyondSyllabus() {
       savedAt: "2025-11-08T18:20:00Z"
     }
   ]
+
+  // Dummy history data - Semester 2
+  const semester2HistoryData = [
+    {
+      id: "hist-s2-1",
+      semester: 2,
+      topicId: "directors-visual-mind",
+      topicTitle: "Director's Visual Mind",
+      exerciseId: "dvm-visual-metaphors",
+      exerciseTitle: "Visual Metaphors in Cinema",
+      notes: "Analyzed the use of mirrors in Black Swan. The mirror reflections show Nina's split identity - the innocent white swan vs the seductive black swan. Each mirror scene progressively distorts reality, building to the final hallucination. The visual metaphor of duality is reinforced through reflection, creating psychological depth.",
+      files: [
+        { name: "black-swan-analysis.pdf", type: "pdf", url: "#" },
+        { name: "mirror-shots.jpg", type: "image", url: "#" }
+      ],
+      savedAt: "2025-11-11T14:20:00Z"
+    },
+    {
+      id: "hist-s2-2",
+      semester: 2,
+      topicId: "emotion-through-space",
+      topicTitle: "Emotion Through Space",
+      exerciseId: "ets-spatial-power",
+      exerciseTitle: "Spatial Power Shifts",
+      notes: "Staged a confrontation scene at a bus stop. Started with characters far apart - equal power. As the aggressor moves closer, dominance shifts. The victim's retreat to the bench corner shows vulnerability. Physical proximity = emotional pressure. Distance = safety/equality.",
+      files: [
+        { name: "blocking-diagram.png", type: "image", url: "#" }
+      ],
+      savedAt: "2025-11-10T16:45:00Z"
+    },
+    {
+      id: "hist-s2-3",
+      semester: 2,
+      topicId: "cinematic-rhythm",
+      topicTitle: "Cinematic Rhythm & Time",
+      exerciseId: "cr-tempo-emotion",
+      exerciseTitle: "Tempo as Emotion",
+      notes: "Compared the same reunion scene with different cuts. Fast cuts (15 shots/minute) = excitement, urgency, chaos. Long take (1 shot) = intimacy, contemplation, emotion sinking in. The rhythm completely changes the emotional experience. Fast = external energy. Slow = internal processing.",
+      files: [
+        { name: "rhythm-comparison.mp4", type: "video", url: "#" }
+      ],
+      savedAt: "2025-11-09T11:30:00Z"
+    }
+  ]
+
+  // Select history based on semester
+  const historyData = semester === 1 ? semester1HistoryData : semester2HistoryData
 
   const getFileIcon = (type: string) => {
     switch(type) {
@@ -309,9 +367,334 @@ export default function ExploreBeyondSyllabus() {
     }
   ]
 
-  // Semester 2 Topics (placeholder for now)
+  // Semester 2 Topics
   const semester2Topics = [
-    // Will be added later
+    {
+      id: "directors-visual-mind",
+      title: "Director's Visual Mind",
+      subtitle: "Unit II Extension: Visual Storytelling",
+      description: "How directors use visual language to express emotion and meaning",
+      icon: Eye,
+      color: "from-purple-500 to-indigo-500",
+      exercises: [
+        {
+          id: "dvm-visual-metaphors",
+          title: "Visual Metaphors in Cinema",
+          description: "Explore how directors use recurring images or colors to express emotion (e.g., mirrors in Black Swan, doors in Parasite).",
+          purpose: "Understanding symbolic visual language"
+        },
+        {
+          id: "dvm-geometry-blocking",
+          title: "The Geometry of Blocking",
+          description: "Analyze triangle vs line vs circle formation in emotional dynamics.",
+          purpose: "Spatial composition mastery"
+        },
+        {
+          id: "dvm-eye-trace",
+          title: "Eye Trace & Visual Flow",
+          description: "Study how composition guides audience attention across cuts.",
+          purpose: "Directing viewer attention"
+        },
+        {
+          id: "dvm-silhouette",
+          title: "Silhouette Storytelling",
+          description: "Tell emotion through shape and contrast (Pixar shorts, Shadow Play).",
+          purpose: "Visual reduction and clarity"
+        },
+        {
+          id: "dvm-frame-within-frame",
+          title: "Frame-within-Frame as Meaning",
+          description: "Use windows, mirrors, and screens as narrative layers.",
+          purpose: "Layered visual storytelling"
+        }
+      ]
+    },
+    {
+      id: "emotion-through-space",
+      title: "Emotion Through Space",
+      subtitle: "Unit I Extension: Staging & Blocking",
+      description: "Understanding how spatial relationships create emotional dynamics",
+      icon: Layers,
+      color: "from-blue-500 to-cyan-500",
+      exercises: [
+        {
+          id: "ets-spatial-power",
+          title: "Spatial Power Shifts",
+          description: "Explore how moving closer/farther changes character dominance.",
+          purpose: "Power dynamics through space"
+        },
+        {
+          id: "ets-third-space",
+          title: "The Unspoken Third Space",
+          description: "Create tension using distance, empty space, or barriers.",
+          purpose: "Using negative space dramatically"
+        },
+        {
+          id: "ets-stillness-movement",
+          title: "Stillness vs Movement",
+          description: "Decide when to 'freeze' space or let it flow.",
+          purpose: "Dynamic vs static composition"
+        },
+        {
+          id: "ets-blocking-reveal",
+          title: "Blocking as Emotional Reveal",
+          description: "Show how a character's path mirrors inner change.",
+          purpose: "Movement as character arc"
+        },
+        {
+          id: "ets-spatial-irony",
+          title: "Spatial Irony",
+          description: "Create contrast: cheerful space hosting tragic events.",
+          purpose: "Tonal juxtaposition"
+        }
+      ]
+    },
+    {
+      id: "director-psychologist",
+      title: "The Director as Psychologist",
+      subtitle: "Unit II Extension: Working with Actors",
+      description: "Understanding and directing human emotion authentically",
+      icon: Users,
+      color: "from-pink-500 to-rose-500",
+      exercises: [
+        {
+          id: "dp-emotional-beats",
+          title: "Understanding Emotional Beats",
+          description: "Identify the invisible rhythm under each dialogue.",
+          purpose: "Timing and pacing emotion"
+        },
+        {
+          id: "dp-non-verbal",
+          title: "Non-Verbal Direction",
+          description: "Direct using silence, posture, breathing.",
+          purpose: "Beyond dialogue performance"
+        },
+        {
+          id: "dp-actor-triggers",
+          title: "Actor Triggers",
+          description: "Guide performance through sensory cues (sound, object, environment).",
+          purpose: "Environmental performance triggers"
+        },
+        {
+          id: "dp-micro-expressions",
+          title: "Micro-Expressions and Reaction Shots",
+          description: "Direct the 'afterthought' - subtle emotional responses.",
+          purpose: "Capturing authentic reactions"
+        },
+        {
+          id: "dp-empathy",
+          title: "Empathy in Directing",
+          description: "Learn to listen rather than command on set.",
+          purpose: "Collaborative direction"
+        }
+      ]
+    },
+    {
+      id: "cinematic-rhythm",
+      title: "Cinematic Rhythm & Time",
+      subtitle: "Unit V Extension: Rhythm & Pace",
+      description: "Manipulating time and tempo to create emotional impact",
+      icon: Clock,
+      color: "from-amber-500 to-orange-500",
+      exercises: [
+        {
+          id: "cr-tempo-emotion",
+          title: "Tempo as Emotion",
+          description: "Compare fast cutting vs long take; analyze what emotion each creates.",
+          purpose: "Editorial rhythm understanding"
+        },
+        {
+          id: "cr-breathing-space",
+          title: "Breathing Space",
+          description: "Identify where to pause in story flow to let emotion sink.",
+          purpose: "Pacing for emotional impact"
+        },
+        {
+          id: "cr-subjective-time",
+          title: "Subjective Time",
+          description: "Show memory, flashback, or dream without linear logic.",
+          purpose: "Non-linear storytelling"
+        },
+        {
+          id: "cr-time-manipulation",
+          title: "Time Compression / Expansion",
+          description: "Experiment with montage, jump cuts, and ellipses.",
+          purpose: "Temporal storytelling techniques"
+        },
+        {
+          id: "cr-dialogue-rhythm",
+          title: "Rhythm in Dialogue",
+          description: "Pace speech vs silence vs interruption.",
+          purpose: "Conversational dynamics"
+        }
+      ]
+    },
+    {
+      id: "world-building",
+      title: "World-Building for Directors",
+      subtitle: "Units IV & V Extension",
+      description: "Creating cohesive and believable story universes",
+      icon: Globe,
+      color: "from-green-500 to-emerald-500",
+      exercises: [
+        {
+          id: "wb-tone-consistency",
+          title: "Tone Consistency",
+          description: "Maintain mood across scenes through design and sound.",
+          purpose: "Unified aesthetic vision"
+        },
+        {
+          id: "wb-cultural-texture",
+          title: "Cultural Texture",
+          description: "Use local detail to shape universal stories.",
+          purpose: "Authentic world-building"
+        },
+        {
+          id: "wb-story-universe",
+          title: "Designing a Story Universe",
+          description: "Create visual logic of genre worlds (sci-fi, realism, surreal).",
+          purpose: "Genre world construction"
+        },
+        {
+          id: "wb-sound-world",
+          title: "Sound as World-Building",
+          description: "Design ambient tone before narrative.",
+          purpose: "Sonic atmosphere creation"
+        },
+        {
+          id: "wb-symbolic-props",
+          title: "Symbolic Props & Motifs",
+          description: "Use recurring objects as emotional spine (like the feather in Forrest Gump).",
+          purpose: "Visual storytelling through objects"
+        }
+      ]
+    },
+    {
+      id: "cinematic-experiments",
+      title: "Cinematic Experiments",
+      subtitle: "Beyond Syllabus Exploration",
+      description: "Play and curiosity-driven creative challenges",
+      icon: Film,
+      color: "from-violet-500 to-purple-500",
+      exercises: [
+        {
+          id: "ce-one-minute",
+          title: "The One-Minute Film",
+          description: "Tell a full story in 60 seconds.",
+          purpose: "Extreme narrative economy"
+        },
+        {
+          id: "ce-single-shot",
+          title: "The Single-Shot Story",
+          description: "No cuts; choreograph continuous flow.",
+          purpose: "Long-take mastery"
+        },
+        {
+          id: "ce-no-dialogue",
+          title: "Story Without Dialogue",
+          description: "Narrative through only sound or gesture.",
+          purpose: "Pure visual storytelling"
+        },
+        {
+          id: "ce-reverse-story",
+          title: "Reverse Storytelling",
+          description: "Begin at the end and build backwards.",
+          purpose: "Non-linear structure"
+        },
+        {
+          id: "ce-unseen-character",
+          title: "The Unseen Character",
+          description: "Film where one character is never shown, only felt.",
+          purpose: "Suggestive storytelling"
+        },
+        {
+          id: "ce-sensory",
+          title: "Sensory Filmmaking",
+          description: "Tell a story focused only on one sense (sight/sound/touch).",
+          purpose: "Sensory exploration"
+        }
+      ]
+    },
+    {
+      id: "directors-notebook",
+      title: "The Director's Notebook",
+      subtitle: "Meta Learning & Personal Growth",
+      description: "Developing your unique directorial voice and vision",
+      icon: BookMarked,
+      color: "from-teal-500 to-cyan-500",
+      exercises: [
+        {
+          id: "dn-watch-director",
+          title: "How to Watch Like a Director",
+          description: "Spot staging, rhythm, and intention in any film.",
+          purpose: "Analytical viewing skills"
+        },
+        {
+          id: "dn-reference-mapping",
+          title: "Reference Mapping",
+          description: "Connect your favorite scene to other directors' works.",
+          purpose: "Building visual vocabulary"
+        },
+        {
+          id: "dn-visual-identity",
+          title: "Personal Visual Identity",
+          description: "Discover your recurring colors, frames, moods.",
+          purpose: "Finding your style"
+        },
+        {
+          id: "dn-observation-log",
+          title: "Daily Observation Log",
+          description: "Convert 5-minute real-life moment to cinematic moment.",
+          purpose: "Daily creative practice"
+        },
+        {
+          id: "dn-emotion-image",
+          title: "Emotion → Image Mapping",
+          description: "Define what shot or rhythm expresses which feeling for you.",
+          purpose: "Personal visual language"
+        }
+      ]
+    },
+    {
+      id: "experimental-forms",
+      title: "Experimental Story Forms",
+      subtitle: "Advanced Curiosity Zone",
+      description: "Exploring avant-garde and unconventional narrative structures",
+      icon: Compass,
+      color: "from-rose-500 to-pink-500",
+      exercises: [
+        {
+          id: "ef-poetic-cinema",
+          title: "Poetic Cinema",
+          description: "Study Tarkovsky, Malick, Wong Kar-Wai — when rhythm becomes feeling.",
+          purpose: "Lyrical storytelling"
+        },
+        {
+          id: "ef-abstract-narrative",
+          title: "Abstract Narrative",
+          description: "Use form, color, repetition as structure.",
+          purpose: "Non-literal storytelling"
+        },
+        {
+          id: "ef-microfiction",
+          title: "Microfiction to Microfilm",
+          description: "Adapt 100-word stories visually.",
+          purpose: "Extreme compression"
+        },
+        {
+          id: "ef-looped",
+          title: "Looped Storytelling",
+          description: "Explore circular time, déjà vu structures.",
+          purpose: "Cyclical narratives"
+        },
+        {
+          id: "ef-silence",
+          title: "Silence & Negative Space",
+          description: "Discover the power of withholding.",
+          purpose: "Minimalist storytelling"
+        }
+      ]
+    }
   ]
 
   const topics = semester === 1 ? semester1Topics : semester2Topics
@@ -404,78 +787,98 @@ export default function ExploreBeyondSyllabus() {
           {/* Show topic list or exercises based on selection */}
           {!selectedTopic ? (
             <>
-              {/* Introduction Card */}
-              <Card className="mb-8 bg-gradient-to-br from-purple-50 to-blue-50 border-purple-200">
-                <CardContent className="pt-6">
-                  <h2 className="text-xl font-semibold text-gray-800 mb-2">
-                    Choose your path for today:
-                  </h2>
-                  <p className="text-gray-600">
-                    Each path leads to 3-5 interactive exercises: self-paced, creative, and feedback-ready.
-                  </p>
-                </CardContent>
-              </Card>
-
-              {/* Topics Grid */}
-              {semester === 1 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {topics.map((topic) => {
-                const Icon = topic.icon
-                return (
-                  <Card
-                    key={topic.id}
-                    className="hover:shadow-lg transition-all hover:scale-105 cursor-pointer border-2 hover:border-purple-300"
-                    onClick={() => handleTopicClick(topic.id)}
-                  >
-                    <CardHeader>
-                      <div className="flex items-start justify-between mb-3">
-                        <div className={cn(
-                          "p-3 rounded-lg bg-gradient-to-br",
-                          topic.color
-                        )}>
-                          <Icon className="h-6 w-6 text-white" />
-                        </div>
-                        <ArrowRight className="h-5 w-5 text-gray-400" />
-                      </div>
-                      <CardTitle className="text-xl mb-2">{topic.title}</CardTitle>
-                      <CardDescription className="text-xs font-semibold text-purple-600 mb-2">
-                        {topic.subtitle}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-sm text-gray-600">
-                        {topic.description}
-                      </p>
-                      <Button
-                        className={cn(
-                          "w-full mt-4 bg-gradient-to-r",
-                          topic.color,
-                          "text-white hover:opacity-90"
-                        )}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleTopicClick(topic.id)
-                        }}
-                      >
-                        Explore Exercises
-                      </Button>
+              {isLoading ? (
+                /* Skeleton Loader */
+                <>
+                  <Card className="mb-8 bg-gradient-to-br from-purple-50 to-blue-50 border-purple-200">
+                    <CardContent className="pt-6">
+                      <div className="h-7 bg-gray-200 rounded w-64 mb-2 animate-pulse"></div>
+                      <div className="h-5 bg-gray-200 rounded w-full animate-pulse"></div>
                     </CardContent>
                   </Card>
-                )
-              })}
-            </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {[1, 2, 3, 4, 5, 6].map((i) => (
+                      <Card key={i} className="border-2">
+                        <CardHeader>
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="w-12 h-12 bg-gray-200 rounded-lg animate-pulse"></div>
+                            <div className="w-5 h-5 bg-gray-200 rounded animate-pulse"></div>
+                          </div>
+                          <div className="h-6 bg-gray-200 rounded w-3/4 mb-2 animate-pulse"></div>
+                          <div className="h-4 bg-gray-200 rounded w-1/2 animate-pulse"></div>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="h-4 bg-gray-200 rounded w-full mb-2 animate-pulse"></div>
+                          <div className="h-4 bg-gray-200 rounded w-5/6 mb-4 animate-pulse"></div>
+                          <div className="h-10 bg-gray-200 rounded w-full animate-pulse"></div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </>
               ) : (
-                <Card>
-                  <CardContent className="pt-6 text-center py-12">
-                    <Compass className="h-16 w-16 mx-auto text-purple-500 mb-4" />
-                    <h3 className="text-xl font-semibold text-gray-700 mb-2">
-                      Semester 2 Resources
-                    </h3>
-                    <p className="text-gray-500">
-                      Content will be added here soon for second semester students
-                    </p>
-                  </CardContent>
-                </Card>
+                <>
+                  {/* Introduction Card */}
+                  <Card className="mb-8 bg-gradient-to-br from-purple-50 to-blue-50 border-purple-200">
+                    <CardContent className="pt-6">
+                      <h2 className="text-xl font-semibold text-gray-800 mb-2">
+                        Choose your path for today:
+                      </h2>
+                      <p className="text-gray-600">
+                        Each path leads to 3-5 interactive exercises: self-paced, creative, and feedback-ready.
+                      </p>
+                    </CardContent>
+                  </Card>
+
+                  {/* Topics Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {topics.map((topic) => {
+                      const Icon = topic.icon
+                      return (
+                        <Card
+                          key={topic.id}
+                          className="hover:shadow-lg transition-all hover:scale-105 cursor-pointer border-2 hover:border-purple-300"
+                          onClick={() => handleTopicClick(topic.id)}
+                        >
+                          <CardHeader>
+                            <div className="flex items-start justify-between mb-3">
+                              <div className={cn(
+                                "p-3 rounded-lg bg-gradient-to-br",
+                                topic.color
+                              )}>
+                                <Icon className="h-6 w-6 text-white" />
+                              </div>
+                              <ArrowRight className="h-5 w-5 text-gray-400" />
+                            </div>
+                            <CardTitle className="text-xl mb-2">{topic.title}</CardTitle>
+                            <CardDescription className="text-xs font-semibold text-purple-600 mb-2">
+                              {topic.subtitle}
+                            </CardDescription>
+                          </CardHeader>
+                          <CardContent>
+                            <p className="text-sm text-gray-600">
+                              {topic.description}
+                            </p>
+                            <Button
+                              className={cn(
+                                "w-full mt-4 bg-gradient-to-r",
+                                topic.color,
+                                "text-white hover:opacity-90"
+                              )}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleTopicClick(topic.id)
+                              }}
+                            >
+                              Explore Exercises
+                            </Button>
+                          </CardContent>
+                        </Card>
+                      )
+                    })}
+                  </div>
+                </>
               )}
             </>
           ) : (

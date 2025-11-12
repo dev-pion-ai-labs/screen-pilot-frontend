@@ -7,10 +7,11 @@ import { useNavigate, useSearchParams } from "react-router-dom"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { ModernDashboardLayout } from "@/components/ModernDashboardLayout"
-import { Compass, Eye, Frame, Scissors, Lightbulb, PenTool, ArrowRight, ArrowLeft, Target, Upload, History, Save } from "lucide-react"
+import { Compass, Eye, Frame, Scissors, Lightbulb, PenTool, ArrowRight, ArrowLeft, Target, Upload, History, Save, X, FileText, Image, Video, File } from "lucide-react"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 
 export default function ExploreBeyondSyllabus() {
   const { profile } = useAuth()
@@ -21,9 +22,63 @@ export default function ExploreBeyondSyllabus() {
   const [selectedExerciseId, setSelectedExerciseId] = useState<string | null>(null)
   const [notes, setNotes] = useState("")
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([])
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [selectedHistoryItem, setSelectedHistoryItem] = useState<any>(null)
 
   // Get student's semester from profile
   const semester = profile?.semester || 1
+
+  // Dummy history data
+  const historyData = [
+    {
+      id: "hist-1",
+      topicId: "seeing-cinematically",
+      topicTitle: "Seeing Cinematically",
+      exerciseId: "sc-frame-ordinary",
+      exerciseTitle: "Frame the Ordinary",
+      notes: "Today I captured a photo of my morning coffee cup on the kitchen counter. The steam rising created a beautiful backlight effect. I would direct this scene with a close-up shot, shallow depth of field, keeping the background slightly blurred. The warm morning light from the window would be the key light source.",
+      files: [
+        { name: "morning-coffee.jpg", type: "image", url: "#" },
+        { name: "lighting-notes.pdf", type: "pdf", url: "#" }
+      ],
+      savedAt: "2025-11-10T10:30:00Z"
+    },
+    {
+      id: "hist-2",
+      topicId: "frame-feel",
+      topicTitle: "Frame & Feel",
+      exerciseId: "ff-moodboard-generator",
+      exerciseTitle: "Moodboard Generator",
+      notes: "Created a moodboard expressing 'loneliness' using images of empty streets, single chairs, and cold color palettes. The composition focuses on negative space and isolation.",
+      files: [
+        { name: "loneliness-moodboard.png", type: "image", url: "#" },
+        { name: "color-palette.png", type: "image", url: "#" }
+      ],
+      savedAt: "2025-11-09T15:45:00Z"
+    },
+    {
+      id: "hist-3",
+      topicId: "cut-connect",
+      topicTitle: "Cut & Connect",
+      exerciseId: "cc-edit-in-mind",
+      exerciseTitle: "Edit in Your Mind",
+      notes: "Watched the opening scene of 'Whiplash'. Identified 8 cuts in the first minute. The rhythm builds tension - starting with longer takes, then quick cuts during the drum solo. Would cut on the beat of the drums for maximum impact.",
+      files: [
+        { name: "scene-breakdown.docx", type: "document", url: "#" }
+      ],
+      savedAt: "2025-11-08T18:20:00Z"
+    }
+  ]
+
+  const getFileIcon = (type: string) => {
+    switch(type) {
+      case 'image': return Image
+      case 'video': return Video
+      case 'pdf': return FileText
+      case 'document': return File
+      default: return File
+    }
+  }
 
   // Sync state with URL params
   useEffect(() => {
@@ -263,6 +318,11 @@ export default function ExploreBeyondSyllabus() {
   const selectedTopicData = topics.find(t => t.id === selectedTopic)
   const selectedExerciseData = selectedTopicData?.exercises.find((ex: any) => ex.id === selectedExerciseId)
 
+  // Filter history based on selected exercise
+  const filteredHistory = selectedExerciseId
+    ? historyData.filter(item => item.exerciseId === selectedExerciseId)
+    : historyData
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       setUploadedFiles([...uploadedFiles, ...Array.from(e.target.files)])
@@ -333,7 +393,7 @@ export default function ExploreBeyondSyllabus() {
                 </div>
               </div>
               {selectedTopic && (
-                <Button variant="outline" onClick={() => {/* TODO: Show history */}}>
+                <Button variant="outline" onClick={() => setHistoryOpen(true)}>
                   <History className="h-4 w-4 mr-2" />
                   History
                 </Button>
@@ -592,6 +652,196 @@ export default function ExploreBeyondSyllabus() {
               </div>
             )
           )}
+
+          {/* History Sidebar */}
+          <Sheet open={historyOpen} onOpenChange={setHistoryOpen}>
+            <SheetContent side="right" className="w-full sm:w-[50vw] sm:max-w-none overflow-y-auto">
+              <SheetHeader>
+                <div className="flex items-center justify-between">
+                  <SheetTitle className="text-2xl font-bold">Work History</SheetTitle>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setHistoryOpen(false)
+                      setSelectedHistoryItem(null)
+                    }}
+                  >
+                    <X className="h-5 w-5" />
+                  </Button>
+                </div>
+              </SheetHeader>
+
+              <div className="mt-6">
+                {!selectedHistoryItem ? (
+                  /* History List */
+                  <div className="space-y-4">
+                    {/* Show exercise context if filtered */}
+                    {selectedExerciseId && selectedExerciseData && (
+                      <Card className="bg-gradient-to-br from-purple-50 to-blue-50 border-purple-200 mb-4">
+                        <CardContent className="pt-4 pb-4">
+                          <p className="text-sm text-gray-600">
+                            Showing history for:
+                          </p>
+                          <h3 className="font-semibold text-gray-900">
+                            {selectedExerciseData.title}
+                          </h3>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {filteredHistory.map((item) => (
+                      <Card
+                        key={item.id}
+                        className="cursor-pointer hover:shadow-md transition-shadow"
+                        onClick={() => setSelectedHistoryItem(item)}
+                      >
+                        <CardContent className="pt-6">
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex-1">
+                              <h3 className="font-semibold text-gray-900 mb-1">
+                                {item.exerciseTitle}
+                              </h3>
+                              <p className="text-sm text-gray-600 mb-2">
+                                {item.topicTitle}
+                              </p>
+                              <p className="text-sm text-gray-700 line-clamp-2">
+                                {item.notes}
+                              </p>
+                            </div>
+                            <ArrowRight className="h-5 w-5 text-gray-400 flex-shrink-0 ml-2" />
+                          </div>
+
+                          {/* Files Preview */}
+                          {item.files.length > 0 && (
+                            <div className="flex items-center gap-2 mt-3 flex-wrap">
+                              {item.files.map((file, idx) => {
+                                const FileIcon = getFileIcon(file.type)
+                                return (
+                                  <div
+                                    key={idx}
+                                    className="flex items-center gap-1 px-2 py-1 bg-gray-100 rounded text-xs text-gray-600"
+                                  >
+                                    <FileIcon className="h-3 w-3" />
+                                    <span className="truncate max-w-[100px]">{file.name}</span>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
+
+                          <p className="text-xs text-gray-500 mt-3">
+                            {new Date(item.savedAt).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </p>
+                        </CardContent>
+                      </Card>
+                    ))}
+
+                    {filteredHistory.length === 0 && (
+                      <div className="text-center py-12">
+                        <History className="h-12 w-12 mx-auto text-gray-300 mb-4" />
+                        <p className="text-gray-500">
+                          {selectedExerciseId ? 'No saved work for this exercise yet' : 'No saved work yet'}
+                        </p>
+                        <p className="text-sm text-gray-400 mt-2">
+                          Complete exercises and save your work to see it here
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  /* History Detail View */
+                  <div className="space-y-6">
+                    <Button
+                      variant="ghost"
+                      onClick={() => setSelectedHistoryItem(null)}
+                      className="mb-4"
+                    >
+                      <ArrowLeft className="h-4 w-4 mr-2" />
+                      Back to History
+                    </Button>
+
+                    {/* Exercise Info */}
+                    <Card className="bg-gradient-to-br from-purple-50 to-blue-50 border-purple-200">
+                      <CardContent className="pt-6">
+                        <h3 className="text-xl font-bold text-gray-900 mb-2">
+                          {selectedHistoryItem.exerciseTitle}
+                        </h3>
+                        <p className="text-sm font-semibold text-purple-600 mb-3">
+                          {selectedHistoryItem.topicTitle}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          Saved on {new Date(selectedHistoryItem.savedAt).toLocaleDateString('en-US', {
+                            month: 'long',
+                            day: 'numeric',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </p>
+                      </CardContent>
+                    </Card>
+
+                    {/* Notes */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-base">Your Notes</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-gray-700 whitespace-pre-wrap">
+                          {selectedHistoryItem.notes}
+                        </p>
+                      </CardContent>
+                    </Card>
+
+                    {/* Attached Files */}
+                    {selectedHistoryItem.files.length > 0 && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-base">Attached Files</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-2">
+                            {selectedHistoryItem.files.map((file: any, idx: number) => {
+                              const FileIcon = getFileIcon(file.type)
+                              return (
+                                <a
+                                  key={idx}
+                                  href={file.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-3 p-3 border rounded-lg hover:bg-gray-50 transition-colors"
+                                >
+                                  <div className="p-2 bg-purple-100 rounded">
+                                    <FileIcon className="h-5 w-5 text-purple-600" />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-medium text-gray-900 truncate">
+                                      {file.name}
+                                    </p>
+                                    <p className="text-xs text-gray-500 capitalize">
+                                      {file.type}
+                                    </p>
+                                  </div>
+                                  <ArrowRight className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                                </a>
+                              )
+                            })}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+                )}
+              </div>
+            </SheetContent>
+          </Sheet>
         </div>
       </ModernDashboardLayout>
     </AuthGuard>

@@ -21,6 +21,7 @@ import {
   Home,
   School,
   Plus, // Add this
+  Compass,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -301,6 +302,12 @@ export function AppSidebar() {
             icon: Book,
             description: "Film terminology reference",
           },
+          {
+            name: "Explore Beyond Syllabus",
+            href: "/student/explore-beyond-syllabus",
+            icon: Compass,
+            description: "Additional resources",
+          },
         ];
       default:
         return baseItems;
@@ -502,11 +509,11 @@ export function AppSidebar() {
                           </div>
                           {(!isCollapsed || isMobile) && (
                             <>
-                              <span className="font-medium text-sm">
+                              <span className="font-medium text-sm truncate">
                                 {item.name}
                               </span>
                               {isActive && (
-                                <ChevronRight className="h-4 w-4 ml-auto text-indigo-500" />
+                                <ChevronRight className="h-4 w-4 ml-auto text-indigo-500 flex-shrink-0" />
                               )}
                             </>
                           )}

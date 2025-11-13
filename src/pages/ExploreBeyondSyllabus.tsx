@@ -7,14 +7,54 @@ import { useNavigate, useSearchParams } from "react-router-dom"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { ModernDashboardLayout } from "@/components/ModernDashboardLayout"
-import { Compass, Eye, Frame, Scissors, Lightbulb, PenTool, ArrowRight, ArrowLeft, Target, Upload, History, Save, X, FileText, Image, Video, File, Users, Clock, Globe, Film, Layers, BookMarked } from "lucide-react"
+import { Compass, Eye, Frame, Scissors, Lightbulb, PenTool, ArrowRight, ArrowLeft, Target, Upload, History, Save, X, FileText, Image, Video, File, Users, Clock, Globe, Film, Layers, BookMarked, Music, Loader2 } from "lucide-react"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import { supabase } from "@/integrations/supabase/client"
+import { toast } from "@/hooks/use-toast"
+
+// File type configuration
+const FILE_TYPE_CONFIG: Record<string, { type: string; icon: any; accept: boolean }> = {
+  'image/jpeg': { type: 'image', icon: Image, accept: true },
+  'image/png': { type: 'image', icon: Image, accept: true },
+  'image/svg+xml': { type: 'image', icon: Image, accept: true },
+  'video/mp4': { type: 'video', icon: Video, accept: true },
+  'video/webm': { type: 'video', icon: Video, accept: true },
+  'audio/mpeg': { type: 'audio', icon: Music, accept: true },
+  'audio/wav': { type: 'audio', icon: Music, accept: true },
+  'audio/mp3': { type: 'audio', icon: Music, accept: true },
+  'application/pdf': { type: 'document', icon: FileText, accept: true },
+  'application/vnd.ms-powerpoint': { type: 'document', icon: File, accept: true },
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': { type: 'document', icon: File, accept: true },
+  'application/msword': { type: 'document', icon: File, accept: true },
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': { type: 'document', icon: File, accept: true },
+};
+
+const ACCEPTED_FILE_TYPES = '.jpg,.jpeg,.png,.svg,.mp4,.webm,.mp3,.wav,.pdf,.ppt,.pptx,.doc,.docx';
+
+// Helper function to get file type from mime type
+function getFileType(mimeType: string): string {
+  if (mimeType.startsWith('image/')) return 'image';
+  if (mimeType.startsWith('video/')) return 'video';
+  if (mimeType.startsWith('audio/')) return 'audio';
+  return 'document';
+}
+
+// Helper function to get file icon
+function getFileIcon(type: string) {
+  switch(type) {
+    case 'image': return Image;
+    case 'video': return Video;
+    case 'audio': return Music;
+    case 'document': return FileText;
+    default: return File;
+  }
+}
 
 export default function ExploreBeyondSyllabus() {
-  const { profile } = useAuth()
+  const { profile, user } = useAuth()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
 
@@ -25,6 +65,9 @@ export default function ExploreBeyondSyllabus() {
   const [historyOpen, setHistoryOpen] = useState(false)
   const [selectedHistoryItem, setSelectedHistoryItem] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+  const [historyData, setHistoryData] = useState<any[]>([])
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false)
 
   // Get student's semester from profile
   const semester = profile?.semester || 1
@@ -36,107 +79,12 @@ export default function ExploreBeyondSyllabus() {
     }
   }, [profile])
 
-  // Dummy history data - Semester 1
-  const semester1HistoryData = [
-    {
-      id: "hist-1",
-      semester: 1,
-      topicId: "seeing-cinematically",
-      topicTitle: "Seeing Cinematically",
-      exerciseId: "sc-frame-ordinary",
-      exerciseTitle: "Frame the Ordinary",
-      notes: "Today I captured a photo of my morning coffee cup on the kitchen counter. The steam rising created a beautiful backlight effect. I would direct this scene with a close-up shot, shallow depth of field, keeping the background slightly blurred. The warm morning light from the window would be the key light source.",
-      files: [
-        { name: "morning-coffee.jpg", type: "image", url: "#" },
-        { name: "lighting-notes.pdf", type: "pdf", url: "#" }
-      ],
-      savedAt: "2025-11-10T10:30:00Z"
-    },
-    {
-      id: "hist-2",
-      semester: 1,
-      topicId: "frame-feel",
-      topicTitle: "Frame & Feel",
-      exerciseId: "ff-moodboard-generator",
-      exerciseTitle: "Moodboard Generator",
-      notes: "Created a moodboard expressing 'loneliness' using images of empty streets, single chairs, and cold color palettes. The composition focuses on negative space and isolation.",
-      files: [
-        { name: "loneliness-moodboard.png", type: "image", url: "#" },
-        { name: "color-palette.png", type: "image", url: "#" }
-      ],
-      savedAt: "2025-11-09T15:45:00Z"
-    },
-    {
-      id: "hist-3",
-      semester: 1,
-      topicId: "cut-connect",
-      topicTitle: "Cut & Connect",
-      exerciseId: "cc-edit-in-mind",
-      exerciseTitle: "Edit in Your Mind",
-      notes: "Watched the opening scene of 'Whiplash'. Identified 8 cuts in the first minute. The rhythm builds tension - starting with longer takes, then quick cuts during the drum solo. Would cut on the beat of the drums for maximum impact.",
-      files: [
-        { name: "scene-breakdown.docx", type: "document", url: "#" }
-      ],
-      savedAt: "2025-11-08T18:20:00Z"
+  // Load history when history sidebar opens
+  useEffect(() => {
+    if (historyOpen && user) {
+      loadHistory()
     }
-  ]
-
-  // Dummy history data - Semester 2
-  const semester2HistoryData = [
-    {
-      id: "hist-s2-1",
-      semester: 2,
-      topicId: "directors-visual-mind",
-      topicTitle: "Director's Visual Mind",
-      exerciseId: "dvm-visual-metaphors",
-      exerciseTitle: "Visual Metaphors in Cinema",
-      notes: "Analyzed the use of mirrors in Black Swan. The mirror reflections show Nina's split identity - the innocent white swan vs the seductive black swan. Each mirror scene progressively distorts reality, building to the final hallucination. The visual metaphor of duality is reinforced through reflection, creating psychological depth.",
-      files: [
-        { name: "black-swan-analysis.pdf", type: "pdf", url: "#" },
-        { name: "mirror-shots.jpg", type: "image", url: "#" }
-      ],
-      savedAt: "2025-11-11T14:20:00Z"
-    },
-    {
-      id: "hist-s2-2",
-      semester: 2,
-      topicId: "emotion-through-space",
-      topicTitle: "Emotion Through Space",
-      exerciseId: "ets-spatial-power",
-      exerciseTitle: "Spatial Power Shifts",
-      notes: "Staged a confrontation scene at a bus stop. Started with characters far apart - equal power. As the aggressor moves closer, dominance shifts. The victim's retreat to the bench corner shows vulnerability. Physical proximity = emotional pressure. Distance = safety/equality.",
-      files: [
-        { name: "blocking-diagram.png", type: "image", url: "#" }
-      ],
-      savedAt: "2025-11-10T16:45:00Z"
-    },
-    {
-      id: "hist-s2-3",
-      semester: 2,
-      topicId: "cinematic-rhythm",
-      topicTitle: "Cinematic Rhythm & Time",
-      exerciseId: "cr-tempo-emotion",
-      exerciseTitle: "Tempo as Emotion",
-      notes: "Compared the same reunion scene with different cuts. Fast cuts (15 shots/minute) = excitement, urgency, chaos. Long take (1 shot) = intimacy, contemplation, emotion sinking in. The rhythm completely changes the emotional experience. Fast = external energy. Slow = internal processing.",
-      files: [
-        { name: "rhythm-comparison.mp4", type: "video", url: "#" }
-      ],
-      savedAt: "2025-11-09T11:30:00Z"
-    }
-  ]
-
-  // Select history based on semester
-  const historyData = semester === 1 ? semester1HistoryData : semester2HistoryData
-
-  const getFileIcon = (type: string) => {
-    switch(type) {
-      case 'image': return Image
-      case 'video': return Video
-      case 'pdf': return FileText
-      case 'document': return File
-      default: return File
-    }
-  }
+  }, [historyOpen, user, semester])
 
   // Sync state with URL params
   useEffect(() => {
@@ -146,6 +94,270 @@ export default function ExploreBeyondSyllabus() {
     if (topicParam) setSelectedTopic(topicParam)
     if (exerciseParam) setSelectedExerciseId(exerciseParam)
   }, [searchParams])
+
+  // Function to load history from Supabase
+  const loadHistory = async () => {
+    if (!user) return
+
+    setIsLoadingHistory(true)
+    try {
+      let query = supabase
+        .from('student_notes')
+        .select(`
+          *,
+          attachments:student_note_attachments(*)
+        `)
+        .eq('student_id', user.id)
+        .eq('semester', semester)
+        .order('created_at', { ascending: false })
+
+      // Filter by exercise if selected
+      if (selectedExerciseId) {
+        query = query.eq('exercise_id', selectedExerciseId)
+      }
+
+      const { data, error } = await query
+
+      if (error) throw error
+
+      // Transform data to match the display format
+      const transformedData = data.map((note: any) => ({
+        id: note.id,
+        semester: note.semester,
+        topicId: note.topic_id,
+        topicTitle: getTopicTitle(note.topic_id, semester),
+        exerciseId: note.exercise_id,
+        exerciseTitle: getExerciseTitle(note.topic_id, note.exercise_id, semester),
+        notes: note.content,
+        files: note.attachments.map((att: any) => ({
+          id: att.id,
+          name: att.file_name,
+          type: att.file_type,
+          path: att.file_path,
+          size: att.file_size,
+          mimeType: att.mime_type
+        })),
+        savedAt: note.created_at
+      }))
+
+      setHistoryData(transformedData)
+    } catch (error) {
+      console.error('Error loading history:', error)
+      toast({
+        title: "Error loading history",
+        description: "Failed to load your saved notes. Please try again.",
+        variant: "destructive"
+      })
+    } finally {
+      setIsLoadingHistory(false)
+    }
+  }
+
+  // Function to get topic title from topic ID
+  const getTopicTitle = (topicId: string, sem: number) => {
+    const topics = sem === 1 ? semester1Topics : semester2Topics
+    return topics.find(t => t.id === topicId)?.title || topicId
+  }
+
+  // Function to get exercise title from exercise ID
+  const getExerciseTitle = (topicId: string, exerciseId: string, sem: number) => {
+    const topics = sem === 1 ? semester1Topics : semester2Topics
+    const topic = topics.find(t => t.id === topicId)
+    return topic?.exercises.find((ex: any) => ex.id === exerciseId)?.title || exerciseId
+  }
+
+  // Function to validate note before saving
+  const validateNote = (content: string, files: File[]): { valid: boolean; error?: string } => {
+    // Must have either content or files
+    if (!content.trim() && files.length === 0) {
+      return { valid: false, error: "Please add notes or upload at least one file" }
+    }
+
+    // Validate each file
+    for (const file of files) {
+      // Check file size (50MB max)
+      if (file.size > 50 * 1024 * 1024) {
+        return { valid: false, error: `File ${file.name} exceeds 50MB limit` }
+      }
+
+      // Check file type
+      if (!FILE_TYPE_CONFIG[file.type]?.accept) {
+        return { valid: false, error: `File type ${file.type} is not supported` }
+      }
+    }
+
+    return { valid: true }
+  }
+
+  // Function to save note with files to Supabase
+  const handleSave = async () => {
+    if (!user || !selectedTopic || !selectedExerciseId) {
+      toast({
+        title: "Error",
+        description: "Missing required information",
+        variant: "destructive"
+      })
+      return
+    }
+
+    // Validate
+    const validation = validateNote(notes, uploadedFiles)
+    if (!validation.valid) {
+      toast({
+        title: "Validation Error",
+        description: validation.error,
+        variant: "destructive"
+      })
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      // Step 1: Create note record
+      const { data: note, error: noteError } = await supabase
+        .from('student_notes')
+        .insert({
+          student_id: user.id,
+          topic_id: selectedTopic,
+          exercise_id: selectedExerciseId,
+          semester: semester,
+          content: notes
+        })
+        .select()
+        .single()
+
+      if (noteError) throw noteError
+
+      // Step 2: Upload files and create attachment records
+      for (const file of uploadedFiles) {
+        // Upload to storage
+        const fileName = `${user.id}/${note.id}/${Date.now()}_${file.name}`
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('student-notes')
+          .upload(fileName, file)
+
+        if (uploadError) throw uploadError
+
+        // Determine file type
+        const fileType = getFileType(file.type)
+
+        // Create attachment record
+        const { error: attachmentError } = await supabase
+          .from('student_note_attachments')
+          .insert({
+            note_id: note.id,
+            file_name: file.name,
+            file_path: uploadData.path,
+            file_type: fileType,
+            file_size: file.size,
+            mime_type: file.type
+          })
+
+        if (attachmentError) throw attachmentError
+      }
+
+      // Success!
+      toast({
+        title: "Success!",
+        description: "Your work has been saved successfully.",
+      })
+
+      // Clear form
+      setNotes("")
+      setUploadedFiles([])
+
+      // Reload history if open
+      if (historyOpen) {
+        await loadHistory()
+      }
+
+    } catch (error) {
+      console.error('Error saving note:', error)
+      toast({
+        title: "Error saving work",
+        description: "Failed to save your work. Please try again.",
+        variant: "destructive"
+      })
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  // Function to download/view file
+  const handleFileClick = async (filePath: string) => {
+    try {
+      const { data, error } = await supabase.storage
+        .from('student-notes')
+        .createSignedUrl(filePath, 3600) // 1 hour expiry
+
+      if (error) throw error
+
+      // Open in new tab
+      window.open(data.signedUrl, '_blank')
+    } catch (error) {
+      console.error('Error getting file URL:', error)
+      toast({
+        title: "Error",
+        description: "Failed to open file. Please try again.",
+        variant: "destructive"
+      })
+    }
+  }
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const newFiles = Array.from(e.target.files)
+      
+      // Validate file types
+      const invalidFiles = newFiles.filter(file => !FILE_TYPE_CONFIG[file.type]?.accept)
+      if (invalidFiles.length > 0) {
+        toast({
+          title: "Invalid file type",
+          description: `Some files are not supported: ${invalidFiles.map(f => f.name).join(', ')}`,
+          variant: "destructive"
+        })
+        return
+      }
+
+      setUploadedFiles([...uploadedFiles, ...newFiles])
+    }
+  }
+
+  const updateURL = (topic: string | null, exercise: string | null) => {
+    const params = new URLSearchParams()
+    if (topic) params.set('topic', topic)
+    if (exercise) params.set('exercise', exercise)
+
+    const queryString = params.toString()
+    navigate(queryString ? `?${queryString}` : '/student/explore-beyond-syllabus', { replace: true })
+  }
+
+  const handleTopicClick = (topicId: string) => {
+    setSelectedTopic(topicId)
+    updateURL(topicId, null)
+  }
+
+  const handleExerciseClick = (exerciseId: string) => {
+    setSelectedExerciseId(exerciseId)
+    updateURL(selectedTopic, exerciseId)
+  }
+
+  const handleBack = () => {
+    if (selectedExerciseId !== null) {
+      setSelectedExerciseId(null)
+      setNotes("")
+      setUploadedFiles([])
+      updateURL(selectedTopic, null)
+    } else {
+      setSelectedTopic(null)
+      updateURL(null, null)
+    }
+  }
+
+  // Filter history based on selected exercise
+  const filteredHistory = selectedExerciseId
+    ? historyData.filter(item => item.exerciseId === selectedExerciseId)
+    : historyData
 
   // Semester 1 Topics
   const semester1Topics = [
@@ -701,60 +913,6 @@ export default function ExploreBeyondSyllabus() {
   const selectedTopicData = topics.find(t => t.id === selectedTopic)
   const selectedExerciseData = selectedTopicData?.exercises.find((ex: any) => ex.id === selectedExerciseId)
 
-  // Filter history based on selected exercise
-  const filteredHistory = selectedExerciseId
-    ? historyData.filter(item => item.exerciseId === selectedExerciseId)
-    : historyData
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      setUploadedFiles([...uploadedFiles, ...Array.from(e.target.files)])
-    }
-  }
-
-  const handleSave = () => {
-    // TODO: Implement save functionality to database
-    console.log("Saving:", {
-      notes,
-      uploadedFiles,
-      topic: selectedTopic,
-      exerciseId: selectedExerciseId,
-      studentId: profile?.id
-    })
-    alert("Saved successfully!")
-  }
-
-  const updateURL = (topic: string | null, exercise: string | null) => {
-    const params = new URLSearchParams()
-    if (topic) params.set('topic', topic)
-    if (exercise) params.set('exercise', exercise)
-
-    const queryString = params.toString()
-    navigate(queryString ? `?${queryString}` : '/student/explore-beyond-syllabus', { replace: true })
-  }
-
-  const handleTopicClick = (topicId: string) => {
-    setSelectedTopic(topicId)
-    updateURL(topicId, null)
-  }
-
-  const handleExerciseClick = (exerciseId: string) => {
-    setSelectedExerciseId(exerciseId)
-    updateURL(selectedTopic, exerciseId)
-  }
-
-  const handleBack = () => {
-    if (selectedExerciseId !== null) {
-      setSelectedExerciseId(null)
-      setNotes("")
-      setUploadedFiles([])
-      updateURL(selectedTopic, null)
-    } else {
-      setSelectedTopic(null)
-      updateURL(null, null)
-    }
-  }
-
   return (
     <AuthGuard allowedRoles={["student"]}>
       <ModernDashboardLayout>
@@ -991,6 +1149,7 @@ export default function ExploreBeyondSyllabus() {
                           onChange={(e) => setNotes(e.target.value)}
                           rows={10}
                           className="mb-4"
+                          disabled={isSaving}
                         />
 
                         {/* Upload Section */}
@@ -1001,6 +1160,7 @@ export default function ExploreBeyondSyllabus() {
                               variant="outline"
                               onClick={() => document.getElementById('file-upload')?.click()}
                               type="button"
+                              disabled={isSaving}
                             >
                               <Upload className="h-4 w-4 mr-2" />
                               Upload Files
@@ -1009,9 +1169,10 @@ export default function ExploreBeyondSyllabus() {
                               id="file-upload"
                               type="file"
                               multiple
-                              accept=".png,.svg,.jpeg,.jpg,.mp4,.pdf,.pptx,.ppt,.doc,.docx"
+                              accept={ACCEPTED_FILE_TYPES}
                               onChange={handleFileUpload}
                               className="hidden"
+                              disabled={isSaving}
                             />
 
                             {/* Uploaded Files in Row */}
@@ -1023,6 +1184,7 @@ export default function ExploreBeyondSyllabus() {
                                 <button
                                   onClick={() => setUploadedFiles(uploadedFiles.filter((_, i) => i !== idx))}
                                   className="text-gray-500 hover:text-red-600 transition-colors"
+                                  disabled={isSaving}
                                 >
                                   ×
                                 </button>
@@ -1030,7 +1192,7 @@ export default function ExploreBeyondSyllabus() {
                             ))}
                           </div>
                           <p className="text-xs text-gray-500">
-                            Supported: Images (PNG, JPG, SVG), Videos (MP4), Documents (PDF, PPT, DOC)
+                            Supported: Images (PNG, JPG, SVG), Videos (MP4, WEBM), Audio (MP3, WAV), Documents (PDF, PPT, DOC)
                           </p>
                         </div>
 
@@ -1038,13 +1200,23 @@ export default function ExploreBeyondSyllabus() {
                         <div className="mt-6">
                           <Button
                             onClick={handleSave}
+                            disabled={isSaving}
                             className={cn(
                               "w-full bg-gradient-to-r text-white",
                               selectedTopicData.color
                             )}
                           >
-                            <Save className="h-4 w-4 mr-2" />
-                            Save Work
+                            {isSaving ? (
+                              <>
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                Saving...
+                              </>
+                            ) : (
+                              <>
+                                <Save className="h-4 w-4 mr-2" />
+                                Save Work
+                              </>
+                            )}
                           </Button>
                         </div>
                       </CardContent>
@@ -1076,7 +1248,12 @@ export default function ExploreBeyondSyllabus() {
               </SheetHeader>
 
               <div className="mt-6">
-                {!selectedHistoryItem ? (
+                {isLoadingHistory ? (
+                  /* Loading State */
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
+                  </div>
+                ) : !selectedHistoryItem ? (
                   /* History List */
                   <div className="space-y-4">
                     {/* Show exercise context if filtered */}
@@ -1118,7 +1295,7 @@ export default function ExploreBeyondSyllabus() {
                           {/* Files Preview */}
                           {item.files.length > 0 && (
                             <div className="flex items-center gap-2 mt-3 flex-wrap">
-                              {item.files.map((file, idx) => {
+                              {item.files.map((file: any, idx: number) => {
                                 const FileIcon = getFileIcon(file.type)
                                 return (
                                   <div
@@ -1214,12 +1391,10 @@ export default function ExploreBeyondSyllabus() {
                             {selectedHistoryItem.files.map((file: any, idx: number) => {
                               const FileIcon = getFileIcon(file.type)
                               return (
-                                <a
+                                <button
                                   key={idx}
-                                  href={file.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="flex items-center gap-3 p-3 border rounded-lg hover:bg-gray-50 transition-colors"
+                                  onClick={() => handleFileClick(file.path)}
+                                  className="flex items-center gap-3 p-3 border rounded-lg hover:bg-gray-50 transition-colors w-full text-left"
                                 >
                                   <div className="p-2 bg-purple-100 rounded">
                                     <FileIcon className="h-5 w-5 text-purple-600" />
@@ -1229,11 +1404,11 @@ export default function ExploreBeyondSyllabus() {
                                       {file.name}
                                     </p>
                                     <p className="text-xs text-gray-500 capitalize">
-                                      {file.type}
+                                      {file.type} • {file.size ? `${(file.size / 1024 / 1024).toFixed(2)} MB` : 'Unknown size'}
                                     </p>
                                   </div>
                                   <ArrowRight className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                                </a>
+                                </button>
                               )
                             })}
                           </div>

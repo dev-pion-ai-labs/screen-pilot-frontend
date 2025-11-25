@@ -174,6 +174,32 @@ interface GlossaryRequest {
   created_at: string;
 }
 
+// Helper function to get assignment status
+const getAssignmentStatus = (assignment: Assignment) => {
+  const hasSubmission = assignment.submissions && assignment.submissions.length > 0;
+  const isOverdue = new Date(assignment.due_date) < new Date();
+  
+  if (hasSubmission) {
+    return {
+      status: "Submitted",
+      color: "bg-green-100 text-green-700 border-green-200",
+      icon: CheckCircle,
+    };
+  } else if (isOverdue) {
+    return {
+      status: "Overdue",
+      color: "bg-red-100 text-red-700 border-red-200",
+      icon: AlertCircle,
+    };
+  } else {
+    return {
+      status: "Pending",
+      color: "bg-amber-100 text-amber-700 border-amber-200",
+      icon: Clock,
+    };
+  }
+};
+
 // Carousel Component
 const Carousel = ({
   children,

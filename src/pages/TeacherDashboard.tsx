@@ -200,6 +200,21 @@ interface GlossaryRequest {
 }
 
 
+interface ScriptNotification {
+  id: string;
+  script_id: string;
+  type: 'submission' | 'review';
+  message: string;
+  is_read: boolean;
+  created_at: string;
+  script_analyses: {
+    id: string;
+    title: string;
+    status: 'draft' | 'submitted' | 'reviewed';
+  };
+}
+
+
 export default function TeacherDashboard() {
   const { profile } = useAuth();
   const { toast } = useToast();
@@ -214,7 +229,7 @@ export default function TeacherDashboard() {
   const [quizSubmissions, setQuizSubmissions] = useState<QuizSubmissionRow[]>([]);
   const [recentNotes, setRecentNotes] = useState<NoteRow[]>([]);
   const [pendingGlossary, setPendingGlossary] = useState<GlossaryRequest[]>([]);
-
+const [scriptNotifications, setScriptNotifications] = useState<ScriptNotification[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -234,6 +249,7 @@ export default function TeacherDashboard() {
         fetchRecentQuizSubmissions(),    // ✅ NEW
         fetchRecentNotes(),              // ✅ NEW
         fetchPendingGlossaryRequests(),  // ✅ NEW
+        fetchScriptNotifications(),      // ✅ NEW
       ]);
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
@@ -680,6 +696,35 @@ export default function TeacherDashboard() {
   };
 
 
+  const fetchScriptNotifications = async () => {
+  try {
+    const { data } = await supabase
+      .from("script_notifications")
+      .select(`
+        id,
+        script_id,
+        type,
+        message,
+        is_read,
+        created_at,
+        script_analyses:script_id (
+          id,
+          title,
+          status
+        )
+      `)
+      .eq("user_id", profile?.id)
+      .eq("type", "review")  // Only show review notifications
+      .order("created_at", { ascending: false })
+      .limit(5);
+
+    setScriptNotifications((data as any) || []);
+  } catch (e) {
+    console.error("Error fetching script notifications:", e);
+  }
+};
+
+
   const upcomingQuizzes = quizzes
     .filter((q) => new Date(q.due_date) >= new Date())
     .slice(0, 5);
@@ -866,8 +911,10 @@ export default function TeacherDashboard() {
                     </div>
 
                     {/* Stats — mapped to logo colors */}
-                    <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-4">
+                    <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-5">
                       {/* Students (Yellow) */}
+                      
+                      
                       <div className="rounded-xl border border-white/20 bg-white/10 p-6 backdrop-blur-sm transition-all duration-300 hover:bg-white/15">
                         <div className="flex items-center gap-4">
                           <div className="rounded-lg bg-yellow-500/25 p-3 ring-1 ring-yellow-300/40">
@@ -926,6 +973,24 @@ export default function TeacherDashboard() {
                           </div>
                         </div>
                       </div>
+
+                       {/* Script Notifications */}
+                       <Link to={"/teacher/script-submissions"} >
+                      <div className="rounded-xl border border-white/20 bg-white/10 p-6 backdrop-blur-sm transition-all duration-300 hover:bg-white/15">
+                        <div className="flex items-center gap-4">
+                          <div className="rounded-lg bg-green-600/25 p-3 ring-1 ring-green-300/40">
+                            <Monitor className="h-6 w-6 text-green-100" />
+                          </div>
+                          <div>
+                            <div className="text-3xl font-bold text-white">
+                             {scriptNotifications.length}
+                            </div>
+                            <div className="text-sm text-green-100/90">Script Notifications</div>
+                          </div>
+                        </div>
+                        
+                      </div>
+                      </Link>
                     </div>
                   </div>
 

@@ -73,6 +73,7 @@ interface ScriptReview {
   feedback: string | null
   show_ai_result: boolean
   reviewed_at: string | null
+  custom_analysis_result: string | null
   created_at: string
   teacher: {
     id: string
@@ -117,31 +118,13 @@ const ScriptAnalyzer = () => {
   const [submitting, setSubmitting] = useState(false)
   const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false)
   const [scriptToSubmit, setScriptToSubmit] = useState<ScriptAnalysis | null>(null)
-  const [aiResultModalOpen, setAiResultModalOpen] = useState(false)
-  const [selectedAiResult, setSelectedAiResult] = useState<{result: any, type: string, title: string} | null>(null)
+  const [draftResultModalOpen, setDraftResultModalOpen] = useState(false)
 
   useEffect(() => {
     if (user) {
       fetchAnalyses()
     }
   }, [user])
-
-  // Clear selectedAnalysis if it's no longer a draft or when switching to submissions tab
-  useEffect(() => {
-    if (selectedAnalysis) {
-      const currentAnalysis = analyses.find(a => a.id === selectedAnalysis.id);
-      if (!currentAnalysis || currentAnalysis.status !== 'draft') {
-        setSelectedAnalysis(null);
-      }
-    }
-  }, [analyses, selectedAnalysis])
-
-  // Clear selectedAnalysis when switching to submissions tab
-  useEffect(() => {
-    if (activeTab === 'submissions') {
-      setSelectedAnalysis(null);
-    }
-  }, [activeTab])
 
   const fetchAnalyses = async () => {
     try {
@@ -157,6 +140,7 @@ const ScriptAnalyzer = () => {
             feedback,
             show_ai_result,
             reviewed_at,
+            custom_analysis_result,
             created_at,
             teacher:profiles!script_reviews_teacher_id_fkey (
               id,
@@ -214,7 +198,7 @@ const ScriptAnalyzer = () => {
         "file_url": scriptUrl
       };
       console.log("payload", payload);
-      
+
       const response = await fetch(N8N_SCRIPT_ANALYZER_ENDPOINT, {
         method: 'POST',
         headers: {
@@ -298,10 +282,7 @@ const ScriptAnalyzer = () => {
       setUploadProgress(20);
       const uploadedUrl = await uploadFileToSupabase(file);
       setUploadProgress(80);
-      // Only auto-fill title if user hasn't entered one yet
-      if (!scriptTitle.trim()) {
-        setScriptTitle(file.name.replace(/\.[^/.]+$/, ''));
-      }
+      setScriptTitle(file.name.replace(/\.[^/.]+$/, ''));
       setScriptUrl(uploadedUrl);
       setUploadProgress(100);
       toast({
@@ -440,7 +421,7 @@ const ScriptAnalyzer = () => {
 
   const confirmSubmitForReview = async () => {
     if (!scriptToSubmit) return;
-    
+
     setSubmitting(true);
     try {
       // 1. Get all student's classes
@@ -539,14 +520,13 @@ const ScriptAnalyzer = () => {
       if (notifError) throw notifError;
 
       toast({
-        title: "Script Submitted Successfully! 🎉",
-        description: `Your script has been sent to ${uniqueTeachers.length} teacher${uniqueTeachers.length !== 1 ? 's' : ''} for review. You'll receive notifications on your dashboard when they provide feedback.`,
+        title: "Script Submitted! 🎉",
+        description: "Your script has been sent to your teachers for review.",
         variant: "default"
       });
 
       setSubmitConfirmOpen(false);
       setScriptToSubmit(null);
-      setSelectedAnalysis(null); // Clear the selected analysis
       await fetchAnalyses();
       setActiveTab('submissions');
 
@@ -618,15 +598,6 @@ const ScriptAnalyzer = () => {
     }
   }
 
-  const handleViewAiResult = (analysis: ScriptAnalysis) => {
-    setSelectedAiResult({
-      result: analysis.analysis_result,
-      type: analysis.type,
-      title: analysis.title
-    });
-    setAiResultModalOpen(true);
-  }
-
   const getStatusBadge = (analysis: ScriptAnalysis) => {
     switch (analysis.status) {
       case 'draft':
@@ -657,6 +628,24 @@ const ScriptAnalyzer = () => {
 
   const hasAnyTeacherShownAI = (reviews: ScriptReview[]) => {
     return reviews?.some(review => review.show_ai_result) || false;
+  }
+
+  const getAnalysisToDisplay = (analysis: ScriptAnalysis): string | null => {
+    if (!analysis.script_reviews || analysis.script_reviews.length === 0) {
+      return analysis.analysis_result;
+    }
+
+    // Find a review that has show_ai_result enabled and has custom_analysis_result
+    const reviewWithCustomAnalysis = analysis.script_reviews.find(
+      review => review.show_ai_result && review.custom_analysis_result
+    );
+
+    if (reviewWithCustomAnalysis?.custom_analysis_result) {
+      return reviewWithCustomAnalysis.custom_analysis_result;
+    }
+
+    // Otherwise return the original AI result
+    return analysis.analysis_result;
   }
 
   if (loading) {
@@ -833,7 +822,6 @@ const ScriptAnalyzer = () => {
                     </CardContent>
                   </Card>
 
-                  
                 </div>
 
                 {/* Right Panel - Analysis Results */}
@@ -856,30 +844,52 @@ const ScriptAnalyzer = () => {
                                 </Button>
                               )}
                             </div>
-                            {selectedAnalysis.analysis_result && selectedAnalysis.status === 'draft' && (
-                              <Button
-                                onClick={() => handleSubmitForReview(selectedAnalysis)}
-                                className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600"
-                              >
-                                <Send className="h-4 w-4 mr-2" />
-                                Submit for Review
-                              </Button>
-                            )}
+                            <div className="flex items-center gap-2">
+                              {selectedAnalysis.analysis_result && (
+                                <>
+                                  <Button
+                                    onClick={() => setDraftResultModalOpen(true)}
+                                    variant="outline"
+                                    className="bg-gradient-to-r from-purple-50 to-indigo-50 hover:from-purple-100 hover:to-indigo-100 border-purple-200"
+                                  >
+                                    <Eye className="h-4 w-4 mr-2" />
+                                    View Result
+                                  </Button>
+                                  <Button
+                                    onClick={() => handleSubmitForReview(selectedAnalysis)}
+                                    className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600"
+                                  >
+                                    <Send className="h-4 w-4 mr-2" />
+                                    Submit for Review
+                                  </Button>
+                                </>
+                              )}
+                            </div>
                           </CardTitle>
                         </CardHeader>
                         <CardContent>
                           <Alert className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
                             <Bell className="h-5 w-5 text-blue-600" />
                             <AlertDescription>
-                              <div className="space-y-2">
-                                <p className="text-blue-900 font-semibold">
-                                  Ready to Submit!
-                                </p>
-                                <p className="text-blue-800 text-sm">
-                                  Your script has been analyzed and is ready for teacher review. 
-                                  Click "Submit for Review" to send it to your teachers. 
-                                  You'll receive notifications on your dashboard when they provide feedback.
-                                </p>
+                              <div className="space-y-3">
+                                <div>
+                                  <p className="text-blue-900 font-semibold">
+                                    Ready to Submit!
+                                  </p>
+                                  <p className="text-blue-800 text-sm mt-1">
+                                    Your script has been analyzed and is ready for teacher review.
+                                    Click "Submit for Review" to send it to your teachers.
+                                    You'll receive notifications on your dashboard when they provide feedback.
+                                  </p>
+                                </div>
+                                <Button
+                                  onClick={() => setDraftResultModalOpen(true)}
+                                  variant="outline"
+                                  className="w-full bg-white hover:bg-gray-50"
+                                >
+                                  <Eye className="h-4 w-4 mr-2" />
+                                  View Analysis Result
+                                </Button>
                               </div>
                             </AlertDescription>
                           </Alert>
@@ -954,9 +964,12 @@ const ScriptAnalyzer = () => {
                                 </div>
                               </div>
                             </div>
-                            {showAIResult && analysis.analysis_result && (
+                            {showAIResult && getAnalysisToDisplay(analysis) && (
                               <Button
-                                onClick={() => handleViewAiResult(analysis)}
+                                onClick={() => {
+                                  setSelectedAnalysis(analysis);
+                                  setDraftResultModalOpen(true);
+                                }}
                                 variant="outline"
                                 className="ml-4 bg-gradient-to-r from-purple-50 to-indigo-50 hover:from-purple-100 hover:to-indigo-100 border-purple-200"
                               >
@@ -998,7 +1011,7 @@ const ScriptAnalyzer = () => {
                                     )}
                                   </div>
                                 ))}
-                              
+
                               {reviewedCount === 0 && (
                                 <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200 text-center">
                                   <Clock className="h-8 w-8 text-yellow-600 mx-auto mb-2" />
@@ -1009,6 +1022,8 @@ const ScriptAnalyzer = () => {
                               )}
                             </div>
                           )}
+
+
 
                           {!showAIResult && reviewedCount > 0 && (
                             <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 text-center">
@@ -1034,7 +1049,7 @@ const ScriptAnalyzer = () => {
             <DialogHeader>
               <DialogTitle>Submit Script for Review?</DialogTitle>
               <DialogDescription>
-                Your script "{scriptToSubmit?.title}" will be sent to all teachers in your classes for review. 
+                Your script "{scriptToSubmit?.title}" will be sent to all teachers in your classes for review.
                 You won't be able to edit or delete it after submission.
               </DialogDescription>
             </DialogHeader>
@@ -1059,30 +1074,80 @@ const ScriptAnalyzer = () => {
           </DialogContent>
         </Dialog>
 
-        {/* AI Result Modal */}
-        <Dialog open={aiResultModalOpen} onOpenChange={setAiResultModalOpen}>
-          <DialogContent className="max-w-4xl max-h-[80vh]">
+        {/* Draft Analysis Result Modal */}
+        {/* Submit Confirmation Dialog */}
+        <Dialog open={submitConfirmOpen} onOpenChange={setSubmitConfirmOpen}>
+          <DialogContent>
             <DialogHeader>
+              <DialogTitle>Submit Script for Review?</DialogTitle>
+              <DialogDescription>
+                Your script "{scriptToSubmit?.title}" will be sent to all teachers in your classes for review.
+                You won't be able to edit or delete it after submission.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setSubmitConfirmOpen(false)} disabled={submitting}>
+                Cancel
+              </Button>
+              <Button onClick={confirmSubmitForReview} disabled={submitting}>
+                {submitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Submitting...
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4 mr-2" />
+                    Submit
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Draft Analysis Result Modal */}
+        <Dialog open={draftResultModalOpen} onOpenChange={setDraftResultModalOpen}>
+          <DialogContent className="max-w-6xl max-h-[90vh] flex flex-col">
+            <DialogHeader className="flex-shrink-0">
               <DialogTitle className="flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-purple-600" />
-                AI Analysis Result - {selectedAiResult?.title}
+                AI Analysis Result - {selectedAnalysis?.title}
+                {selectedAnalysis && selectedAnalysis.script_reviews?.some(r => r.show_ai_result && r.custom_analysis_result) && (
+                  <Badge className="bg-purple-100 text-purple-700 border-purple-200">
+                    <Award className="h-3 w-3 mr-1" />
+                    Teacher Customized
+                  </Badge>
+                )}
               </DialogTitle>
               <DialogDescription>
                 Comprehensive AI-powered analysis of your script
               </DialogDescription>
             </DialogHeader>
-            <ScrollArea className="h-[60vh] pr-4">
-              {selectedAiResult && (
-                <ScriptAnalysisDisplay 
-                  analysisResult={selectedAiResult.result} 
-                  type={selectedAiResult.type} 
+            <ScrollArea className="flex-1 pr-4 max-h-[calc(90vh-180px)] overflow-y-auto">
+              {selectedAnalysis && (
+                <ScriptAnalysisDisplay
+                  analysisResult={getAnalysisToDisplay(selectedAnalysis)}
+                  type={selectedAnalysis.type}
                 />
               )}
             </ScrollArea>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setAiResultModalOpen(false)}>
+            <DialogFooter className="flex-shrink-0">
+              <Button variant="outline" onClick={() => setDraftResultModalOpen(false)}>
                 Close
               </Button>
+              {selectedAnalysis && selectedAnalysis.status === 'draft' && (
+                <Button
+                  onClick={() => {
+                    setDraftResultModalOpen(false);
+                    handleSubmitForReview(selectedAnalysis);
+                  }}
+                  className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600"
+                >
+                  <Send className="h-4 w-4 mr-2" />
+                  Submit for Review
+                </Button>
+              )}
             </DialogFooter>
           </DialogContent>
         </Dialog>

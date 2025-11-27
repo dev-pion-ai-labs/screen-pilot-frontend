@@ -45,6 +45,9 @@ import {
   Link,
   Send,
   Award,
+  Edit,
+  Save,
+  X,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -86,6 +89,7 @@ interface ScriptReview {
   feedback: string | null;
   show_ai_result: boolean;
   reviewed_at: string | null;
+  custom_analysis_result: string | null;
   class: Class;
 }
 
@@ -105,6 +109,9 @@ export default function TeacherScriptSubmissions() {
   const [feedback, setFeedback] = useState("");
   const [showAIResult, setShowAIResult] = useState(false);
   const [submittingReview, setSubmittingReview] = useState(false);
+  const [editingAIAnalysis, setEditingAIAnalysis] = useState(false);
+  const [customAnalysisText, setCustomAnalysisText] = useState("");
+  const [savingCustomAnalysis, setSavingCustomAnalysis] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -169,6 +176,7 @@ export default function TeacherScriptSubmissions() {
           feedback,
           show_ai_result,
           reviewed_at,
+          custom_analysis_result,
           class:classes!script_reviews_class_id_fkey (
             id,
             name,
@@ -227,6 +235,7 @@ export default function TeacherScriptSubmissions() {
           feedback: review.feedback,
           show_ai_result: review.show_ai_result,
           reviewed_at: review.reviewed_at,
+          custom_analysis_result: review.custom_analysis_result,
           class: review.class as Class,
         });
       });
@@ -300,6 +309,20 @@ export default function TeacherScriptSubmissions() {
 
   const openViewDialog = (submission: ScriptSubmission) => {
     setSelectedSubmission(submission);
+    
+    // Find the review for this teacher
+    const myReview = submission.script_reviews.find((r) => r.teacher_id === user?.id);
+    
+    // Initialize custom analysis text with existing custom version or original AI result
+    if (myReview?.custom_analysis_result) {
+      setCustomAnalysisText(myReview.custom_analysis_result);
+    } else if (submission.analysis_result) {
+      setCustomAnalysisText(submission.analysis_result);
+    } else {
+      setCustomAnalysisText("");
+    }
+    
+    setEditingAIAnalysis(false);
     setViewDialogOpen(true);
   };
 
@@ -370,6 +393,122 @@ export default function TeacherScriptSubmissions() {
       });
     } finally {
       setSubmittingReview(false);
+    }
+  };
+
+  const handleSaveCustomAnalysis = async () => {
+    if (!selectedSubmission || !user) return;
+
+    // Find the review for this teacher
+    const myReview = selectedSubmission.script_reviews.find((r) => r.teacher_id === user.id);
+    
+    if (!myReview) {
+      toast({
+        title: "Error",
+        description: "Review record not found",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSavingCustomAnalysis(true);
+    try {
+      // Update the custom analysis result
+      const { error } = await supabase
+        .from("script_reviews")
+        .update({
+          custom_analysis_result: customAnalysisText,
+        })
+        .eq("id", myReview.id);
+
+      if (error) throw error;
+
+      // Refresh submissions data first
+      await fetchSubmissions();
+
+      // Update selectedSubmission with the fresh data
+      // We need to re-fetch just this submission to get the updated data
+      const { data: updatedReviews, error: refetchError } = await supabase
+        .from("script_reviews")
+        .select(`
+          id,
+          script_id,
+          teacher_id,
+          class_id,
+          feedback,
+          show_ai_result,
+          reviewed_at,
+          custom_analysis_result,
+          class:classes!script_reviews_class_id_fkey (
+            id,
+            name,
+            semester
+          ),
+          script:script_analyses!script_reviews_script_id_fkey (
+            id,
+            title,
+            script_url,
+            type,
+            status,
+            submitted_at,
+            analysis_result,
+            user_id,
+            student:profiles!script_analyses_user_id_fkey1 (
+              id,
+              full_name,
+              email,
+              semester
+            )
+          )
+        `)
+        .eq("script_id", selectedSubmission.id)
+        .eq("teacher_id", user.id)
+        .single();
+
+      if (!refetchError && updatedReviews) {
+        const script = updatedReviews.script;
+        // Update selectedSubmission with fresh data
+        setSelectedSubmission({
+          id: script.id,
+          title: script.title,
+          script_url: script.script_url,
+          type: script.type,
+          status: script.status as "submitted" | "reviewed",
+          submitted_at: script.submitted_at,
+          analysis_result: script.analysis_result,
+          student_id: script.user_id,
+          student: script.student as Student,
+          script_reviews: [{
+            id: updatedReviews.id,
+            script_id: updatedReviews.script_id,
+            teacher_id: updatedReviews.teacher_id,
+            class_id: updatedReviews.class_id,
+            feedback: updatedReviews.feedback,
+            show_ai_result: updatedReviews.show_ai_result,
+            reviewed_at: updatedReviews.reviewed_at,
+            custom_analysis_result: updatedReviews.custom_analysis_result,
+            class: updatedReviews.class as Class,
+          }],
+        });
+      }
+
+      toast({
+        title: "Analysis Saved! ✨",
+        description: "Your customized analysis has been saved successfully.",
+        variant: "default",
+      });
+
+      setEditingAIAnalysis(false);
+      
+    } catch (error) {
+      console.error("Error saving custom analysis:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to save custom analysis",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingCustomAnalysis(false);
     }
   };
 
@@ -766,10 +905,120 @@ export default function TeacherScriptSubmissions() {
                       <TabsContent value="ai-analysis" className="mt-0 h-full">
                         {selectedSubmission.analysis_result ? (
                           <div className="pb-4">
-                            <ScriptAnalysisDisplay
-                              analysisResult={selectedSubmission.analysis_result}
-                              type={selectedSubmission.type}
-                            />
+                            {/* Edit/View Mode Toggle */}
+                            <div className="flex items-center justify-between mb-4 pb-4 border-b">
+                              <div className="flex items-center gap-2">
+                                {editingAIAnalysis ? (
+                                  <div className="flex items-center gap-2 text-sm text-amber-600">
+                                    <Edit className="h-4 w-4" />
+                                    <span className="font-medium">Editing Mode</span>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                                    <Sparkles className="h-4 w-4" />
+                                    <span>
+                                      {selectedSubmission.script_reviews.find(r => r.teacher_id === user?.id)?.custom_analysis_result 
+                                        ? "Customized Analysis" 
+                                        : "Original AI Analysis"}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                              
+                              <div className="flex items-center gap-2">
+                                {editingAIAnalysis ? (
+                                  <>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => {
+                                        setEditingAIAnalysis(false);
+                                        // Reset to saved version
+                                        const myReview = selectedSubmission.script_reviews.find(r => r.teacher_id === user?.id);
+                                        if (myReview?.custom_analysis_result) {
+                                          setCustomAnalysisText(myReview.custom_analysis_result);
+                                        } else if (selectedSubmission.analysis_result) {
+                                          setCustomAnalysisText(selectedSubmission.analysis_result);
+                                        }
+                                      }}
+                                      disabled={savingCustomAnalysis}
+                                    >
+                                      <X className="h-4 w-4 mr-2" />
+                                      Cancel
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      onClick={handleSaveCustomAnalysis}
+                                      disabled={savingCustomAnalysis}
+                                    >
+                                      {savingCustomAnalysis ? (
+                                        <>
+                                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                          Saving...
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Save className="h-4 w-4 mr-2" />
+                                          Save Changes
+                                        </>
+                                      )}
+                                    </Button>
+                                  </>
+                                ) : (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setEditingAIAnalysis(true)}
+                                  >
+                                    <Edit className="h-4 w-4 mr-2" />
+                                    Edit Analysis
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Content Area */}
+                            {editingAIAnalysis ? (
+                              <div className="space-y-4">
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                  <div className="flex items-start gap-3">
+                                    <AlertCircle className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                                    <div className="text-sm text-blue-800">
+                                      <p className="font-medium mb-1">Editing Tips:</p>
+                                      <ul className="list-disc list-inside space-y-1 text-xs">
+                                        <li>The content uses Markdown format - preserve the structure for best results</li>
+                                        <li>You can modify existing sections or add new insights</li>
+                                        <li>Students will see this customized version when you enable "Show AI Result"</li>
+                                      </ul>
+                                    </div>
+                                  </div>
+                                </div>
+                                
+                                <div>
+                                  <Label htmlFor="custom-analysis" className="text-sm font-medium mb-2 block">
+                                    Analysis Content (Markdown Format)
+                                  </Label>
+                                  <Textarea
+                                    id="custom-analysis"
+                                    value={customAnalysisText}
+                                    onChange={(e) => setCustomAnalysisText(e.target.value)}
+                                    className="font-mono text-sm min-h-[500px] resize-none"
+                                    placeholder="Edit the AI analysis content..."
+                                  />
+                                  <p className="text-xs text-gray-500 mt-2">
+                                    {customAnalysisText.length} characters
+                                  </p>
+                                </div>
+                              </div>
+                            ) : (
+                              <ScriptAnalysisDisplay
+                                analysisResult={
+                                  selectedSubmission.script_reviews.find(r => r.teacher_id === user?.id)?.custom_analysis_result 
+                                  || selectedSubmission.analysis_result
+                                }
+                                type={selectedSubmission.type}
+                              />
+                            )}
                           </div>
                         ) : (
                           <div className="text-center py-8 text-gray-500">
@@ -913,4 +1162,4 @@ export default function TeacherScriptSubmissions() {
       </ModernDashboardLayout>
     </AuthGuard>
   );
-}
+}                                                                                                                                                                                                                                                           

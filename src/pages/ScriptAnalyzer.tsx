@@ -847,14 +847,7 @@ const ScriptAnalyzer = () => {
                             <div className="flex items-center gap-2">
                               {selectedAnalysis.analysis_result && (
                                 <>
-                                  <Button
-                                    onClick={() => setDraftResultModalOpen(true)}
-                                    variant="outline"
-                                    className="bg-gradient-to-r from-purple-50 to-indigo-50 hover:from-purple-100 hover:to-indigo-100 border-purple-200"
-                                  >
-                                    <Eye className="h-4 w-4 mr-2" />
-                                    View Result
-                                  </Button>
+                                 
                                   <Button
                                     onClick={() => handleSubmitForReview(selectedAnalysis)}
                                     className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600"
@@ -882,14 +875,7 @@ const ScriptAnalyzer = () => {
                                     You'll receive notifications on your dashboard when they provide feedback.
                                   </p>
                                 </div>
-                                <Button
-                                  onClick={() => setDraftResultModalOpen(true)}
-                                  variant="outline"
-                                  className="w-full bg-white hover:bg-gray-50"
-                                >
-                                  <Eye className="h-4 w-4 mr-2" />
-                                  View Analysis Result
-                                </Button>
+                                
                               </div>
                             </AlertDescription>
                           </Alert>

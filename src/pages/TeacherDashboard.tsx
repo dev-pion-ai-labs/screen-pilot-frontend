@@ -714,7 +714,7 @@ const [scriptNotifications, setScriptNotifications] = useState<ScriptNotificatio
         )
       `)
       .eq("user_id", profile?.id)
-      .eq("type", "review")  // Only show review notifications
+      .eq("type", "submission")  // Only show review notifications
       .order("created_at", { ascending: false })
       .limit(5);
 

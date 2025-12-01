@@ -56,6 +56,7 @@ interface Assignment {
   difficulty: string;
   status: string;
   created_at: string;
+  ai_generated_content: any;
   assignment_enrollments?: any[];
   submissions?: any[];
 }
@@ -93,6 +94,8 @@ const TeacherAssignment = () => {
   const [feedbackInput, setFeedbackInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [aiFeedbackVisible, setAiFeedbackVisible] = useState(false);
+  const [selectedAssignment, setSelectedAssignment] =
+      useState<Assignment | null>(null);
 
 
   console.log("hey", viewSubmission);
@@ -322,6 +325,374 @@ const TeacherAssignment = () => {
     }
   };
 
+
+  // Helper to format assignment description - preserves all content
+// Helper to format assignment description - fixed to handle all cases properly
+const formatAssignmentDescription = (description: string) => {
+  if (!description) return null;
+
+  // Process the text line by line
+  const lines = description.split("\n");
+  const elements = [];
+  let currentParagraph = [];
+  let inList = false;
+  let listItems = [];
+  let listType = null;
+
+  lines.forEach((line, index) => {
+    const trimmedLine = line.trim();
+
+    // Check if this is a markdown header line (starts with #, ##, ###, etc.)
+    if (trimmedLine.match(/^#{1,6}\s+/)) {
+      // Save any pending paragraph
+      if (currentParagraph.length > 0) {
+        elements.push(
+          <p
+            key={`para-${elements.length}`}
+            className="text-gray-700 leading-relaxed mb-4"
+          >
+            {currentParagraph.join(" ")}
+          </p>
+        );
+        currentParagraph = [];
+      }
+
+      const headerLevel = trimmedLine.match(/^(#{1,6})/)?.[1].length || 1;
+      const headerText = trimmedLine.replace(/^#{1,6}\s*/, "");
+
+      // Create different header styles based on level
+      if (headerLevel === 1) {
+        elements.push(
+          <h1
+            key={`h1-${index}`}
+            className="text-3xl font-bold text-gray-900 mt-8 mb-4"
+          >
+            {headerText}
+          </h1>
+        );
+      } else if (headerLevel === 2) {
+        elements.push(
+          <h2
+            key={`h2-${index}`}
+            className="text-2xl font-bold text-gray-900 mt-6 mb-3"
+          >
+            {headerText}
+          </h2>
+        );
+      } else {
+        elements.push(
+          <h3
+            key={`h3-${index}`}
+            className="text-xl font-bold text-gray-900 mt-6 mb-3"
+          >
+            {headerText}
+          </h3>
+        );
+      }
+    }
+    // Check if line contains **bold text**
+    else if (trimmedLine.includes("**")) {
+      // Check if it's a header (ends with :)
+      if (trimmedLine.match(/\*\*[^*]+:\*\*/)) {
+        // Save any pending content
+        if (currentParagraph.length > 0) {
+          elements.push(
+            <p
+              key={`para-${elements.length}`}
+              className="text-gray-700 leading-relaxed mb-4"
+            >
+              {currentParagraph.join(" ")}
+            </p>
+          );
+          currentParagraph = [];
+        }
+
+        // Add the header
+        elements.push(
+          <h4 key={`h4-${index}`} className="font-bold text-gray-900 mt-4 mb-2">
+            {trimmedLine.replace(/\*\*/g, "")}
+          </h4>
+        );
+      } else {
+        // It's inline bold text - add to current paragraph
+        currentParagraph.push(trimmedLine);
+      }
+    }
+    // Check if it's a bullet point (handle both - and *)
+    else if (trimmedLine.startsWith("- ") || trimmedLine.startsWith("* ")) {
+      if (!inList) {
+        // Save any pending paragraph
+        if (currentParagraph.length > 0) {
+          elements.push(
+            <p
+              key={`para-${elements.length}`}
+              className="text-gray-700 leading-relaxed mb-4"
+            >
+              {formatInlineText(currentParagraph.join(" "))}
+            </p>
+          );
+          currentParagraph = [];
+        }
+        inList = true;
+        listType = "bullet";
+        listItems = [];
+      }
+      listItems.push(trimmedLine.substring(2));
+    }
+    // Check if it's a numbered list
+    else if (trimmedLine.match(/^\d+\.\s/)) {
+      if (!inList) {
+        // Save any pending paragraph
+        if (currentParagraph.length > 0) {
+          elements.push(
+            <p
+              key={`para-${elements.length}`}
+              className="text-gray-700 leading-relaxed mb-4"
+            >
+              {formatInlineText(currentParagraph.join(" "))}
+            </p>
+          );
+          currentParagraph = [];
+        }
+        inList = true;
+        listType = "numbered";
+        listItems = [];
+      }
+      const content = trimmedLine.replace(/^\d+\.\s*/, "");
+      listItems.push(content);
+    }
+    // Check if it's a table row (contains | characters)
+    else if (trimmedLine.includes("|") && trimmedLine.split("|").length > 2) {
+      // Save any pending content
+      if (currentParagraph.length > 0) {
+        elements.push(
+          <p
+            key={`para-${elements.length}`}
+            className="text-gray-700 leading-relaxed mb-4"
+          >
+            {formatInlineText(currentParagraph.join(" "))}
+          </p>
+        );
+        currentParagraph = [];
+      }
+      if (inList && listItems.length > 0) {
+        // End any pending list
+        if (listType === "bullet") {
+          elements.push(
+            <ul
+              key={`ul-${elements.length}`}
+              className="list-disc pl-6 space-y-2 mb-4"
+            >
+              {listItems.map((item, i) => (
+                <li key={i} className="text-gray-700">
+                  {formatInlineText(item)}
+                </li>
+              ))}
+            </ul>
+          );
+        } else {
+          elements.push(
+            <ol
+              key={`ol-${elements.length}`}
+              className="list-decimal pl-6 space-y-2 mb-4"
+            >
+              {listItems.map((item, i) => (
+                <li key={i} className="text-gray-700">
+                  {formatInlineText(item)}
+                </li>
+              ))}
+            </ol>
+          );
+        }
+        listItems = [];
+        inList = false;
+      }
+
+      // Parse table - collect all table rows starting from current line
+      const tableRows = [];
+      let currentLineIndex = index;
+      
+      // Check if this is a header separator line (contains only |, -, and spaces)
+      const isHeaderSeparator = trimmedLine.match(/^[\|\-\s]+$/);
+      
+      // Start collecting table rows from current position
+      while (currentLineIndex < lines.length) {
+        const tableLine = lines[currentLineIndex].trim();
+        if (tableLine.includes("|") && tableLine.split("|").length > 2) {
+          // Skip header separator lines
+          if (!tableLine.match(/^[\|\-\s]+$/)) {
+            const cells = tableLine.split("|").map(cell => cell.trim()).filter(cell => cell);
+            if (cells.length > 0) {
+              tableRows.push(cells);
+            }
+          }
+          currentLineIndex++;
+        } else {
+          break;
+        }
+      }
+      
+      // Skip the lines we've already processed
+      lines.splice(index + 1, currentLineIndex - index - 1);
+      
+      if (tableRows.length > 0) {
+        elements.push(
+          <div key={`table-${elements.length}`} className="mb-6 overflow-x-auto">
+            <table className="min-w-full bg-white border border-gray-300 rounded-lg shadow-sm">
+              <thead className="bg-gradient-to-r from-blue-50 to-indigo-50">
+                <tr>
+                  {tableRows[0].map((header, i) => (
+                    <th key={i} className="px-4 py-3 text-left text-sm font-semibold text-gray-800 border-b border-gray-300">
+                      {formatInlineText(header)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {tableRows.slice(1).map((row, rowIndex) => (
+                  <tr key={rowIndex} className={rowIndex % 2 === 0 ? "bg-gray-50" : "bg-white"}>
+                    {row.map((cell, cellIndex) => (
+                      <td key={cellIndex} className="px-4 py-3 text-sm text-gray-700 border-b border-gray-200">
+                        {formatInlineText(cell)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      }
+    }
+    // Empty line - might signal end of list or paragraph
+    else if (trimmedLine === "") {
+      if (inList && listItems.length > 0) {
+        // End the list
+        if (listType === "bullet") {
+          elements.push(
+            <ul
+              key={`ul-${elements.length}`}
+              className="list-disc pl-6 space-y-2 mb-4"
+            >
+              {listItems.map((item, i) => (
+                <li key={i} className="text-gray-700">
+                  {formatInlineText(item)}
+                </li>
+              ))}
+            </ul>
+          );
+        } else {
+          elements.push(
+            <ol
+              key={`ol-${elements.length}`}
+              className="list-decimal pl-6 space-y-2 mb-4"
+            >
+              {listItems.map((item, i) => (
+                <li key={i} className="text-gray-700">
+                  {formatInlineText(item)}
+                </li>
+              ))}
+            </ol>
+          );
+        }
+        listItems = [];
+        inList = false;
+      } else if (currentParagraph.length > 0) {
+        elements.push(
+          <p
+            key={`para-${elements.length}`}
+            className="text-gray-700 leading-relaxed mb-4"
+          >
+            {formatInlineText(currentParagraph.join(" "))}
+          </p>
+        );
+        currentParagraph = [];
+      }
+    }
+    // Regular text
+    else {
+      if (inList) {
+        // This might be continuation of the last list item
+        if (
+          listItems.length > 0 &&
+          !trimmedLine.match(/^\d+\.\s/) &&
+          !trimmedLine.startsWith("* ")
+        ) {
+          listItems[listItems.length - 1] += " " + trimmedLine;
+        }
+      } else {
+        currentParagraph.push(trimmedLine);
+      }
+    }
+  });
+
+  // Handle any remaining content
+  if (inList && listItems.length > 0) {
+    if (listType === "bullet") {
+      elements.push(
+        <ul
+          key={`ul-${elements.length}`}
+          className="list-disc pl-6 space-y-2 mb-4"
+        >
+          {listItems.map((item, i) => (
+            <li key={i} className="text-gray-700">
+              {formatInlineText(item)}
+            </li>
+          ))}
+        </ul>
+      );
+    } else {
+      elements.push(
+        <ol
+          key={`ol-${elements.length}`}
+          className="list-decimal pl-6 space-y-2 mb-4"
+        >
+          {listItems.map((item, i) => (
+            <li key={i} className="text-gray-700">
+              {formatInlineText(item)}
+            </li>
+          ))}
+        </ol>
+      );
+    }
+  } else if (currentParagraph.length > 0) {
+    elements.push(
+      <p
+        key={`para-${elements.length}`}
+        className="text-gray-700 leading-relaxed mb-4"
+      >
+        {formatInlineText(currentParagraph.join(" "))}
+      </p>
+    );
+  }
+
+  return <div className="space-y-2">{elements}</div>;
+};
+
+
+// Helper to format inline text with bold support
+const formatInlineText = (text: string) => {
+  if (!text) return text;
+
+  // Split by ** markers
+  const parts = text.split(/(\*\*[^*]+\*\*)/);
+
+  return (
+    <>
+      {parts.map((part, i) => {
+        if (part.startsWith("**") && part.endsWith("**")) {
+          return (
+            <strong key={i} className="font-semibold text-gray-900">
+              {part.slice(2, -2)}
+            </strong>
+          );
+        }
+        return <span key={i}>{part}</span>;
+      })}
+    </>
+  );
+};
+
   if (loading) {
     return (
       <AuthGuard allowedRoles={["teacher"]}>
@@ -462,6 +833,18 @@ const TeacherAssignment = () => {
                                   >
                                     {capitalizeFirst(assignment.status)}
                                   </Badge>
+   <Button
+                                  variant="outline"
+                                  onClick={() => {
+                                    console.log("VIEW DETAILS - Assignment Data:", assignment);
+                                    setSelectedAssignment(assignment);
+                                  }}
+                                  className="hover:bg-blue-50 border-blue-200"
+                                >
+                                  <Eye className="h-4 w-4 mr-2" />
+                                  View Details
+                                </Button>
+
                                 </div>
                               </div>
                             </CardHeader>
@@ -1304,6 +1687,121 @@ const TeacherAssignment = () => {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+
+
+          {/* Assignment Details Modal in Manage Assignments */}
+<Dialog
+  open={!!selectedAssignment}
+  onOpenChange={() => setSelectedAssignment(null)}
+>
+  <DialogContent className="max-w-4xl w-full max-h-[85vh] flex flex-col bg-white/95 backdrop-blur-sm border-0 shadow-2xl">
+    <DialogHeader>
+      <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+        {selectedAssignment?.title || "Assignment details"}
+      </DialogTitle>
+    </DialogHeader>
+
+    {selectedAssignment && (
+      <div className="flex-1 min-h-0 overflow-y-auto space-y-6 pr-1">
+        {/* Top meta */}
+        <div className="flex flex-wrap gap-3 text-sm">
+          <Badge className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white border-0">
+            Sem {selectedAssignment.semester}
+          </Badge>
+          <Badge className="bg-gradient-to-r from-orange-500 to-amber-500 text-white border-0">
+            Due {format(new Date(selectedAssignment.due_date), "MMM dd, yyyy")}
+          </Badge>
+          <Badge className="bg-gradient-to-r from-green-500 to-emerald-500 text-white border-0">
+            {selectedAssignment.total_points} points
+          </Badge>
+          {selectedAssignment.difficulty && (
+            <Badge className="bg-gradient-to-r from-sky-500 to-cyan-500 text-white border-0">
+              {selectedAssignment.difficulty}
+            </Badge>
+          )}
+        </div>
+
+        {/* Topic */}
+        {selectedAssignment.topic && (
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+              Topic
+            </p>
+            <p className="text-gray-900 font-medium">
+              {selectedAssignment.topic}
+            </p>
+          </div>
+        )}
+
+        {/* Description */}
+        {selectedAssignment.description && (
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+              Description
+            </p>
+            <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">
+              {formatAssignmentDescription(
+                          selectedAssignment.description
+                        )}
+            </p>
+          </div>
+        )}
+
+        {/* AI generated content, if present */}
+        {(() => {
+          if (!selectedAssignment.ai_generated_content) return null;
+
+          let rawText = "";
+          const ai = selectedAssignment.ai_generated_content;
+
+          if (typeof ai === "string") {
+            try {
+              const parsed = JSON.parse(ai);
+              rawText =
+                parsed.rawText ||
+                parsed.instructions ||
+                JSON.stringify(parsed, null, 2);
+            } catch {
+              rawText = ai;
+            }
+          } else if (typeof ai === "object") {
+            rawText =
+              ai.rawText ||
+              ai.instructions ||
+              JSON.stringify(ai, null, 2);
+          }
+
+          if (!rawText) return null;
+
+          return (
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-4 border border-blue-100">
+              <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">
+                AI generated assignment brief
+              </p>
+              <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">
+                 {formatAssignmentDescription(
+                          selectedAssignment.ai_generated_content
+                        )}
+              </p>
+            </div>
+          );
+        })()}
+      </div>
+    )}
+
+    <DialogFooter className="pt-4 border-t border-gray-100">
+      <Button
+        variant="outline"
+        onClick={() => setSelectedAssignment(null)}
+        className="hover:bg-gray-50 border-gray-200 px-6 py-3 h-auto"
+      >
+        <X className="h-4 w-4 mr-2" />
+        Close
+      </Button>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
+
         </div>
       </ModernDashboardLayout>
     </AuthGuard>

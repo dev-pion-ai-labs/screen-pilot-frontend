@@ -37,6 +37,7 @@ import StudentNotes from "./pages/StudentNotes";
 import Glossary from "./pages/Glossary";
 import ExploreBeyondSyllabus from "./pages/ExploreBeyondSyllabus";
 import TeacherScriptSubmissions from "./pages/TeacherScriptSubmissions";
+import StudentWorkMonitoring from "./pages/StudentWorkMonitoring";
 
 const queryClient = new QueryClient();
 
@@ -69,6 +70,7 @@ const App = () => (
             <Route path="/teacher/student-submission" element={<TeacherStudentSubmission />} />
             <Route path="/teacher/script-submissions" element={<TeacherScriptSubmissions />} />
             <Route path="/teacher/students" element={<TeacherStudents />} />
+            <Route path="/teacher/student-work" element={<StudentWorkMonitoring />} />
             <Route path="/chat" element={<Chat />} />
             <Route path="/old-ai-mentor" element={<AIMentor />} />
             <Route path="/ai-mentor" element={<Quiz />} />

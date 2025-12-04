@@ -150,6 +150,12 @@ export function AppSidebar() {
             icon: Book,
             description: "Manage film terminology",
           },
+           {
+            name: "Student Monitoring",
+            href: "/teacher/student-work",
+            icon: GraduationCap,
+            description: "Monitor student progress and work",
+          },
         ];
       case "student":
         return [

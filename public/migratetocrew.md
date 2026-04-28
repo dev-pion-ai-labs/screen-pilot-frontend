@@ -182,3 +182,45 @@ For each endpoint, after wiring:
 3. Backend: `pytest` covers each route with a mocked LLM and a smoke test of one real crew run per crew.
 4. Final regression: a fresh Vercel preview deploy with `VITE_AGENT_API_URL` set; click through each of the 6 affected pages.
 5. Final cleanup pass: `grep -ri "n8n\|vijiteshnaik" src/` returns zero matches before merging.
+
+---
+
+## Gaps surfaced after a second pass (must address before implementation)
+
+### A. Supabase Edge Function shadow path
+`supabase/functions/evaluate-submission/index.ts` exists and is a **mock** evaluator (returns hardcoded `mockEvaluation` and writes to `submissions.ai_evaluation` / `submissions.ai_feedback`). The current frontend (`StudentAssignments.tsx`) bypasses it and calls n8n directly, so this function appears unused. Confirm with the team, then either:
+- **Delete** the edge function (preferred — dead code), or
+- **Repurpose** it as a thin proxy to `POST /api/assignments/evaluate` on Railway.
+
+Either way, decide before flipping the eval flow so we don't leave two server-side evaluation paths writing to the same columns.
+
+### B. Capture the existing n8n response shapes before turning workflows off
+The plan promises "match payload + response shapes exactly," but two flows write the response into the database, so we need *concrete samples* — not just our reading of the parser code:
+
+- **`script_analyses.analysis_result` (JSONB)** — `ScriptAnalyzer.tsx:347, 381` writes the raw n8n `result` field into the table, and it is later consumed by `TeacherScriptSubmissions.tsx`, `TeacherDashboard.tsx`, `StudentDashboard.tsx`. CrewAI must reproduce the same JSON keys.
+- **`submissions.ai_evaluation` / `ai_feedback`** — `StudentAssignments.tsx` writes the parsed evaluation (rubric markdown w/ `## 📊 Rubric-Based Scoring` header, `**Total**` row in the markdown table, `Strengths` / `Areas for Improvement` / `Recommendations` / `Academic Integrity` / `Status` sections — see `parseAIFeedback` regexes at L160-184). The CrewAI prompt must pin this exact markdown shape.
+
+**Action:** before deleting any n8n workflow, save a real input + output pair for each of the 8 endpoints (call it from Postman, dump JSON to `docs/n8n-samples/`). Use those as golden fixtures for backend tests in `screen-scribe-agents`.
+
+### C. Vapi voice assistant (`/old-ai-mentor`) — out of scope, but verify
+`src/pages/AIMentor.tsx` uses the Vapi web SDK with hardcoded keys (assistant `0b36eadb-ae94-4a97-b1fb-90b7128f3630`, public key `33f65907-…`). The frontend doesn't hit n8n in this file, **but** Vapi assistants can have server-side tools that call webhooks — confirm in the Vapi dashboard whether this assistant is wired to any `vijiteshnaik.app.n8n.cloud` URL. If yes, those need to be repointed at the new Railway service too. If no, ignore.
+
+### D. Glossary import script
+`package.json` declares `"import:glossary": "node scripts/import-glossary.mjs"`. Quickly inspect to confirm it doesn't hit n8n; it likely just reads CSV/JSON into Supabase, in which case it's untouched by this migration. Worth a 30-second skim.
+
+### E. Hardcoded secrets currently in source
+Out of scope of this migration but worth flagging while we're touching this surface: the Supabase publishable key (`src/integrations/supabase/client.ts`) and Vapi public key (`src/pages/AIMentor.tsx`) are hardcoded. The publishable/anon keys are designed to be public so this is not a vulnerability, but moving them to `VITE_*` env vars at the same time we add `VITE_AGENT_API_URL` keeps config consistent.
+
+### F. This plan file is publicly served
+`public/migratetocrew.md` will be served at `https://<vercel-host>/migratetocrew.md` once deployed (Vite copies `public/` to the build output verbatim). It contains internal architecture, the full list of n8n webhook URLs, and the planned endpoint surface. Before pushing to prod either:
+- Move the file out of `public/` (e.g., into `docs/` at repo root, which is not bundled), or
+- Knowingly accept that it is shareable via URL.
+
+Currently fine for reviewing/sharing internally — just don't merge to prod with it still in `public/`.
+
+### G. Backend persistence model — decide now
+The current setup has the **frontend** writing crew results to Supabase (script_analyses, submissions). After migration, two options:
+1. **Keep as-is**: CrewAI returns the result in the HTTP response, frontend writes it to Supabase. Simplest diff. ✅ Recommended.
+2. **Move writes server-side**: CrewAI worker writes to Supabase using service-role key, frontend just polls. Cleaner for long jobs but requires duplicating Supabase schema knowledge in Python.
+
+Plan defaults to option 1; revisit only if the script analyzer's poll loop becomes a UX problem.

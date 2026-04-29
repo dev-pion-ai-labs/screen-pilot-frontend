@@ -37,6 +37,7 @@ import {
 import { ModernDashboardLayout } from "@/components/ModernDashboardLayout"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
+import { agentsPostJson } from "@/lib/agentsApi"
 import { useSpeech } from "react-text-to-speech"
 import { jsPDF } from "jspdf"
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from "docx"
@@ -707,30 +708,20 @@ export default function CreateNotes() {
   }
 
   const callNotesAgent = async (subtopic: string) => {
-    const response = await fetch(
-      "https://vijiteshnaik.app.n8n.cloud/webhook/6be3ecf4-01c6-4263-935b-7397bd968349",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ subtopic: subtopic.toLowerCase() }),
-      }
+    const result = await agentsPostJson<Record<string, unknown>>(
+      "/api/notes/generate",
+      { subtopic: subtopic.toLowerCase() },
     );
-
-    if (!response.ok) {
-      throw new Error("Note generation failed: " + (await response.text()));
-    }
-
-    const result = await response.json();
 
     try {
       // Handle different response formats
       let content = ""
       if (result.output) {
-        content = result.output
+        content = result.output as string
       } else if (result.content) {
-        content = result.content
+        content = result.content as string
       } else if (result.notes) {
-        content = result.notes
+        content = result.notes as string
       } else {
         content = JSON.stringify(result)
       }

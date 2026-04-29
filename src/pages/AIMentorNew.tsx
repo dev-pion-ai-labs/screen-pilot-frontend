@@ -42,6 +42,7 @@ import {
 import { Link } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
+import { agentsPostJson } from "@/lib/agentsApi";
 import { ModernDashboardLayout } from "@/components/ModernDashboardLayout";
 import { toast } from "sonner";
 
@@ -110,17 +111,14 @@ interface QuizResponse {
   output?: string;
 }
 
-// AI Mentor Agent Configuration - Updated for n8n
+// AI Mentor Agent Configuration.
+// `mentor` now goes through the agents service (/api/mentor/chat) — endpoint kept
+// here for parity but unused by callMentorAgent below.
+// `quiz` still points at the n8n quiz webhook (Phase B port pending — webhook #8).
 const AI_MENTOR_AGENT_CONFIG = {
   mentor: {
-    "Semester 1": {
-      endpoint:
-        "https://vijiteshnaik.app.n8n.cloud/webhook/f9303923-e4c7-4790-b667-b765b823eccb/chat",
-    },
-    "Semester 2": {
-      endpoint:
-        "https://vijiteshnaik.app.n8n.cloud/webhook/f9303923-e4c7-4790-b667-b765b823eccb/chat",
-    },
+    "Semester 1": { endpoint: "/api/mentor/chat" },
+    "Semester 2": { endpoint: "/api/mentor/chat" },
   },
   quiz: {
     "Semester 1": {
@@ -1410,20 +1408,7 @@ export default function AIMentorAgent(): JSX.Element {
       );
     }
 
-    // Send subtopic as simple JSON object
-    const response = await fetch(mentorConfig.endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ chatInput: message }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`API Error: ${response.status}`);
-    }
-
-    return response.json();
+    return await agentsPostJson(mentorConfig.endpoint, { chatInput: message });
   };
 
   const callQuizGenerationTool = async (): Promise<{

@@ -47,6 +47,7 @@ import { format } from "date-fns"
 import { ModernDashboardLayout } from "@/components/ModernDashboardLayout"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
+import { agentsPostJson } from "@/lib/agentsApi"
 
 // Semester syllabus (reusing from CreateAssignment)
 const semester1Syllabus = {
@@ -497,20 +498,10 @@ export default function CreateQuiz() {
     }
 
     const callQuizAgent = async (subtopic: string) => {
-        const response = await fetch(
-            "https://vijiteshnaik.app.n8n.cloud/webhook/47ded585-f75c-451f-8fc0-64d4908ec53e",
-            {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ subtopic: subtopic.toLowerCase() }),
-            }
+        const result = await agentsPostJson<{ output: string }>(
+            "/api/quizzes/generate",
+            { subtopic: subtopic.toLowerCase() },
         );
-
-        if (!response.ok) {
-            throw new Error("Quiz generation failed: " + (await response.text()));
-        }
-
-        const result = await response.json();
 
         try {
             // Parse the JSON string from output

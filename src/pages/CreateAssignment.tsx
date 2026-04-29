@@ -40,6 +40,7 @@ import { format } from "date-fns"
 import { ModernDashboardLayout } from "@/components/ModernDashboardLayout"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
+import { agentsPostJson } from "@/lib/agentsApi"
 import AssignmentDisplay from "@/components/AssignmentDisplay"
 
 
@@ -399,35 +400,24 @@ export default function CreateAssignment() {
   content,
   changes,
 }) => {
-  let url, payload;
+  let path, payload;
   if (isRevision) {
-    url = "https://vijiteshnaik.app.n8n.cloud/webhook/e72a35be-6d20-4ee5-a5ab-06dc94a98f0d";
+    path = "/api/assignments/revise";
     payload = {
       content,
       subtopic,
       changes,
     };
-    console.log("Calling n8n for revision with payload:", payload);
-    
+    console.log("Calling agents service for revision with payload:", payload);
+
   } else {
-    url = "https://vijiteshnaik.app.n8n.cloud/webhook/6a7c5ac0-bd6d-4fd6-9aea-af711dd902f9";
+    path = "/api/assignments/generate";
     payload = {
       subtopic,
     };
   }
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    throw new Error("Assignment agent error: " + (await response.text()));
-  }
-
-  const result = await response.json();
-  return result; // Adapt this if your n8n agent's structure is different!
+  return await agentsPostJson(path, payload);
 };
 
 

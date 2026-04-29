@@ -56,9 +56,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-// --- RelevanceAI Config ---
-const N8N_ASSIGNMENT_EVALUATOR_ENDPOINT = "https://vijiteshnaik.app.n8n.cloud/webhook/6d51e44c-1b35-4ba3-931a-aecc10f6293e";
+import { agentsPostJson } from "@/lib/agentsApi";
 
 
 interface Assignment {
@@ -895,23 +893,12 @@ export default function StudentAssignments() {
 
 
 
- const callN8nAgent = async (criteria: string, subtopic: string, file_url: string) => {
-  const payload = {
+ const callEvaluatorAgent = async (criteria: string, subtopic: string, file_url: string) => {
+  return await agentsPostJson("/api/assignments/evaluate", {
     criteria,
     subtopic,
-    file_url
-  };
-  const response = await fetch(N8N_ASSIGNMENT_EVALUATOR_ENDPOINT, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(payload),
+    file_url,
   });
-  if (!response.ok) {
-    throw new Error(`N8N Agent error: ${response.status}`);
-  }
-  return await response.json();
 };
 
   // --- Submission Handler ---
@@ -929,7 +916,7 @@ export default function StudentAssignments() {
       
       // 3. Get AI evaluation
       
-      const aiResult = await callN8nAgent(
+      const aiResult = await callEvaluatorAgent(
   selectedAssignment.ai_generated_content, // criteria
   selectedAssignment.title,               // subtopic
   publicUrl                               // file_url

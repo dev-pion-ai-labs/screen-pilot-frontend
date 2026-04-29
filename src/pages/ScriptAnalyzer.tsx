@@ -47,8 +47,7 @@ import {
 import { ModernDashboardLayout } from '@/components/ModernDashboardLayout';
 import ScriptAnalysisDisplay from '@/components/ScriptAnalysisDisplay';
 import { format } from 'date-fns';
-
-const N8N_SCRIPT_ANALYZER_ENDPOINT = "https://vijiteshnaik.app.n8n.cloud/webhook/4dd12417-e6e1-4dd7-a431-c9e031136a40";
+import { agentsPostJson, agentsGetJson } from "@/lib/agentsApi";
 
 interface ScriptAnalysis {
   id: string
@@ -170,14 +169,14 @@ const ScriptAnalyzer = () => {
     }
   }
 
-  const pollN8nJobResult = async (jobId) => {
+  const pollScriptJobResult = async (jobId: string) => {
     const maxAttempts = 20;
     let attempts = 0;
     while (attempts < maxAttempts) {
       try {
-        const pollRes = await fetch(`${N8N_SCRIPT_ANALYZER_ENDPOINT}/status/${jobId}`);
-        if (!pollRes.ok) throw new Error('Polling failed');
-        const status = await pollRes.json();
+        const status = await agentsGetJson<{ status: string; result?: string; error?: string }>(
+          `/api/scripts/analyze/status/${jobId}`,
+        );
         if (status.status === "completed") return status.result;
         if (status.status === "error") throw new Error(status.error);
         attempts++;
@@ -199,20 +198,12 @@ const ScriptAnalyzer = () => {
       };
       console.log("payload", payload);
 
-      const response = await fetch(N8N_SCRIPT_ANALYZER_ENDPOINT, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload),
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Agent trigger failed (${response.status}): ${errorText}`);
-      }
-      const result = await response.json();
+      const result = await agentsPostJson<{ jobId?: string; result?: string; output?: string }>(
+        "/api/scripts/analyze",
+        payload,
+      );
       if (result.jobId) {
-        return await pollN8nJobResult(result.jobId);
+        return await pollScriptJobResult(result.jobId);
       }
       return result.result || result.output || result;
     } catch (error) {

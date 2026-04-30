@@ -49,6 +49,7 @@
     "date-fns": "^3.6.0",
     "docx": "^9.5.1",
     "dompurify": "^3.2.7",
+    "dotenv": "^16.4.5",
     "embla-carousel-react": "^8.3.0",
     "file-saver": "^2.0.5",
     "framer-motion": "^12.16.0",
@@ -73,8 +74,8 @@
     "sonner": "^1.5.0",
     "tailwind-merge": "^2.5.2",
     "tailwindcss-animate": "^1.0.7",
+    "util-deprecate": "^1.0.2",
     "uuid": "^11.1.0",
-    "dotenv": "^16.4.5",
     "vaul": "^0.9.3",
     "zod": "^3.23.8"
   },

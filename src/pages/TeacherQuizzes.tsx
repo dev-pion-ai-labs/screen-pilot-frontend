@@ -73,6 +73,16 @@ interface QuizSubmission {
     student_semester?: number
 }
 
+interface QuizQuestion {
+    id: string
+    question_text: string
+    options: string[]
+    correct_option_id: number
+    explanation?: string
+    points: number
+    order_index: number
+}
+
 interface StudentResult {
     student_id: string
     student_name: string
@@ -367,6 +377,7 @@ export default function TeacherQuizzes() {
     const [selectedQuiz, setSelectedQuiz] = useState<Quiz | null>(null)
     const [quizSubmissions, setQuizSubmissions] = useState<QuizSubmission[]>([])
     const [studentResults, setStudentResults] = useState<StudentResult[]>([])
+    const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([])
     const [detailLoading, setDetailLoading] = useState(false)
 
     // Fetch teacher's classes
@@ -502,6 +513,16 @@ export default function TeacherQuizzes() {
             setDetailLoading(true)
             setSelectedQuiz(quiz)
             setViewState('quiz-detail')
+
+            // Get quiz questions
+            const { data: questionsData, error: questionsError } = await supabase
+                .from('quiz_questions')
+                .select('*')
+                .eq('quiz_id', quiz.id)
+                .order('order_index', { ascending: true })
+
+            if (questionsError) throw questionsError
+            setQuizQuestions((questionsData || []) as unknown as QuizQuestion[])
 
             // Get submissions with student info
             const { data: submissions, error: submissionsError } = await supabase
@@ -874,6 +895,122 @@ export default function TeacherQuizzes() {
                                 </div>
                             ) : (
                                 <div className="space-y-6">
+                                    {/* Quiz Details */}
+                                    <Card>
+                                        <CardHeader>
+                                            <CardTitle className="flex items-center gap-2">
+                                                <BookOpen className="h-5 w-5" />
+                                                Quiz Details
+                                            </CardTitle>
+                                        </CardHeader>
+                                        <CardContent className="space-y-4">
+                                            {selectedQuiz.description && (
+                                                <div>
+                                                    <div className="text-xs uppercase tracking-wide text-gray-500 mb-1">Description</div>
+                                                    <p className="text-sm text-gray-800 whitespace-pre-wrap">{selectedQuiz.description}</p>
+                                                </div>
+                                            )}
+                                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                                                <div>
+                                                    <div className="text-xs uppercase tracking-wide text-gray-500">Topic</div>
+                                                    <div className="text-sm font-medium text-gray-900">{selectedQuiz.topic || '-'}</div>
+                                                </div>
+                                                <div>
+                                                    <div className="text-xs uppercase tracking-wide text-gray-500">Subtopic</div>
+                                                    <div className="text-sm font-medium text-gray-900">{selectedQuiz.subtopic || '-'}</div>
+                                                </div>
+                                                <div>
+                                                    <div className="text-xs uppercase tracking-wide text-gray-500">Semester</div>
+                                                    <div className="text-sm font-medium text-gray-900">Semester {selectedQuiz.semester}</div>
+                                                </div>
+                                                <div>
+                                                    <div className="text-xs uppercase tracking-wide text-gray-500">Status</div>
+                                                    <Badge variant="outline" className="capitalize">{selectedQuiz.status}</Badge>
+                                                </div>
+                                                <div>
+                                                    <div className="text-xs uppercase tracking-wide text-gray-500">Time Limit</div>
+                                                    <div className="text-sm font-medium text-gray-900 flex items-center gap-1">
+                                                        <Clock className="h-3.5 w-3.5" />
+                                                        {selectedQuiz.time_limit_minutes} min
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <div className="text-xs uppercase tracking-wide text-gray-500">Total Points</div>
+                                                    <div className="text-sm font-medium text-gray-900 flex items-center gap-1">
+                                                        <Target className="h-3.5 w-3.5" />
+                                                        {selectedQuiz.total_points}
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <div className="text-xs uppercase tracking-wide text-gray-500">Due Date</div>
+                                                    <div className="text-sm font-medium text-gray-900">{format(new Date(selectedQuiz.due_date), "MMM dd, yyyy")}</div>
+                                                </div>
+                                                <div>
+                                                    <div className="text-xs uppercase tracking-wide text-gray-500">Created</div>
+                                                    <div className="text-sm font-medium text-gray-900">{format(new Date(selectedQuiz.created_at), "MMM dd, yyyy")}</div>
+                                                </div>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+
+                                    {/* Questions */}
+                                    <Card>
+                                        <CardHeader>
+                                            <CardTitle className="flex items-center gap-2">
+                                                <Target className="h-5 w-5" />
+                                                Questions ({quizQuestions.length})
+                                            </CardTitle>
+                                        </CardHeader>
+                                        <CardContent>
+                                            {quizQuestions.length === 0 ? (
+                                                <div className="text-center text-gray-500 py-6">No questions found for this quiz.</div>
+                                            ) : (
+                                                <div className="space-y-4">
+                                                    {quizQuestions.map((q, idx) => (
+                                                        <div key={q.id} className="border rounded-lg p-4 bg-white">
+                                                            <div className="flex items-start justify-between gap-3 mb-3">
+                                                                <div className="font-medium text-gray-900">
+                                                                    <span className="text-purple-600 mr-2">Q{idx + 1}.</span>
+                                                                    {q.question_text}
+                                                                </div>
+                                                                <Badge variant="outline" className="shrink-0">
+                                                                    {q.points} pt{q.points === 1 ? '' : 's'}
+                                                                </Badge>
+                                                            </div>
+                                                            <div className="space-y-2">
+                                                                {q.options.map((opt, optIdx) => {
+                                                                    const isCorrect = optIdx === q.correct_option_id
+                                                                    return (
+                                                                        <div
+                                                                            key={optIdx}
+                                                                            className={cn(
+                                                                                "flex items-center gap-2 px-3 py-2 rounded border text-sm",
+                                                                                isCorrect
+                                                                                    ? "bg-green-50 border-green-300 text-green-800 font-medium"
+                                                                                    : "bg-gray-50 border-gray-200 text-gray-700"
+                                                                            )}
+                                                                        >
+                                                                            <span className="font-semibold">{String.fromCharCode(65 + optIdx)}.</span>
+                                                                            <span>{opt}</span>
+                                                                            {isCorrect && (
+                                                                                <Badge className="ml-auto bg-green-600 hover:bg-green-600">Correct</Badge>
+                                                                            )}
+                                                                        </div>
+                                                                    )
+                                                                })}
+                                                            </div>
+                                                            {q.explanation && (
+                                                                <div className="mt-3 p-3 rounded bg-blue-50 border border-blue-100 text-sm text-blue-900">
+                                                                    <span className="font-semibold">Explanation: </span>{q.explanation}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </CardContent>
+                                    </Card>
+
                                     {/* Analytics */}
                                     <QuizAnalytics
                                         quiz={selectedQuiz}

@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Calendar } from "@/components/ui/calendar"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { supabase } from "@/integrations/supabase/client"
 import {
@@ -980,15 +981,21 @@ export default function TeacherQuizzes() {
                         {detailsModalQuiz && (
                             <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
                                 {/* Meta */}
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
                                     {[
-                                        { label: "Class", value: detailsModalQuiz.class_name || '-' },
-                                        { label: "Semester", value: `Semester ${detailsModalQuiz.semester}` },
-                                        { label: "Topic", value: detailsModalQuiz.topic || '-' },
-                                        { label: "Subtopic", value: detailsModalQuiz.subtopic || '-' },
+                                        { label: "Class", value: detailsModalQuiz.class_name || '-', span: "md:col-span-1" },
+                                        { label: "Semester", value: `Semester ${detailsModalQuiz.semester}`, span: "md:col-span-1" },
+                                        { label: "Topic", value: detailsModalQuiz.topic || '-', span: "md:col-span-2" },
+                                        { label: "Subtopic", value: detailsModalQuiz.subtopic || '-', span: "md:col-span-2" },
                                     ].map((item) => (
-                                        <div key={item.label} className="rounded-lg border bg-gray-50/60 px-3.5 py-2.5">
-                                            <div className="text-[10px] uppercase tracking-wider text-gray-500 font-medium">{item.label}</div>
+                                        <div
+                                            key={item.label}
+                                            className={cn(
+                                                "rounded-lg border border-gray-200 bg-white px-3.5 py-2.5 hover:border-purple-200 hover:bg-purple-50/30 transition-colors",
+                                                item.span
+                                            )}
+                                        >
+                                            <div className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">{item.label}</div>
                                             <div className="mt-1 text-sm font-medium text-gray-900 break-words leading-snug">{item.value}</div>
                                         </div>
                                     ))}
@@ -1003,8 +1010,29 @@ export default function TeacherQuizzes() {
                                         </h3>
                                     </div>
                                     {detailsModalLoading ? (
-                                        <div className="flex items-center justify-center py-12">
-                                            <Loader2 className="h-6 w-6 animate-spin text-purple-600" />
+                                        <div className="space-y-3">
+                                            {[0, 1, 2].map((i) => (
+                                                <div key={i} className="border rounded-xl p-5 bg-white">
+                                                    <div className="flex items-start justify-between gap-4 mb-4">
+                                                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                                                            <Skeleton className="h-7 w-10 rounded-md shrink-0" />
+                                                            <div className="flex-1 space-y-2">
+                                                                <Skeleton className="h-4 w-[85%]" />
+                                                                <Skeleton className="h-4 w-[55%]" />
+                                                            </div>
+                                                        </div>
+                                                        <Skeleton className="h-6 w-12 rounded-md shrink-0" />
+                                                    </div>
+                                                    <div className="space-y-2 ml-0 sm:ml-[3.25rem]">
+                                                        {[0, 1, 2, 3].map((j) => (
+                                                            <div key={j} className="flex items-center gap-3 px-3.5 py-2.5 rounded-lg border border-gray-200 bg-gray-50/60">
+                                                                <Skeleton className="h-6 w-6 rounded-md shrink-0" />
+                                                                <Skeleton className="h-4 flex-1" style={{ maxWidth: `${60 + (j * 7) % 30}%` }} />
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            ))}
                                         </div>
                                     ) : detailsModalQuestions.length === 0 ? (
                                         <div className="text-center text-gray-500 py-8 border rounded-lg bg-gray-50/50">

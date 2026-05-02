@@ -44,6 +44,17 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import { jsPDF } from "jspdf";
+import {
+  Document,
+  Packer,
+  Paragraph,
+  TextRun,
+  HeadingLevel,
+  AlignmentType,
+} from "docx";
+import { saveAs } from "file-saver";
+import { FileDown } from "lucide-react";
 
 interface Assignment {
   id: string;
@@ -691,6 +702,281 @@ const formatInlineText = (text: string) => {
       })}
     </>
   );
+};
+
+// ---- Assignment export helpers ----
+
+const getAssignmentAiText = (ai: any): string => {
+  if (!ai) return "";
+  if (typeof ai === "string") {
+    try {
+      const parsed = JSON.parse(ai);
+      return parsed.rawText || parsed.instructions || JSON.stringify(parsed, null, 2);
+    } catch {
+      return ai;
+    }
+  }
+  if (typeof ai === "object") {
+    return ai.rawText || ai.instructions || JSON.stringify(ai, null, 2);
+  }
+  return "";
+};
+
+const sanitizeFileName = (name: string) =>
+  (name || "assignment").replace(/[\\/:*?"<>|]+/g, "_").trim().slice(0, 80);
+
+const exportAssignmentToPdf = (assignment: Assignment) => {
+  const doc = new jsPDF({ unit: "pt", format: "a4" });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 48;
+  const maxWidth = pageWidth - margin * 2;
+  let y = margin;
+
+  const ensureSpace = (needed: number) => {
+    if (y + needed > pageHeight - margin) {
+      doc.addPage();
+      y = margin;
+    }
+  };
+
+  const writeWrapped = (
+    text: string,
+    opts: { size?: number; bold?: boolean; color?: [number, number, number]; gap?: number } = {}
+  ) => {
+    const { size = 11, bold = false, color = [33, 37, 41], gap = 6 } = opts;
+    doc.setFont("helvetica", bold ? "bold" : "normal");
+    doc.setFontSize(size);
+    doc.setTextColor(color[0], color[1], color[2]);
+    const lines = doc.splitTextToSize(text, maxWidth);
+    const lineHeight = size * 1.35;
+    lines.forEach((line: string) => {
+      ensureSpace(lineHeight);
+      doc.text(line, margin, y);
+      y += lineHeight;
+    });
+    y += gap;
+  };
+
+  const writeMarkdownBlock = (text: string) => {
+    if (!text) return;
+    const lines = text.split("\n");
+    lines.forEach((rawLine) => {
+      const line = rawLine.trimEnd();
+      if (line.trim() === "") {
+        y += 6;
+        return;
+      }
+      const headerMatch = line.match(/^(#{1,6})\s+(.*)$/);
+      if (headerMatch) {
+        const level = headerMatch[1].length;
+        const content = headerMatch[2].replace(/\*\*/g, "");
+        const sizeMap: Record<number, number> = { 1: 18, 2: 16, 3: 14, 4: 13, 5: 12, 6: 11 };
+        y += 4;
+        writeWrapped(content, { size: sizeMap[level] || 12, bold: true, gap: 6 });
+        return;
+      }
+      const bulletMatch = line.match(/^\s*[-*]\s+(.*)$/);
+      if (bulletMatch) {
+        writeWrapped(`• ${bulletMatch[1].replace(/\*\*/g, "")}`, { size: 11, gap: 2 });
+        return;
+      }
+      const numberedMatch = line.match(/^\s*(\d+)\.\s+(.*)$/);
+      if (numberedMatch) {
+        writeWrapped(`${numberedMatch[1]}. ${numberedMatch[2].replace(/\*\*/g, "")}`, {
+          size: 11,
+          gap: 2,
+        });
+        return;
+      }
+      writeWrapped(line.replace(/\*\*/g, ""), { size: 11, gap: 2 });
+    });
+    y += 6;
+  };
+
+  // Title
+  writeWrapped(assignment.title || "Assignment", { size: 22, bold: true, color: [55, 48, 163], gap: 8 });
+
+  // Meta line
+  const metaParts: string[] = [];
+  if (assignment.semester != null) metaParts.push(`Sem ${assignment.semester}`);
+  if (assignment.due_date)
+    metaParts.push(`Due ${format(new Date(assignment.due_date), "MMM dd, yyyy")}`);
+  if (assignment.total_points != null) metaParts.push(`${assignment.total_points} points`);
+  if (assignment.difficulty) metaParts.push(`${assignment.difficulty}`);
+  if (metaParts.length) {
+    writeWrapped(metaParts.join("   |   "), { size: 11, color: [88, 28, 135], gap: 12 });
+  }
+
+  // Divider
+  ensureSpace(12);
+  doc.setDrawColor(229, 231, 235);
+  doc.line(margin, y, pageWidth - margin, y);
+  y += 14;
+
+  if (assignment.topic) {
+    writeWrapped("TOPIC", { size: 9, bold: true, color: [107, 114, 128], gap: 2 });
+    writeWrapped(assignment.topic, { size: 12, bold: true, gap: 12 });
+  }
+
+  if (assignment.description) {
+    writeWrapped("DESCRIPTION", { size: 9, bold: true, color: [107, 114, 128], gap: 4 });
+    writeMarkdownBlock(assignment.description);
+  }
+
+  const aiText = getAssignmentAiText(assignment.ai_generated_content);
+  if (aiText) {
+    y += 4;
+    writeWrapped("AI GENERATED ASSIGNMENT BRIEF", {
+      size: 9,
+      bold: true,
+      color: [107, 114, 128],
+      gap: 4,
+    });
+    writeMarkdownBlock(aiText);
+  }
+
+  doc.save(`${sanitizeFileName(assignment.title)}.pdf`);
+};
+
+const exportAssignmentToDocx = async (assignment: Assignment) => {
+  const children: Paragraph[] = [];
+
+  children.push(
+    new Paragraph({
+      heading: HeadingLevel.TITLE,
+      alignment: AlignmentType.LEFT,
+      children: [new TextRun({ text: assignment.title || "Assignment", bold: true })],
+    })
+  );
+
+  const metaParts: string[] = [];
+  if (assignment.semester != null) metaParts.push(`Sem ${assignment.semester}`);
+  if (assignment.due_date)
+    metaParts.push(`Due ${format(new Date(assignment.due_date), "MMM dd, yyyy")}`);
+  if (assignment.total_points != null) metaParts.push(`${assignment.total_points} points`);
+  if (assignment.difficulty) metaParts.push(assignment.difficulty);
+  if (metaParts.length) {
+    children.push(
+      new Paragraph({
+        children: [new TextRun({ text: metaParts.join("   |   "), italics: true, color: "581C87" })],
+        spacing: { after: 200 },
+      })
+    );
+  }
+
+  if (assignment.topic) {
+    children.push(
+      new Paragraph({
+        children: [new TextRun({ text: "TOPIC", bold: true, color: "6B7280", size: 18 })],
+      })
+    );
+    children.push(
+      new Paragraph({
+        children: [new TextRun({ text: assignment.topic, bold: true })],
+        spacing: { after: 200 },
+      })
+    );
+  }
+
+  const renderMarkdown = (text: string) => {
+    if (!text) return;
+    text.split("\n").forEach((rawLine) => {
+      const line = rawLine.trimEnd();
+      if (line.trim() === "") {
+        children.push(new Paragraph({ children: [new TextRun({ text: "" })] }));
+        return;
+      }
+      const headerMatch = line.match(/^(#{1,6})\s+(.*)$/);
+      if (headerMatch) {
+        const level = headerMatch[1].length;
+        const headingMap: Record<number, (typeof HeadingLevel)[keyof typeof HeadingLevel]> = {
+          1: HeadingLevel.HEADING_1,
+          2: HeadingLevel.HEADING_2,
+          3: HeadingLevel.HEADING_3,
+          4: HeadingLevel.HEADING_4,
+          5: HeadingLevel.HEADING_5,
+          6: HeadingLevel.HEADING_6,
+        };
+        children.push(
+          new Paragraph({
+            heading: headingMap[level] || HeadingLevel.HEADING_3,
+            children: [new TextRun({ text: headerMatch[2].replace(/\*\*/g, ""), bold: true })],
+          })
+        );
+        return;
+      }
+      const bulletMatch = line.match(/^\s*[-*]\s+(.*)$/);
+      if (bulletMatch) {
+        children.push(
+          new Paragraph({
+            bullet: { level: 0 },
+            children: makeRuns(bulletMatch[1]),
+          })
+        );
+        return;
+      }
+      const numberedMatch = line.match(/^\s*(\d+)\.\s+(.*)$/);
+      if (numberedMatch) {
+        children.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: `${numberedMatch[1]}. `, bold: true }),
+              ...makeRuns(numberedMatch[2]),
+            ],
+          })
+        );
+        return;
+      }
+      children.push(new Paragraph({ children: makeRuns(line) }));
+    });
+  };
+
+  function makeRuns(text: string): TextRun[] {
+    const runs: TextRun[] = [];
+    const parts = text.split(/(\*\*[^*]+\*\*)/);
+    parts.forEach((part) => {
+      if (!part) return;
+      if (part.startsWith("**") && part.endsWith("**")) {
+        runs.push(new TextRun({ text: part.slice(2, -2), bold: true }));
+      } else {
+        runs.push(new TextRun({ text: part }));
+      }
+    });
+    return runs.length ? runs : [new TextRun({ text })];
+  }
+
+  if (assignment.description) {
+    children.push(
+      new Paragraph({
+        children: [new TextRun({ text: "DESCRIPTION", bold: true, color: "6B7280", size: 18 })],
+        spacing: { before: 200, after: 100 },
+      })
+    );
+    renderMarkdown(assignment.description);
+  }
+
+  const aiText = getAssignmentAiText(assignment.ai_generated_content);
+  if (aiText) {
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: "AI GENERATED ASSIGNMENT BRIEF",
+            bold: true,
+            color: "6B7280",
+            size: 18,
+          }),
+        ],
+        spacing: { before: 300, after: 100 },
+      })
+    );
+    renderMarkdown(aiText);
+  }
+
+  const doc = new Document({ sections: [{ properties: {}, children }] });
+  const blob = await Packer.toBlob(doc);
+  saveAs(blob, `${sanitizeFileName(assignment.title)}.docx`);
 };
 
   if (loading) {
@@ -1789,7 +2075,25 @@ const formatInlineText = (text: string) => {
       </div>
     )}
 
-    <DialogFooter className="pt-4 border-t border-gray-100">
+    <DialogFooter className="pt-4 border-t border-gray-100 gap-2">
+      <Button
+        variant="outline"
+        onClick={() => selectedAssignment && exportAssignmentToPdf(selectedAssignment)}
+        className="hover:bg-red-50 border-red-200 text-red-700 px-4 py-3 h-auto"
+        disabled={!selectedAssignment}
+      >
+        <FileDown className="h-4 w-4 mr-2" />
+        Export PDF
+      </Button>
+      <Button
+        variant="outline"
+        onClick={() => selectedAssignment && exportAssignmentToDocx(selectedAssignment)}
+        className="hover:bg-blue-50 border-blue-200 text-blue-700 px-4 py-3 h-auto"
+        disabled={!selectedAssignment}
+      >
+        <Download className="h-4 w-4 mr-2" />
+        Export DOC
+      </Button>
       <Button
         variant="outline"
         onClick={() => setSelectedAssignment(null)}

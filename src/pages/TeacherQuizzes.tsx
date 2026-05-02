@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { supabase } from "@/integrations/supabase/client"
@@ -377,8 +378,12 @@ export default function TeacherQuizzes() {
     const [selectedQuiz, setSelectedQuiz] = useState<Quiz | null>(null)
     const [quizSubmissions, setQuizSubmissions] = useState<QuizSubmission[]>([])
     const [studentResults, setStudentResults] = useState<StudentResult[]>([])
-    const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([])
     const [detailLoading, setDetailLoading] = useState(false)
+
+    // Quiz details modal state
+    const [detailsModalQuiz, setDetailsModalQuiz] = useState<Quiz | null>(null)
+    const [detailsModalQuestions, setDetailsModalQuestions] = useState<QuizQuestion[]>([])
+    const [detailsModalLoading, setDetailsModalLoading] = useState(false)
 
     // Fetch teacher's classes
     const fetchClasses = useCallback(async () => {
@@ -514,16 +519,6 @@ export default function TeacherQuizzes() {
             setSelectedQuiz(quiz)
             setViewState('quiz-detail')
 
-            // Get quiz questions
-            const { data: questionsData, error: questionsError } = await supabase
-                .from('quiz_questions')
-                .select('*')
-                .eq('quiz_id', quiz.id)
-                .order('order_index', { ascending: true })
-
-            if (questionsError) throw questionsError
-            setQuizQuestions((questionsData || []) as unknown as QuizQuestion[])
-
             // Get submissions with student info
             const { data: submissions, error: submissionsError } = await supabase
                 .from('quiz_submissions')
@@ -627,6 +622,32 @@ export default function TeacherQuizzes() {
                 description: "Failed to delete quiz",
                 variant: "destructive"
             })
+        }
+    }
+
+    const openDetailsModal = async (quiz: Quiz) => {
+        try {
+            setDetailsModalQuiz(quiz)
+            setDetailsModalLoading(true)
+            setDetailsModalQuestions([])
+
+            const { data, error } = await supabase
+                .from('quiz_questions')
+                .select('*')
+                .eq('quiz_id', quiz.id)
+                .order('order_index', { ascending: true })
+
+            if (error) throw error
+            setDetailsModalQuestions((data || []) as unknown as QuizQuestion[])
+        } catch (error) {
+            console.error('Error fetching quiz questions:', error)
+            toast({
+                title: "Error",
+                description: "Failed to load quiz questions",
+                variant: "destructive"
+            })
+        } finally {
+            setDetailsModalLoading(false)
         }
     }
 
@@ -767,9 +788,17 @@ export default function TeacherQuizzes() {
                                                                 <Button
                                                                     variant="outline"
                                                                     size="sm"
+                                                                    onClick={() => openDetailsModal(quiz)}
+                                                                    title="View quiz details"
+                                                                >
+                                                                    <Eye className="h-4 w-4" />
+                                                                </Button>
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="sm"
                                                                     onClick={() => fetchQuizDetail(quiz)}
                                                                 >
-                                                                    <Eye className="h-4 w-4 mr-1" />
+                                                                    <BarChart3 className="h-4 w-4 mr-1" />
                                                                     View Results
                                                                 </Button>
 
@@ -895,122 +924,6 @@ export default function TeacherQuizzes() {
                                 </div>
                             ) : (
                                 <div className="space-y-6">
-                                    {/* Quiz Details */}
-                                    <Card>
-                                        <CardHeader>
-                                            <CardTitle className="flex items-center gap-2">
-                                                <BookOpen className="h-5 w-5" />
-                                                Quiz Details
-                                            </CardTitle>
-                                        </CardHeader>
-                                        <CardContent className="space-y-4">
-                                            {selectedQuiz.description && (
-                                                <div>
-                                                    <div className="text-xs uppercase tracking-wide text-gray-500 mb-1">Description</div>
-                                                    <p className="text-sm text-gray-800 whitespace-pre-wrap">{selectedQuiz.description}</p>
-                                                </div>
-                                            )}
-                                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                                                <div>
-                                                    <div className="text-xs uppercase tracking-wide text-gray-500">Topic</div>
-                                                    <div className="text-sm font-medium text-gray-900">{selectedQuiz.topic || '-'}</div>
-                                                </div>
-                                                <div>
-                                                    <div className="text-xs uppercase tracking-wide text-gray-500">Subtopic</div>
-                                                    <div className="text-sm font-medium text-gray-900">{selectedQuiz.subtopic || '-'}</div>
-                                                </div>
-                                                <div>
-                                                    <div className="text-xs uppercase tracking-wide text-gray-500">Semester</div>
-                                                    <div className="text-sm font-medium text-gray-900">Semester {selectedQuiz.semester}</div>
-                                                </div>
-                                                <div>
-                                                    <div className="text-xs uppercase tracking-wide text-gray-500">Status</div>
-                                                    <Badge variant="outline" className="capitalize">{selectedQuiz.status}</Badge>
-                                                </div>
-                                                <div>
-                                                    <div className="text-xs uppercase tracking-wide text-gray-500">Time Limit</div>
-                                                    <div className="text-sm font-medium text-gray-900 flex items-center gap-1">
-                                                        <Clock className="h-3.5 w-3.5" />
-                                                        {selectedQuiz.time_limit_minutes} min
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <div className="text-xs uppercase tracking-wide text-gray-500">Total Points</div>
-                                                    <div className="text-sm font-medium text-gray-900 flex items-center gap-1">
-                                                        <Target className="h-3.5 w-3.5" />
-                                                        {selectedQuiz.total_points}
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <div className="text-xs uppercase tracking-wide text-gray-500">Due Date</div>
-                                                    <div className="text-sm font-medium text-gray-900">{format(new Date(selectedQuiz.due_date), "MMM dd, yyyy")}</div>
-                                                </div>
-                                                <div>
-                                                    <div className="text-xs uppercase tracking-wide text-gray-500">Created</div>
-                                                    <div className="text-sm font-medium text-gray-900">{format(new Date(selectedQuiz.created_at), "MMM dd, yyyy")}</div>
-                                                </div>
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-
-                                    {/* Questions */}
-                                    <Card>
-                                        <CardHeader>
-                                            <CardTitle className="flex items-center gap-2">
-                                                <Target className="h-5 w-5" />
-                                                Questions ({quizQuestions.length})
-                                            </CardTitle>
-                                        </CardHeader>
-                                        <CardContent>
-                                            {quizQuestions.length === 0 ? (
-                                                <div className="text-center text-gray-500 py-6">No questions found for this quiz.</div>
-                                            ) : (
-                                                <div className="space-y-4">
-                                                    {quizQuestions.map((q, idx) => (
-                                                        <div key={q.id} className="border rounded-lg p-4 bg-white">
-                                                            <div className="flex items-start justify-between gap-3 mb-3">
-                                                                <div className="font-medium text-gray-900">
-                                                                    <span className="text-purple-600 mr-2">Q{idx + 1}.</span>
-                                                                    {q.question_text}
-                                                                </div>
-                                                                <Badge variant="outline" className="shrink-0">
-                                                                    {q.points} pt{q.points === 1 ? '' : 's'}
-                                                                </Badge>
-                                                            </div>
-                                                            <div className="space-y-2">
-                                                                {q.options.map((opt, optIdx) => {
-                                                                    const isCorrect = optIdx === q.correct_option_id
-                                                                    return (
-                                                                        <div
-                                                                            key={optIdx}
-                                                                            className={cn(
-                                                                                "flex items-center gap-2 px-3 py-2 rounded border text-sm",
-                                                                                isCorrect
-                                                                                    ? "bg-green-50 border-green-300 text-green-800 font-medium"
-                                                                                    : "bg-gray-50 border-gray-200 text-gray-700"
-                                                                            )}
-                                                                        >
-                                                                            <span className="font-semibold">{String.fromCharCode(65 + optIdx)}.</span>
-                                                                            <span>{opt}</span>
-                                                                            {isCorrect && (
-                                                                                <Badge className="ml-auto bg-green-600 hover:bg-green-600">Correct</Badge>
-                                                                            )}
-                                                                        </div>
-                                                                    )
-                                                                })}
-                                                            </div>
-                                                            {q.explanation && (
-                                                                <div className="mt-3 p-3 rounded bg-blue-50 border border-blue-100 text-sm text-blue-900">
-                                                                    <span className="font-semibold">Explanation: </span>{q.explanation}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </CardContent>
-                                    </Card>
-
                                     {/* Analytics */}
                                     <QuizAnalytics
                                         quiz={selectedQuiz}
@@ -1025,6 +938,129 @@ export default function TeacherQuizzes() {
                         </>
                     )}
                 </div>
+
+                {/* Quiz Details Modal */}
+                <Dialog open={!!detailsModalQuiz} onOpenChange={(open) => !open && setDetailsModalQuiz(null)}>
+                    <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+                        <DialogHeader>
+                            <DialogTitle className="flex items-center gap-2">
+                                <BookOpen className="h-5 w-5" />
+                                {detailsModalQuiz?.title}
+                            </DialogTitle>
+                            {detailsModalQuiz?.description && (
+                                <DialogDescription className="whitespace-pre-wrap">
+                                    {detailsModalQuiz.description}
+                                </DialogDescription>
+                            )}
+                        </DialogHeader>
+
+                        {detailsModalQuiz && (
+                            <div className="space-y-6">
+                                {/* Meta */}
+                                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                                    <div>
+                                        <div className="text-xs uppercase tracking-wide text-gray-500">Class</div>
+                                        <div className="font-medium text-gray-900">{detailsModalQuiz.class_name || '-'}</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-xs uppercase tracking-wide text-gray-500">Topic</div>
+                                        <div className="font-medium text-gray-900">{detailsModalQuiz.topic || '-'}</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-xs uppercase tracking-wide text-gray-500">Subtopic</div>
+                                        <div className="font-medium text-gray-900">{detailsModalQuiz.subtopic || '-'}</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-xs uppercase tracking-wide text-gray-500">Semester</div>
+                                        <div className="font-medium text-gray-900">Semester {detailsModalQuiz.semester}</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-xs uppercase tracking-wide text-gray-500">Time Limit</div>
+                                        <div className="font-medium text-gray-900 flex items-center gap-1">
+                                            <Clock className="h-3.5 w-3.5" />
+                                            {detailsModalQuiz.time_limit_minutes} min
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div className="text-xs uppercase tracking-wide text-gray-500">Total Points</div>
+                                        <div className="font-medium text-gray-900 flex items-center gap-1">
+                                            <Target className="h-3.5 w-3.5" />
+                                            {detailsModalQuiz.total_points}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div className="text-xs uppercase tracking-wide text-gray-500">Due Date</div>
+                                        <div className="font-medium text-gray-900">{format(new Date(detailsModalQuiz.due_date), "MMM dd, yyyy")}</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-xs uppercase tracking-wide text-gray-500">Status</div>
+                                        <Badge variant="outline" className="capitalize">{detailsModalQuiz.status}</Badge>
+                                    </div>
+                                </div>
+
+                                {/* Questions */}
+                                <div>
+                                    <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                                        <Target className="h-4 w-4" />
+                                        Questions {!detailsModalLoading && `(${detailsModalQuestions.length})`}
+                                    </h3>
+                                    {detailsModalLoading ? (
+                                        <div className="flex items-center justify-center py-8">
+                                            <Loader2 className="h-6 w-6 animate-spin text-purple-600" />
+                                        </div>
+                                    ) : detailsModalQuestions.length === 0 ? (
+                                        <div className="text-center text-gray-500 py-6 border rounded-lg">
+                                            No questions found for this quiz.
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-4">
+                                            {detailsModalQuestions.map((q, idx) => (
+                                                <div key={q.id} className="border rounded-lg p-4 bg-white">
+                                                    <div className="flex items-start justify-between gap-3 mb-3">
+                                                        <div className="font-medium text-gray-900">
+                                                            <span className="text-purple-600 mr-2">Q{idx + 1}.</span>
+                                                            {q.question_text}
+                                                        </div>
+                                                        <Badge variant="outline" className="shrink-0">
+                                                            {q.points} pt{q.points === 1 ? '' : 's'}
+                                                        </Badge>
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        {q.options.map((opt, optIdx) => {
+                                                            const isCorrect = optIdx === q.correct_option_id
+                                                            return (
+                                                                <div
+                                                                    key={optIdx}
+                                                                    className={cn(
+                                                                        "flex items-center gap-2 px-3 py-2 rounded border text-sm",
+                                                                        isCorrect
+                                                                            ? "bg-green-50 border-green-300 text-green-800 font-medium"
+                                                                            : "bg-gray-50 border-gray-200 text-gray-700"
+                                                                    )}
+                                                                >
+                                                                    <span className="font-semibold">{String.fromCharCode(65 + optIdx)}.</span>
+                                                                    <span>{opt}</span>
+                                                                    {isCorrect && (
+                                                                        <Badge className="ml-auto bg-green-600 hover:bg-green-600">Correct</Badge>
+                                                                    )}
+                                                                </div>
+                                                            )
+                                                        })}
+                                                    </div>
+                                                    {q.explanation && (
+                                                        <div className="mt-3 p-3 rounded bg-blue-50 border border-blue-100 text-sm text-blue-900">
+                                                            <span className="font-semibold">Explanation: </span>{q.explanation}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </DialogContent>
+                </Dialog>
             </ModernDashboardLayout>
         </AuthGuard>
     )

@@ -1396,13 +1396,27 @@ export default function StudentAssignments() {
                                 {submission?.file_path && (
                                   <Button
                                     variant="outline"
-                                    onClick={() => {
-                                      // Download submission file
+                                    onClick={async () => {
+                                      const { data, error } = await supabase.storage
+                                        .from("assignment-submissions")
+                                        .download(submission.file_path!);
+                                      if (error || !data) {
+                                        toast({
+                                          title: "Download failed",
+                                          description: error?.message,
+                                          variant: "destructive",
+                                        });
+                                        return;
+                                      }
+                                      const url = URL.createObjectURL(data);
                                       const link = document.createElement("a");
-                                      link.href = submission.file_path!;
+                                      link.href = url;
                                       link.download =
                                         submission.file_name || "submission";
+                                      document.body.appendChild(link);
                                       link.click();
+                                      link.remove();
+                                      URL.revokeObjectURL(url);
                                     }}
                                     className="hover:bg-green-50 border-green-200"
                                   >

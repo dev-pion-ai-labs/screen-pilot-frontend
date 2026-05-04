@@ -901,7 +901,7 @@ const [scriptNotifications, setScriptNotifications] = useState<ScriptNotificatio
                         <Film className="h-8 w-8 text-white" />
                       </div>
                       <div>
-                        <h1 className="mb-2 text-4xl font-bold">
+                        <h1 className="mb-2 text-4xl font-medium">
                           Welcome back, {profile?.full_name?.split(" ")[0]}
                         </h1>
                         <p className="text-xl text-white/90">

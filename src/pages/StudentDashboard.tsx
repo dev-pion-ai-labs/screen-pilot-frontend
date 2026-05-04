@@ -782,7 +782,7 @@ export default function ModernStudentDashboard() {
                         <Rocket className="h-8 w-8 text-white" />
                       </div>
                       <div>
-                        <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-2">
+                        <h1 className="text-3xl md:text-4xl lg:text-5xl font-medium mb-2">
                           Welcome back, {profile?.full_name?.split(" ")[0]}!
                         </h1>
                         <p className="text-lg md:text-xl text-white/90">

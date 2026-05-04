@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { ModernDashboardLayout } from "@/components/ModernDashboardLayout";
@@ -20,6 +21,7 @@ import {
 } from "@/components/ui/table";
 import {
   Eye,
+  Plus,
   Users,
   FileText,
   Calendar,
@@ -995,7 +997,15 @@ const exportAssignmentToDocx = async (assignment: Assignment) => {
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
           <div className="max-w-7xl mx-auto space-y-8 p-8">
             {/* Header */}
-            <div className="text-center space-y-4">
+            <div className="relative text-center space-y-4">
+              <div className="absolute right-0 top-0">
+                <Link to="/teacher/create-assignment">
+                  <Button className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create Assignment
+                  </Button>
+                </Link>
+              </div>
               <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl mb-4">
                 <BookOpen className="w-8 h-8 text-white" />
               </div>

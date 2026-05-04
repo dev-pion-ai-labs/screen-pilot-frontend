@@ -2,6 +2,7 @@
 
 import type React from "react"
 import { useState, useEffect } from "react"
+import { useNavigate } from "react-router-dom"
 import { useAuth } from "@/hooks/useAuth"
 import { AuthGuard } from "@/components/AuthGuard"
 import { Button } from "@/components/ui/button"
@@ -18,6 +19,7 @@ import {
     Users,
     Plus,
     Sparkles,
+    ArrowLeft,
     Calendar as CalendarIcon,
     Target,
     GraduationCap,
@@ -406,6 +408,7 @@ const QuestionCard = ({ question, index, onEdit, onDelete, isEditing = false }) 
 };
 
 export default function CreateQuiz() {
+    const navigate = useNavigate()
     const { profile } = useAuth()
     const { toast } = useToast()
     const [loading, setLoading] = useState(true)
@@ -819,6 +822,16 @@ export default function CreateQuiz() {
         <AuthGuard allowedRoles={["teacher"]}>
             <ModernDashboardLayout>
                 <div className="max-w-6xl mx-auto space-y-8">
+                    <div>
+                        <Button
+                            variant="ghost"
+                            onClick={() => navigate("/teacher/quiz")}
+                            className="text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                        >
+                            <ArrowLeft className="h-4 w-4 mr-2" />
+                            Back to Quizzes
+                        </Button>
+                    </div>
                     {/* Enhanced Header */}
                     <div className="text-center space-y-4">
                         <div className="flex items-center justify-center gap-3 mb-4">

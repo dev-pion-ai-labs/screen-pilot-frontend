@@ -20,7 +20,6 @@ import {
   GraduationCap,
   Home,
   School,
-  Plus,
   Compass,
   Film,
 } from "lucide-react";
@@ -109,12 +108,6 @@ export function AppSidebar() {
             description: "Manage student assignments",
           },
           {
-            name: "Create Assignment",
-            href: "/teacher/create-assignment",
-            icon: Plus,
-            description: "Create new assignments",
-          },
-          {
             name: "Script Submissions",
             href: "/teacher/script-submissions",
             icon: Film,
@@ -127,22 +120,10 @@ export function AppSidebar() {
             description: "View all quizzes",
           },
           {
-            name: "Create Quiz",
-            href: "/teacher/create-quiz",
-            icon: Plus,
-            description: "Create new quiz",
-          },
-          {
             name: "Study Notes",
             href: "/teacher/notes",
             icon: BookOpen,
             description: "Manage course notes",
-          },
-          {
-            name: "Create Notes",
-            href: "/teacher/create-notes",
-            icon: Plus,
-            description: "Create new study notes",
           },
           {
             name: "Glossary",

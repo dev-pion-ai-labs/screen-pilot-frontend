@@ -4,6 +4,7 @@
 "use client"
 
 import React, { useState, useEffect, useCallback } from "react"
+import { useNavigate } from "react-router-dom"
 import { useAuth } from "@/hooks/useAuth"
 import { AuthGuard } from "@/components/AuthGuard"
 import { Button } from "@/components/ui/button"
@@ -17,6 +18,7 @@ import { supabase } from "@/integrations/supabase/client"
 import {
   Users,
   Sparkles,
+  ArrowLeft,
   Target,
   GraduationCap,
   Loader2,
@@ -621,6 +623,7 @@ const exportToDocx = async (title: string, htmlContent: string) => {
 }
 
 export default function CreateNotes() {
+  const navigate = useNavigate()
   const { profile } = useAuth()
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
@@ -889,6 +892,16 @@ const generateNotes = async () => {
     <AuthGuard allowedRoles={["teacher"]}>
       <ModernDashboardLayout>
         <div className="max-w-6xl mx-auto space-y-8">
+          <div>
+            <Button
+              variant="ghost"
+              onClick={() => navigate("/teacher/notes")}
+              className="text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Study Notes
+            </Button>
+          </div>
           {/* Enhanced Header */}
           <div className="text-center space-y-4">
             <div className="flex items-center justify-center gap-3 mb-4">

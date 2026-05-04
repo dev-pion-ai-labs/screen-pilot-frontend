@@ -3,6 +3,7 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
+import { useNavigate } from "react-router-dom"
 import { useAuth } from "@/hooks/useAuth"
 import { AuthGuard } from "@/components/AuthGuard"
 import { Button } from "@/components/ui/button"
@@ -17,6 +18,7 @@ import { supabase } from "@/integrations/supabase/client"
 import {
   Users,
   Plus,
+  ArrowLeft,
   Sparkles,
   Calendar as CalendarIcon,
   Target,
@@ -303,6 +305,7 @@ const smartDelay = (ms: number): Promise<void> => {
 }
 
 export default function CreateAssignment() {
+  const navigate = useNavigate()
   const { profile } = useAuth()
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
@@ -715,6 +718,16 @@ const generateAssignment = async (isRevision = false) => {
     <AuthGuard allowedRoles={["teacher"]}>
       <ModernDashboardLayout>
         <div className="max-w-6xl mx-auto space-y-8">
+          <div>
+            <Button
+              variant="ghost"
+              onClick={() => navigate("/teacher/assignments")}
+              className="text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Assignments
+            </Button>
+          </div>
           {/* Header */}
           <div className="text-center space-y-2">
             <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">

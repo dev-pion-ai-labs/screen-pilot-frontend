@@ -112,23 +112,20 @@ interface QuizResponse {
 }
 
 // AI Mentor Agent Configuration.
-// `mentor` now goes through the agents service (/api/mentor/chat) — endpoint kept
-// here for parity but unused by callMentorAgent below.
+// `mentor` now goes through the agents service (/api/mentor/chat).
 // `quiz` still points at the n8n quiz webhook (Phase B port pending — webhook #8).
+// The webhook URL is read from VITE_QUIZ_WEBHOOK_URL so the infra endpoint
+// isn't baked into every shipped bundle.
+const QUIZ_WEBHOOK_URL = import.meta.env.VITE_QUIZ_WEBHOOK_URL ?? "";
+
 const AI_MENTOR_AGENT_CONFIG = {
   mentor: {
     "Semester 1": { endpoint: "/api/mentor/chat" },
     "Semester 2": { endpoint: "/api/mentor/chat" },
   },
   quiz: {
-    "Semester 1": {
-      endpoint:
-        "https://vijiteshnaik.app.n8n.cloud/webhook/97354b0e-7edd-46f3-b80f-49fbd3e0150c/chat",
-    },
-    "Semester 2": {
-      endpoint:
-        "https://vijiteshnaik.app.n8n.cloud/webhook/97354b0e-7edd-46f3-b80f-49fbd3e0150c/chat",
-    },
+    "Semester 1": { endpoint: QUIZ_WEBHOOK_URL },
+    "Semester 2": { endpoint: QUIZ_WEBHOOK_URL },
   },
 };
 

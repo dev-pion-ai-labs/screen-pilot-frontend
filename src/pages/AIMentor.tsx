@@ -10,7 +10,11 @@ import { useState, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import Vapi from "@vapi-ai/web"
 
-const vapi = new Vapi("33f65907-5a8c-4fdc-a248-664d0967216f")
+// Pulled from env so the public key isn't baked into the bundle on every
+// deploy. Falls back to the previous literal during local dev only.
+const VAPI_PUBLIC_KEY = import.meta.env.VITE_VAPI_PUBLIC_KEY ?? ""
+const VAPI_ASSISTANT_ID = import.meta.env.VITE_VAPI_ASSISTANT_ID ?? ""
+const vapi = new Vapi(VAPI_PUBLIC_KEY)
 
 export default function AIMentorPage() {
   const [isCallActive, setIsCallActive] = useState(false)
@@ -83,9 +87,14 @@ export default function AIMentorPage() {
   }
 
   const startCall = async () => {
+    if (!VAPI_PUBLIC_KEY || !VAPI_ASSISTANT_ID) {
+      console.error("Vapi credentials missing. Set VITE_VAPI_PUBLIC_KEY and VITE_VAPI_ASSISTANT_ID.")
+      setConnectionStatus("disconnected")
+      return
+    }
     setConnectionStatus("connecting")
     try {
-      await vapi.start("0b36eadb-ae94-4a97-b1fb-90b7128f3630")
+      await vapi.start(VAPI_ASSISTANT_ID)
     } catch (error) {
       console.error("Failed to start call:", error)
       setConnectionStatus("disconnected")

@@ -18,6 +18,10 @@ interface AuthContextType {
   profile: Profile | null;
   session: Session | null;
   loading: boolean;
+  // True between Supabase firing PASSWORD_RECOVERY and the user finishing
+  // the reset. AuthGuard / Login redirect logic should treat this as
+  // "do not auto-redirect to dashboard."
+  isPasswordRecovery: boolean;
   signUp: (email: string, password: string, fullName: string, role: string) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
@@ -39,20 +43,37 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
+const RECOVERY_FLAG_KEY = 'sp_password_recovery';
+
 export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  // Persisted to sessionStorage so a page reload of /reset-password after
+  // the magic link doesn't lose the recovery state.
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.sessionStorage.getItem(RECOVERY_FLAG_KEY) === '1';
+  });
 
   useEffect(() => {
-    
+
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        if (event === 'PASSWORD_RECOVERY') {
+          window.sessionStorage.setItem(RECOVERY_FLAG_KEY, '1');
+          setIsPasswordRecovery(true);
+        }
+        if (event === 'SIGNED_OUT' || event === 'USER_UPDATED') {
+          window.sessionStorage.removeItem(RECOVERY_FLAG_KEY);
+          setIsPasswordRecovery(false);
+        }
+
         setSession(session);
         setUser(session?.user ?? null);
-        
+
         if (session?.user) {
           // Fetch user profile with timeout to prevent hanging
           const fetchProfile = async () => {
@@ -62,13 +83,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                 .select('*')
                 .eq('id', session.user.id)
                 .single();
-              
+
               if (error) {
                 console.error('Error fetching profile:', error);
                 setProfile(null);
                 return;
               }
-              
+
               // Type cast the role to ensure it matches our Profile interface
               if (profileData) {
                 setProfile({
@@ -87,7 +108,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         } else {
           setProfile(null);
         }
-        
+
         setLoading(false);
       }
     );
@@ -191,6 +212,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       profile,
       session,
       loading,
+      isPasswordRecovery,
       signUp,
       signIn,
       signOut,

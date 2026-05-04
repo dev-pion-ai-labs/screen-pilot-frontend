@@ -905,6 +905,8 @@ export default function StudentAssignments() {
   const handleSubmitAssignment = async (): Promise<void> => {
     if (!selectedAssignment || !selectedFile || !user || !profile) return;
     setSubmissionStep("submitting");
+
+    let uploadedPath: string | null = null;
     try {
       // 1. Upload file
       const { filePath, publicUrl } = await uploadFileToSupabase(
@@ -912,21 +914,27 @@ export default function StudentAssignments() {
         user.id,
         selectedAssignment.id
       );
-      // 2. Extract content (for AI eval)
-      
-      // 3. Get AI evaluation
-      
-      const aiResult = await callEvaluatorAgent(
-  selectedAssignment.ai_generated_content, // criteria
-  selectedAssignment.title,               // subtopic
-  publicUrl                               // file_url
-);
+      uploadedPath = filePath;
 
-      console.log("AI Evaluation Result:", aiResult);
-      // 4. Parse AI result
+      // 2. Get AI evaluation
+      const aiResult = await callEvaluatorAgent(
+        selectedAssignment.ai_generated_content, // criteria
+        selectedAssignment.title, // subtopic
+        publicUrl // file_url
+      );
+
+      // 3. Parse AI result. The agent occasionally returns malformed JSON
+      // for ai_feedback — fall back to the raw string so the submission
+      // still saves instead of leaving an orphan upload.
       const aiData = parseAIFeedback(aiResult);
-      // 5. Insert to submissions (all fields)
-      console.log("AI DATA ", aiData);
+      let parsedAiFeedback: any = aiData.ai_feedback;
+      if (typeof parsedAiFeedback === "string") {
+        try {
+          parsedAiFeedback = JSON.parse(parsedAiFeedback);
+        } catch {
+          // keep the raw string; ai_feedback column is jsonb but accepts strings
+        }
+      }
 
       const submissionId = uuidv4();
       const now = new Date().toISOString();
@@ -939,28 +947,19 @@ export default function StudentAssignments() {
         file_path: filePath,
         file_name: selectedFile.name,
         submission_date: now,
-        ai_feedback: JSON.parse(aiData.ai_feedback), // Store as JSON object
+        ai_feedback: parsedAiFeedback,
         grade: aiData.grade,
-        ai_evaluation: aiData.ai_evaluation, // Store complete evaluation as JSON
+        ai_evaluation: aiData.ai_evaluation,
         status: "submitted",
         created_at: now,
         updated_at: now,
       };
 
-      console.log(
-        "SUBMISSION PAYLOAD:",
-        JSON.stringify(submissionPayload, null, 2)
-      );
-      console.log(
-        "Assignment ai_generated_content:",
-        selectedAssignment.ai_generated_content
-      );
-      console.log("Additional notes from student:", additionalNotes);
-
       const { error: insertErr } = await supabase
         .from("submissions")
         .insert([submissionPayload]);
       if (insertErr) throw insertErr;
+
       toast({
         title: "Assignment submitted! 🎉",
         description: "AI evaluation and feedback attached.",
@@ -972,6 +971,17 @@ export default function StudentAssignments() {
       setSelectedAssignment(null);
       fetchAssignments();
     } catch (error: any) {
+      // Clean up the orphan upload so the user can retry without
+      // accumulating dead files in storage.
+      if (uploadedPath) {
+        try {
+          await supabase.storage
+            .from("assignment-submissions")
+            .remove([uploadedPath]);
+        } catch (cleanupErr) {
+          console.error("Failed to remove orphan upload:", cleanupErr);
+        }
+      }
       toast({
         title: "Submission failed",
         description: error?.message || "Please try again.",

@@ -1057,20 +1057,36 @@ export default function TeacherNotes() {
         }
     }
 
-    // Delete note
+    // Delete note. Verifies ownership before any cascade and scopes the
+    // final delete by teacher_id so a teacher can never wipe another
+    // teacher's note even if RLS is mis-configured.
     const handleDeleteNote = async (noteId: string) => {
         try {
-            // Delete enrollments first
-            await supabase
+            const teacherId = (profile as any)?.id
+            if (!teacherId) throw new Error('Not authenticated')
+
+            const { data: ownerRow, error: ownerErr } = await supabase
+                .from('notes')
+                .select('id, teacher_id')
+                .eq('id', noteId)
+                .maybeSingle()
+            if (ownerErr) throw ownerErr
+            if (!ownerRow) throw new Error('Note not found')
+            if ((ownerRow as any).teacher_id !== teacherId) {
+                throw new Error('You do not own this note')
+            }
+
+            const { error: enrollErr } = await supabase
                 .from('note_enrollments')
                 .delete()
                 .eq('note_id', noteId)
+            if (enrollErr) throw enrollErr
 
-            // Delete the note
             const { error } = await supabase
                 .from('notes')
                 .delete()
                 .eq('id', noteId)
+                .eq('teacher_id', teacherId)
 
             if (error) throw error
 
@@ -1090,7 +1106,7 @@ export default function TeacherNotes() {
             console.error('Error deleting note:', error)
             toast({
                 title: "Delete Failed",
-                description: "Failed to delete note",
+                description: error instanceof Error ? error.message : "Failed to delete note",
                 variant: "destructive"
             })
         }

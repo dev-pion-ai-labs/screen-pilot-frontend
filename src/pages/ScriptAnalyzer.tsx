@@ -170,21 +170,25 @@ const ScriptAnalyzer = () => {
   }
 
   const pollScriptJobResult = async (jobId: string) => {
-    const maxAttempts = 20;
-    let attempts = 0;
-    while (attempts < maxAttempts) {
+    // Long-running script analyses regularly run several minutes; cap the
+    // wait at ~5 min instead of the previous 60s so legitimate jobs don't
+    // hit a false timeout. We also bail immediately on real errors instead
+    // of swallowing them and continuing to poll.
+    const maxAttempts = 100;
+    const intervalMs = 3000;
+    for (let attempts = 0; attempts < maxAttempts; attempts++) {
       try {
         const status = await agentsGetJson<{ status: string; result?: string; error?: string }>(
           `/api/scripts/analyze/status/${jobId}`,
         );
         if (status.status === "completed") return status.result;
-        if (status.status === "error") throw new Error(status.error);
-        attempts++;
-        await new Promise(r => setTimeout(r, 3000));
+        if (status.status === "error") throw new Error(status.error || "Analysis failed");
       } catch (e) {
-        attempts++;
-        await new Promise(r => setTimeout(r, 3000));
+        // Only soft-retry on transient network errors, not on explicit
+        // "error" status responses from above.
+        if (e instanceof Error && /Analysis failed/i.test(e.message)) throw e;
       }
+      await new Promise(r => setTimeout(r, intervalMs));
     }
     throw new Error("Timed out waiting for script analysis result.");
   };
@@ -469,17 +473,20 @@ const ScriptAnalyzer = () => {
       console.log(`Submitting to ${uniqueTeachers.length} unique teachers`);
 
       // 4. Update script status to submitted
+      const submittedAt = new Date().toISOString();
       const { error: updateError } = await supabase
         .from('script_analyses')
         .update({
           status: 'submitted',
-          submitted_at: new Date().toISOString()
+          submitted_at: submittedAt
         })
         .eq('id', scriptToSubmit.id);
 
       if (updateError) throw updateError;
 
-      // 5. Create script_reviews for each unique teacher
+      // 5. Create script_reviews for each unique teacher. If this insert
+      // fails after the status flip above, revert the status so the user
+      // can retry instead of being stuck in 'submitted' with no reviewers.
       const reviewsToInsert = uniqueTeachers.map(ct => ({
         script_id: scriptToSubmit.id,
         teacher_id: ct.teacher_id,
@@ -491,9 +498,18 @@ const ScriptAnalyzer = () => {
 
       const { error: reviewError } = await supabase
         .from('script_reviews')
-        .insert(reviewsToInsert);
+        .upsert(reviewsToInsert, {
+          onConflict: 'script_id,teacher_id',
+          ignoreDuplicates: true,
+        });
 
-      if (reviewError) throw reviewError;
+      if (reviewError) {
+        await supabase
+          .from('script_analyses')
+          .update({ status: 'draft', submitted_at: null })
+          .eq('id', scriptToSubmit.id);
+        throw reviewError;
+      }
 
       // 6. Create notifications for all unique teachers
       const notificationsToInsert = uniqueTeachers.map(ct => ({
@@ -508,7 +524,11 @@ const ScriptAnalyzer = () => {
         .from('script_notifications')
         .insert(notificationsToInsert);
 
-      if (notifError) throw notifError;
+      // Notifications are non-critical: log but don't undo the submission
+      // or reviews. Teachers will still see new scripts in their list.
+      if (notifError) {
+        console.warn('Failed to create script notifications:', notifError);
+      }
 
       toast({
         title: "Script Submitted! 🎉",
@@ -549,13 +569,25 @@ const ScriptAnalyzer = () => {
 
       if (analysisToDelete?.script_url) {
         try {
-          const urlParts = analysisToDelete.script_url.split('/');
-          const fileName = urlParts[urlParts.length - 1];
-          const filePath = `${user?.id}/${fileName}`;
+          // Reconstruct the storage object key from the public URL.
+          // Supabase public URLs look like:
+          //   <host>/storage/v1/object/public/scripts/<userId>/<filename>
+          // Anything after `/scripts/` is the actual key.
+          const url = analysisToDelete.script_url;
+          const marker = '/scripts/';
+          const idx = url.indexOf(marker);
+          const filePath = idx >= 0
+            ? url.slice(idx + marker.length).split('?')[0]
+            : null;
 
-          await supabase.storage
-            .from('scripts')
-            .remove([filePath]);
+          if (filePath) {
+            const { error: storageError } = await supabase.storage
+              .from('scripts')
+              .remove([decodeURIComponent(filePath)]);
+            if (storageError) {
+              console.warn('Failed to delete file from storage:', storageError);
+            }
+          }
         } catch (storageError) {
           console.warn('Failed to delete file from storage:', storageError);
         }

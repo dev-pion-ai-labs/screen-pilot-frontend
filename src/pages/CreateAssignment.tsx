@@ -562,122 +562,112 @@ const generateAssignment = async (isRevision = false) => {
   }
 
   const saveAssignmentToDatabase = async (): Promise<string | null> => {
-    try {
-      console.log("💾 Saving assignment to database...")
-
-      const assignmentData = {
-        title: currentAssignment!.title,
-        topic: currentAssignment!.topic,
-        ai_generated_content: currentAssignment!.content,
-        description: `Assignment for ${selectedSubtopic} in ${availableTopics[selectedTopic]?.topic || selectedTopic}`,
-        teacher_id: (profile as Profile)?.id,
-        class_id: selectedClass?.id,
-        semester: selectedClass?.semester,
-        due_date: dueDate?.toISOString(),
-        status: 'published',
-        difficulty: 'medium',
-        total_points: 100,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }
-
-      console.log("📝 Assignment data to save:", assignmentData)
-
-      const { data, error } = await supabase
-        .from('assignments')
-        .insert([assignmentData])
-        .select()
-        .single()
-
-      if (error) {
-        console.error("❌ Database save error:", error)
-        throw error
-      }
-
-      console.log("✅ Assignment saved successfully:", data)
-      return data.id
-    } catch (error) {
-      console.error("❌ Error saving assignment:", error)
-      throw error
+    // Insert as draft so we don't expose a published assignment to students
+    // before the enrollment rows exist.
+    const assignmentData = {
+      title: currentAssignment!.title,
+      topic: currentAssignment!.topic,
+      ai_generated_content: currentAssignment!.content,
+      description: `Assignment for ${selectedSubtopic} in ${availableTopics[selectedTopic]?.topic || selectedTopic}`,
+      teacher_id: (profile as Profile)?.id,
+      class_id: selectedClass?.id,
+      semester: selectedClass?.semester,
+      due_date: dueDate?.toISOString(),
+      status: 'draft',
+      difficulty: 'medium',
+      total_points: 100,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     }
+
+    const { data, error } = await supabase
+      .from('assignments')
+      .insert([assignmentData])
+      .select()
+      .single()
+
+    if (error) throw error
+    return data.id
   }
 
-  const enrollStudentsInAssignment = async (assignmentId: string): Promise<boolean> => {
+  const enrollStudentsInAssignment = async (assignmentId: string): Promise<number> => {
+    const { data: students, error: studentsError } = await supabase
+      .from('class_students')
+      .select('student_id')
+      .eq('class_id', selectedClass?.id)
+
+    if (studentsError) throw studentsError
+    if (!students || students.length === 0) return 0
+
+    const enrollmentData = students.map(student => ({
+      assignment_id: assignmentId,
+      student_id: student.student_id,
+      assigned_at: new Date().toISOString(),
+      status: 'assigned'
+    }))
+
+    // upsert by the (assignment_id, student_id) unique constraint so a retry
+    // after a partial failure doesn't 409.
+    const { error: enrollmentError } = await supabase
+      .from('assignment_enrollments')
+      .upsert(enrollmentData, { onConflict: 'assignment_id,student_id', ignoreDuplicates: true })
+
+    if (enrollmentError) throw enrollmentError
+    return students.length
+  }
+
+  const publishAssignment = async (assignmentId: string): Promise<void> => {
+    const { error } = await supabase
+      .from('assignments')
+      .update({ status: 'published', updated_at: new Date().toISOString() })
+      .eq('id', assignmentId)
+    if (error) throw error
+  }
+
+  const rollbackAssignment = async (assignmentId: string): Promise<void> => {
+    // Best-effort cleanup if enrollment fails — don't surface this error to
+    // the user, the original error already explains what went wrong.
     try {
-      console.log("👥 Enrolling students in assignment...")
-
-      const { data: students, error: studentsError } = await supabase
-        .from('class_students')
-        .select('student_id')
-        .eq('class_id', selectedClass?.id)
-
-      if (studentsError) {
-        console.error("❌ Error fetching students:", studentsError)
-        throw studentsError
-      }
-
-      if (!students || students.length === 0) {
-        console.log("⚠️ No students found in class")
-        return false
-      }
-
-      console.log(`📋 Found ${students.length} students to enroll`)
-
-      const enrollmentData = students.map(student => ({
-        assignment_id: assignmentId,
-        student_id: student.student_id,
-        assigned_at: new Date().toISOString(),
-        status: 'assigned'
-      }))
-
-      console.log("👥 Enrollment data:", enrollmentData)
-
-      const { data: enrollments, error: enrollmentError } = await supabase
-        .from('assignment_enrollments')
-        .insert(enrollmentData)
-        .select()
-
-      if (enrollmentError) {
-        console.error("❌ Error enrolling students:", enrollmentError)
-        throw enrollmentError
-      }
-
-      console.log("✅ Students enrolled successfully:", enrollments)
-      return true
-    } catch (error) {
-      console.error("❌ Error enrolling students:", error)
-      throw error
+      await supabase.from('assignment_enrollments').delete().eq('assignment_id', assignmentId)
+      await supabase.from('assignments').delete().eq('id', assignmentId)
+    } catch (err) {
+      console.error('Failed to roll back draft assignment:', err)
     }
   }
 
   const handleSaveAssignment = async () => {
     setWorkflowState('saving')
 
+    let assignmentId: string | null = null
     try {
-      const assignmentId = await saveAssignmentToDatabase()
-      
-      if (assignmentId) {
-        setFinalAssignmentId(assignmentId)
-        setWorkflowState('enrolling')
-        
-        const enrollmentSuccess = await enrollStudentsInAssignment(assignmentId)
-        
-        if (enrollmentSuccess) {
-          setWorkflowState('complete')
-          toast({
-            title: "Assignment Created Successfully!",
-            description: `Assignment saved and assigned to ${selectedClass?.student_count || 0} students`,
-          })
-        } else {
-          toast({
-            title: "Assignment Saved",
-            description: "Assignment saved but no students were enrolled (no students in class)",
-          })
-          setWorkflowState('complete')
-        }
+      assignmentId = await saveAssignmentToDatabase()
+      if (!assignmentId) throw new Error('Assignment was not created')
+
+      setFinalAssignmentId(assignmentId)
+      setWorkflowState('enrolling')
+
+      const enrolledCount = await enrollStudentsInAssignment(assignmentId)
+      // Only flip to published once enrollments are in place.
+      await publishAssignment(assignmentId)
+
+      setWorkflowState('complete')
+      if (enrolledCount > 0) {
+        toast({
+          title: "Assignment Created Successfully!",
+          description: `Assignment published and assigned to ${enrolledCount} student${enrolledCount === 1 ? '' : 's'}`,
+        })
+      } else {
+        toast({
+          title: "Assignment Published",
+          description: "Assignment published, but no students were enrolled (class is empty).",
+        })
       }
     } catch (error) {
       console.error("❌ Save Assignment Error:", error)
+      if (assignmentId) {
+        await rollbackAssignment(assignmentId)
+        setFinalAssignmentId(null)
+      }
       toast({
         title: "Save Failed",
         description: error instanceof Error ? error.message : "Failed to save assignment",

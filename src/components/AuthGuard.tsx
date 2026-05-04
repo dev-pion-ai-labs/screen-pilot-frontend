@@ -11,14 +11,16 @@ interface AuthGuardProps {
 }
 
 export const AuthGuard = ({ children, allowedRoles, requireAuth = true }: AuthGuardProps) => {
-  const { user, profile, loading } = useAuth();
+  const { user, profile, loading, isPasswordRecovery } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
   useEffect(() => {
     if (loading) return; // Don't do anything while loading
-    
-    // console.log('AuthGuard state:', { user: !!user, profile, loading, requireAuth, location: location.pathname });
+
+    // While Supabase has flagged this session as PASSWORD_RECOVERY, do not
+    // auto-redirect anywhere — the user must finish the reset flow first.
+    if (isPasswordRecovery) return;
 
     if (requireAuth && !user) {
       // User needs to be authenticated but isn't
@@ -42,7 +44,7 @@ export const AuthGuard = ({ children, allowedRoles, requireAuth = true }: AuthGu
       navigate('/unauthorized', { replace: true });
       return;
     }
-  }, [user, profile, loading, navigate, location, allowedRoles, requireAuth]);
+  }, [user, profile, loading, navigate, location, allowedRoles, requireAuth, isPasswordRecovery]);
 
   if (loading) {
     return (

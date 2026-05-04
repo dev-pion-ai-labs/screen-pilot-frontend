@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useCallback } from "react"
+import React, { useState, useEffect, useCallback, useRef } from "react"
 import { useAuth } from "@/hooks/useAuth"
 import { AuthGuard } from "@/components/AuthGuard"
 import { Button } from "@/components/ui/button"
@@ -195,6 +195,12 @@ export default function StudentQuizzes() {
   // Results state
   const [currentSubmission, setCurrentSubmission] = useState<QuizSubmission | null>(null)
 
+  // Submission guards: ref blocks the timer/button race even before the
+  // state update flushes; state drives the disabled UI.
+  const isSubmittingRef = useRef(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const submitHandlerRef = useRef<() => void>(() => {})
+
   // Fetch data
   const fetchData = useCallback(async () => {
     try {
@@ -243,7 +249,9 @@ export default function StudentQuizzes() {
     if (profile) fetchData()
   }, [profile, fetchData])
 
-  // Timer effect
+  // Timer effect — calls through a ref so the latest answers/questions are
+  // always read; otherwise the closure captures stale state from when the
+  // interval was first created.
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null
 
@@ -251,7 +259,7 @@ export default function StudentQuizzes() {
       interval = setInterval(() => {
         setTimeLeft(prev => {
           if (prev <= 1) {
-            handleSubmitQuiz()
+            submitHandlerRef.current()
             return 0
           }
           return prev - 1
@@ -330,6 +338,9 @@ export default function StudentQuizzes() {
 
   const handleSubmitQuiz = async () => {
     if (!activeQuiz || !startTime) return
+    if (isSubmittingRef.current) return
+    isSubmittingRef.current = true
+    setIsSubmitting(true)
 
     try {
       let score = 0
@@ -377,13 +388,30 @@ export default function StudentQuizzes() {
       fetchData()
     } catch (error) {
       console.error('Error submitting quiz:', error)
+      // Allow another attempt if the network/db actually failed.
+      isSubmittingRef.current = false
       toast({
         title: "Error",
         description: "Failed to submit quiz",
         variant: "destructive"
       })
+    } finally {
+      setIsSubmitting(false)
     }
   }
+
+  // Keep the timer's ref pointing at the freshest handler.
+  useEffect(() => {
+    submitHandlerRef.current = handleSubmitQuiz
+  })
+
+  // Reset the submission guard on each new attempt.
+  useEffect(() => {
+    if (isQuizModalOpen) {
+      isSubmittingRef.current = false
+      setIsSubmitting(false)
+    }
+  }, [isQuizModalOpen])
 
   // Get stats
   const getStats = () => {
@@ -621,9 +649,17 @@ export default function StudentQuizzes() {
                     </Button>
 
                     {currentQuestionIndex === questions.length - 1 ? (
-                      <Button onClick={handleSubmitQuiz} className="bg-green-600 hover:bg-green-700">
-                        <CheckCircle className="h-4 w-4 mr-2" />
-                        Submit Quiz
+                      <Button
+                        onClick={handleSubmitQuiz}
+                        disabled={isSubmitting}
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        {isSubmitting ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <CheckCircle className="h-4 w-4 mr-2" />
+                        )}
+                        {isSubmitting ? "Submitting..." : "Submit Quiz"}
                       </Button>
                     ) : (
                       <Button

@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 import { Loader2, Clapperboard, ArrowLeft, Eye, EyeOff, CheckCircle, AlertTriangle } from "lucide-react"
 import { supabase } from "@/integrations/supabase/client"
+import { useAuth } from "@/hooks/useAuth"
 
 export default function ResetPassword() {
   const [password, setPassword] = useState("")
@@ -18,20 +19,29 @@ export default function ResetPassword() {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [isWaitingForPasswordRecovery, setIsWaitingForPasswordRecovery] = useState(true)
-  const [canResetPassword, setCanResetPassword] = useState(false)
+  // Recovery mode is gated strictly on Supabase's PASSWORD_RECOVERY event
+  // (or its persisted flag from useAuth). A regular signed-in session is
+  // NOT enough — the previous code let any logged-in user reset their
+  // password by hitting this URL.
+  const { isPasswordRecovery } = useAuth()
+  const [isWaitingForPasswordRecovery, setIsWaitingForPasswordRecovery] = useState(!isPasswordRecovery)
+  const [canResetPassword, setCanResetPassword] = useState(isPasswordRecovery)
   const [isPasswordReset, setIsPasswordReset] = useState(false)
   const { toast } = useToast()
   const navigate = useNavigate()
 
   useEffect(() => {
-    // Listen for PASSWORD_RECOVERY event as per Supabase docs
+    let recoveryFired = isPasswordRecovery
+
+    if (recoveryFired) {
+      setIsWaitingForPasswordRecovery(false)
+      setCanResetPassword(true)
+    }
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('Auth event:', event, session?.user?.id)
-        
+      async (event) => {
         if (event === "PASSWORD_RECOVERY") {
-          // User clicked the email link and is ready to reset password
+          recoveryFired = true
           setIsWaitingForPasswordRecovery(false)
           setCanResetPassword(true)
           toast({
@@ -39,38 +49,28 @@ export default function ResetPassword() {
             description: "You can now set your new password.",
           })
         } else if (event === "SIGNED_OUT") {
-          // Reset state if user gets signed out
+          recoveryFired = false
           setIsWaitingForPasswordRecovery(true)
           setCanResetPassword(false)
         }
       }
     )
 
-    // Check if user is already in PASSWORD_RECOVERY state
-    const checkInitialState = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session?.user) {
-        // If user already has session, they might be in recovery mode
-        setIsWaitingForPasswordRecovery(false)
-        setCanResetPassword(true)
-      }
-    }
-
-    checkInitialState()
-
-    // Set timeout to show invalid link after 10 seconds if no recovery event
+    // Show "invalid link" only if the recovery event hasn't fired within
+    // the first 10s. recoveryFired flips off the timer effect when the
+    // event lands, so a slow event after the timeout still recovers.
     const timeout = setTimeout(() => {
-      if (isWaitingForPasswordRecovery) {
-        setIsWaitingForPasswordRecovery(false)
-        setCanResetPassword(false)
-      }
+      if (recoveryFired) return
+      setIsWaitingForPasswordRecovery(false)
+      setCanResetPassword(false)
     }, 10000)
 
     return () => {
       subscription.unsubscribe()
       clearTimeout(timeout)
     }
-  }, [isWaitingForPasswordRecovery])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const validatePassword = (pass: string) => {
     const minLength = pass.length >= 8

@@ -593,15 +593,51 @@ export default function TeacherQuizzes() {
         }
     }
 
-    // Delete quiz with cascade
+    // Delete quiz with cascade. Verifies the caller actually owns the quiz
+    // before touching any child rows, and constrains the final delete by
+    // teacher_id so it can't strip another teacher's quiz even if RLS is
+    // mis-configured.
     const handleDeleteQuiz = async (quizId: string) => {
         try {
-            // Delete in correct order to respect foreign key constraints
-            await supabase.from('quiz_submissions').delete().eq('quiz_id', quizId)
-            await supabase.from('quiz_enrollments').delete().eq('quiz_id', quizId)
-            await supabase.from('quiz_questions').delete().eq('quiz_id', quizId)
+            const teacherId = (profile as any)?.id
+            if (!teacherId) throw new Error('Not authenticated')
 
-            const { error } = await supabase.from('quizzes').delete().eq('id', quizId)
+            const { data: ownerRow, error: ownerErr } = await supabase
+                .from('quizzes')
+                .select('id, teacher_id')
+                .eq('id', quizId)
+                .maybeSingle()
+            if (ownerErr) throw ownerErr
+            if (!ownerRow) throw new Error('Quiz not found')
+            if (ownerRow.teacher_id !== teacherId) {
+                throw new Error('You do not own this quiz')
+            }
+
+            // Cascade child rows first (FK order). Errors on these abort the
+            // delete so we don't leave the parent with orphaned children.
+            const { error: subErr } = await supabase
+                .from('quiz_submissions')
+                .delete()
+                .eq('quiz_id', quizId)
+            if (subErr) throw subErr
+
+            const { error: enrollErr } = await supabase
+                .from('quiz_enrollments')
+                .delete()
+                .eq('quiz_id', quizId)
+            if (enrollErr) throw enrollErr
+
+            const { error: qErr } = await supabase
+                .from('quiz_questions')
+                .delete()
+                .eq('quiz_id', quizId)
+            if (qErr) throw qErr
+
+            const { error } = await supabase
+                .from('quizzes')
+                .delete()
+                .eq('id', quizId)
+                .eq('teacher_id', teacherId)
             if (error) throw error
 
             toast({
@@ -620,7 +656,7 @@ export default function TeacherQuizzes() {
             console.error('Error deleting quiz:', error)
             toast({
                 title: "Delete Failed",
-                description: "Failed to delete quiz",
+                description: error instanceof Error ? error.message : "Failed to delete quiz",
                 variant: "destructive"
             })
         }

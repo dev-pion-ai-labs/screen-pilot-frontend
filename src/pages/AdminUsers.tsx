@@ -230,43 +230,15 @@ const AdminUsers = () => {
   }
 
   const handleDeleteUser = async (userId: string) => {
-
-
     try {
-      // Step 1: Delete related data
-      await supabase.from("submissions").delete().eq("student_id", userId);
-      await supabase.from("assignments").delete().eq("teacher_id", userId);
-      await supabase.from("profiles").delete().eq("id", userId);
+      const { data, error } = await supabase.functions.invoke("delete-user", {
+        body: { userId },
+      });
 
-      // Get current session to extract access token
-      const {
-        data: { session },
-        error: sessionError,
-      } = await supabase.auth.getSession();
-
-      if (sessionError || !session) {
-        throw new Error("User not authenticated");
-      }
-
-      const accessToken = session.access_token;
-
-      // Step 2: Call Edge Function with Authorization header
-      const response = await fetch(
-        "https://vnyoexxeqdjpzekjteft.supabase.co/functions/v1/delete-user",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`, // send access token instead of service role
-          },
-          body: JSON.stringify({ userId }),
-        }
-      );
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || "Failed to delete user from auth.users");
+      if (error) {
+        const remoteMessage =
+          (data as { error?: string } | null)?.error ?? error.message;
+        throw new Error(remoteMessage || "Failed to delete user");
       }
 
       toast({
@@ -274,7 +246,7 @@ const AdminUsers = () => {
         description: "User deleted successfully",
       });
 
-      fetchUsers(); // Refresh the table
+      fetchUsers();
     } catch (err: any) {
       console.error("Error deleting user:", err);
       toast({

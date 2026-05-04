@@ -1,8 +1,7 @@
-"use client"
-
-import { useState, useEffect } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useAuth } from "@/hooks/useAuth"
 import { AuthGuard } from "@/components/AuthGuard"
+import { supabase } from "@/integrations/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -45,30 +44,24 @@ import {
   MessageSquare,
   User,
   Star,
-  ThumbsUp,
-  Lightbulb,
   Sparkles,
   FileType,
-  CheckSquare,
-  ArrowRight,
   Paperclip,
   Edit,
   Theater,
 } from "lucide-react"
-import { format, isAfter, parseISO, differenceInDays, subDays, addDays } from "date-fns"
+import { format, isAfter, parseISO, differenceInDays } from "date-fns"
 import { ModernDashboardLayout } from "@/components/ModernDashboardLayout"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { Progress } from "@/components/ui/progress"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 
 interface Student {
   id: string
   full_name: string
   email: string
-  avatar_url?: string
-  semester: string
-  student_id?: string
+  semester?: number | null
 }
 
 interface Assignment {
@@ -77,339 +70,234 @@ interface Assignment {
   description: string
   due_date: string
   created_at: string
-  subject?: string
+  subject?: string | null
   total_points: number
-  status: "draft" | "published" | "closed"
 }
+
+type SubmissionStatus = "submitted" | "late" | "graded"
 
 interface Submission {
   id: string
   assignment_id: string
   student_id: string
   submitted_at: string
-  status: "submitted" | "late" | "graded" | "missing"
-  grade?: number
-  feedback?: string
-  files?: string[]
-  content?: string
+  status: SubmissionStatus
+  grade: number | null
+  feedback: string | null
+  file_path: string | null
+  file_name: string | null
+  script_url: string | null
+  ai_feedback: any
+  ai_evaluation: any
   student: Student
   assignment: Assignment
 }
 
-interface AIFeedback {
-  summary: string
-  strengths: string[]
-  improvements: string[]
-  suggestedGrade: number
-  confidenceScore: number
-  detailedFeedback: string
-  keyInsights: {
-    title: string
-    description: string
-    score: number
-  }[]
+const SUBMISSIONS_BUCKET = "assignment-submissions"
+
+const computeStatus = (
+  submissionDate: string | null,
+  dueDate: string,
+  teacherGrade: number | null,
+  grade: number | null,
+  rawStatus: string | null,
+): SubmissionStatus => {
+  if (rawStatus === "graded" || teacherGrade != null) return "graded"
+  if (submissionDate && isAfter(parseISO(submissionDate), parseISO(dueDate))) return "late"
+  if (rawStatus === "submitted" || rawStatus === "late") return rawStatus as SubmissionStatus
+  return "submitted"
 }
 
-// Dummy Data for Acting School
-const dummyStudents: Student[] = [
-  {
-    id: "1",
-    full_name: "Priya Sharma",
-    email: "priya.sharma@actingacademy.edu",
-    avatar_url: "/placeholder.svg?height=40&width=40",
-    semester: "Fall 2024",
-    student_id: "ACT2024001",
-  },
-  {
-    id: "2",
-    full_name: "Arjun Kapoor",
-    email: "arjun.kapoor@actingacademy.edu",
-    avatar_url: "/placeholder.svg?height=40&width=40",
-    semester: "Fall 2024",
-    student_id: "ACT2024002",
-  },
-  {
-    id: "3",
-    full_name: "Ananya Singh",
-    email: "ananya.singh@actingacademy.edu",
-    avatar_url: "/placeholder.svg?height=40&width=40",
-    semester: "Spring 2024",
-    student_id: "ACT2024003",
-  },
-  {
-    id: "4",
-    full_name: "Vikram Patel",
-    email: "vikram.patel@actingacademy.edu",
-    avatar_url: "/placeholder.svg?height=40&width=40",
-    semester: "Fall 2024",
-    student_id: "ACT2024004",
-  },
-  {
-    id: "5",
-    full_name: "Kavya Reddy",
-    email: "kavya.reddy@actingacademy.edu",
-    avatar_url: "/placeholder.svg?height=40&width=40",
-    semester: "Spring 2024",
-    student_id: "ACT2024005",
-  },
-  {
-    id: "6",
-    full_name: "Rohit Gupta",
-    email: "rohit.gupta@actingacademy.edu",
-    avatar_url: "/placeholder.svg?height=40&width=40",
-    semester: "Fall 2024",
-    student_id: "ACT2024006",
-  },
-]
-
-const dummyAssignments: Assignment[] = [
-  {
-    id: "1",
-    title: "Monologue Performance Analysis",
-    description: "Write a detailed analysis of your chosen monologue including character motivation, emotional journey, and performance techniques",
-    due_date: format(addDays(new Date(), 7), "yyyy-MM-dd"),
-    created_at: format(subDays(new Date(), 14), "yyyy-MM-dd"),
-    subject: "Acting Technique",
-    total_points: 100,
-    status: "published",
-  },
-  {
-    id: "2",
-    title: "Scene Direction and Blocking",
-    description: "Create detailed director's notes for the assigned scene including blocking, character movements, and staging concepts",
-    due_date: format(addDays(new Date(), 3), "yyyy-MM-dd"),
-    created_at: format(subDays(new Date(), 10), "yyyy-MM-dd"),
-    subject: "Directing",
-    total_points: 150,
-    status: "published",
-  },
-  {
-    id: "3",
-    title: "Character Development Essay",
-    description: "Write a comprehensive character analysis including backstory, motivations, and character arc development",
-    due_date: format(subDays(new Date(), 2), "yyyy-MM-dd"),
-    created_at: format(subDays(new Date(), 21), "yyyy-MM-dd"),
-    subject: "Character Study",
-    total_points: 80,
-    status: "closed",
-  },
-  {
-    id: "4",
-    title: "Script Writing - Short Scene",
-    description: "Write an original 5-minute scene with proper formatting, dialogue, and stage directions",
-    due_date: format(addDays(new Date(), 14), "yyyy-MM-dd"),
-    created_at: format(subDays(new Date(), 7), "yyyy-MM-dd"),
-    subject: "Scriptwriting",
-    total_points: 120,
-    status: "published",
-  },
-]
-
-// Submission content will be fetched from backend
-
-// AI Feedback will be fetched from backend
-
-const generateDummySubmissions = (): Submission[] => {
-  const submissions: Submission[] = []
-  let submissionId = 1
-
-  dummyStudents.forEach((student) => {
-    dummyAssignments.forEach((assignment, assignmentIndex) => {
-      // Not every student submits every assignment
-      if (Math.random() > 0.2) {
-        const dueDate = parseISO(assignment.due_date)
-        const submittedDate = new Date(dueDate.getTime() - Math.random() * 10 * 24 * 60 * 60 * 1000)
-
-        // Some submissions are late
-        if (Math.random() > 0.7) {
-          submittedDate.setTime(dueDate.getTime() + Math.random() * 5 * 24 * 60 * 60 * 1000)
-        }
-
-        let status: "submitted" | "late" | "graded" | "missing" = "submitted"
-        let grade: number | undefined
-        let feedback: string | undefined
-
-        // Determine status
-        if (isAfter(submittedDate, dueDate)) {
-          status = "late"
-        }
-
-        // Some submissions are graded
-        if (Math.random() > 0.4) {
-          status = "graded"
-          grade = Math.floor(Math.random() * assignment.total_points * 0.4) + assignment.total_points * 0.6
-
-          const feedbacks = [
-            "Excellent character analysis with strong understanding of motivation and technique.",
-            "Good work on staging concepts, but could use more detail in actor direction.",
-            "Creative interpretation with solid textual support. Well done!",
-            "Strong research and writing, consider adding more contemporary examples.",
-            "Good grasp of fundamentals, work on developing more specific performance choices.",
-          ]
-          feedback = feedbacks[Math.floor(Math.random() * feedbacks.length)]
-        }
-
-        submissions.push({
-          id: submissionId.toString(),
-          assignment_id: assignment.id,
-          student_id: student.id,
-          submitted_at: submittedDate.toISOString(),
-          status,
-          grade,
-          feedback,
-          files: [`${student.full_name.replace(" ", "_")}_${assignment.title.replace(/\s+/g, "_")}.pdf`],
-          content: `Sample submission content for ${assignment.title} by ${student.full_name}. This content will be fetched from the backend in the real application.`,
-          student,
-          assignment,
-        })
-
-        submissionId++
-      }
-    })
-  })
-
-  return submissions
-}
-
-export default function SubmissionsPage() {
+export default function TeacherStudentSubmission() {
   const { profile } = useAuth()
   const { toast } = useToast()
-  const [submissions, setSubmissions] = useState<Submission[]>([])
-  const [filteredSubmissions, setFilteredSubmissions] = useState<Submission[]>([])
+  const teacherId = (profile as any)?.id as string | undefined
+
   const [loading, setLoading] = useState(true)
+  const [submissions, setSubmissions] = useState<Submission[]>([])
+  const [assignments, setAssignments] = useState<Assignment[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [assignmentFilter, setAssignmentFilter] = useState<string>("all")
   const [sortBy, setSortBy] = useState<string>("submitted_at")
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
-  const [assignments, setAssignments] = useState<Assignment[]>([])
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null)
   const [gradeValue, setGradeValue] = useState<string>("")
   const [feedbackValue, setFeedbackValue] = useState<string>("")
   const [isGradingDialogOpen, setIsGradingDialogOpen] = useState(false)
+  const [isSavingGrade, setIsSavingGrade] = useState(false)
   const [viewDialogOpen, setViewDialogOpen] = useState(false)
   const [viewedSubmission, setViewedSubmission] = useState<Submission | null>(null)
-  const [aiFeedback, setAIFeedback] = useState<AIFeedback | null>(null)
   const [activeViewTab, setActiveViewTab] = useState<"submission" | "feedback">("submission")
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
 
-  // Load AI feedback when viewing submission (simulating it's already generated)
   useEffect(() => {
-    if (viewedSubmission && viewDialogOpen) {
-      // Simulate AI feedback is already available
-      const dummyFeedback: AIFeedback = {
-        summary: "This submission demonstrates solid understanding of theater concepts with clear analysis and thoughtful interpretation.",
-        strengths: [
-          "Clear writing and organization",
-          "Good understanding of fundamental concepts", 
-          "Thoughtful analysis and interpretation",
-          "Appropriate use of theater terminology"
-        ],
-        improvements: [
-          "Could include more specific examples",
-          "Add more detailed analysis of key concepts",
-          "Consider contemporary applications", 
-          "Expand on theoretical foundations"
-        ],
-        suggestedGrade: 85,
-        confidenceScore: 90,
-        detailedFeedback: "This submission shows solid understanding of theater concepts with clear analysis and good organization. The work demonstrates appropriate use of terminology and shows thoughtful engagement with the material. The student has successfully addressed the assignment requirements and shown creative thinking in their approach.",
-        keyInsights: [
-          {
-            title: "Content Understanding",
-            description: "Grasp of key concepts and principles", 
-            score: 88
-          },
-          {
-            title: "Analysis Quality",
-            description: "Depth and clarity of analysis",
-            score: 83
-          },
-          {
-            title: "Written Communication", 
-            description: "Clarity and organization of writing",
-            score: 87
-          }
-        ]
+    if (!teacherId) return
+    let cancelled = false
+
+    const load = async () => {
+      setLoading(true)
+      try {
+        const { data: assignmentRows, error: assignmentError } = await supabase
+          .from("assignments")
+          .select("id, title, description, due_date, created_at, subject, total_points")
+          .eq("teacher_id", teacherId)
+          .order("due_date", { ascending: false })
+        if (assignmentError) throw assignmentError
+
+        const assignmentList: Assignment[] = (assignmentRows ?? []).map((row: any) => ({
+          id: row.id,
+          title: row.title,
+          description: row.description,
+          due_date: row.due_date,
+          created_at: row.created_at,
+          subject: row.subject ?? null,
+          total_points: row.total_points ?? 100,
+        }))
+        const assignmentMap = new Map(assignmentList.map((a) => [a.id, a]))
+
+        let submissionList: Submission[] = []
+        if (assignmentList.length > 0) {
+          const { data: submissionRows, error: submissionError } = await supabase
+            .from("submissions")
+            .select(
+              `id, assignment_id, student_id, submission_date, created_at,
+               status, grade, teacher_grade, teacher_feedback, file_path, file_name,
+               script_url, ai_feedback, ai_evaluation,
+               profiles:student_id (id, full_name, email, semester)`,
+            )
+            .in(
+              "assignment_id",
+              assignmentList.map((a) => a.id),
+            )
+            .order("created_at", { ascending: false })
+          if (submissionError) throw submissionError
+
+          submissionList = (submissionRows ?? [])
+            .map((row: any): Submission | null => {
+              const assignment = assignmentMap.get(row.assignment_id)
+              const studentProfile = row.profiles
+              if (!assignment || !studentProfile) return null
+              const submittedAt = row.submission_date ?? row.created_at
+              const status = computeStatus(
+                row.submission_date,
+                assignment.due_date,
+                row.teacher_grade,
+                row.grade,
+                row.status,
+              )
+              return {
+                id: row.id,
+                assignment_id: row.assignment_id,
+                student_id: row.student_id,
+                submitted_at: submittedAt,
+                status,
+                grade: row.teacher_grade ?? row.grade ?? null,
+                feedback: row.teacher_feedback ?? null,
+                file_path: row.file_path ?? null,
+                file_name: row.file_name ?? null,
+                script_url: row.script_url ?? null,
+                ai_feedback: row.ai_feedback ?? null,
+                ai_evaluation: row.ai_evaluation ?? null,
+                student: {
+                  id: studentProfile.id,
+                  full_name: studentProfile.full_name,
+                  email: studentProfile.email,
+                  semester: studentProfile.semester ?? null,
+                },
+                assignment,
+              }
+            })
+            .filter((s): s is Submission => s !== null)
+        }
+
+        if (cancelled) return
+        setAssignments(assignmentList)
+        setSubmissions(submissionList)
+      } catch (error: any) {
+        console.error("Error loading submissions:", error)
+        if (!cancelled) {
+          toast({
+            title: "Failed to load submissions",
+            description: error?.message ?? "Please try again.",
+            variant: "destructive",
+          })
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
       }
-      setAIFeedback(dummyFeedback)
     }
-  }, [viewedSubmission, viewDialogOpen])
 
-  useEffect(() => {
-    // Simulate loading
-    setTimeout(() => {
-      const dummySubmissions = generateDummySubmissions()
-      setSubmissions(dummySubmissions)
-      setAssignments(dummyAssignments)
-      setLoading(false)
-    }, 1000)
-  }, [])
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [teacherId, toast])
 
-  useEffect(() => {
-    filterAndSortSubmissions()
-  }, [submissions, searchTerm, statusFilter, assignmentFilter, sortBy, sortOrder])
-
-  const filterAndSortSubmissions = () => {
+  const filteredSubmissions = useMemo(() => {
     let filtered = [...submissions]
 
-    // Search filter
     if (searchTerm) {
+      const q = searchTerm.toLowerCase()
       filtered = filtered.filter(
-        (submission) =>
-          submission.student.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          submission.student.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          submission.assignment.title.toLowerCase().includes(searchTerm.toLowerCase()),
+        (s) =>
+          s.student.full_name?.toLowerCase().includes(q) ||
+          s.student.email?.toLowerCase().includes(q) ||
+          s.assignment.title?.toLowerCase().includes(q),
       )
     }
 
-    // Status filter
     if (statusFilter !== "all") {
-      filtered = filtered.filter((submission) => submission.status === statusFilter)
+      filtered = filtered.filter((s) => s.status === statusFilter)
     }
 
-    // Assignment filter
     if (assignmentFilter !== "all") {
-      filtered = filtered.filter((submission) => submission.assignment_id === assignmentFilter)
+      filtered = filtered.filter((s) => s.assignment_id === assignmentFilter)
     }
 
-    // Sort
     filtered.sort((a, b) => {
       let aValue: any
       let bValue: any
-
       switch (sortBy) {
         case "student_name":
-          aValue = a.student.full_name.toLowerCase()
-          bValue = b.student.full_name.toLowerCase()
+          aValue = a.student.full_name?.toLowerCase() ?? ""
+          bValue = b.student.full_name?.toLowerCase() ?? ""
           break
         case "assignment_title":
-          aValue = a.assignment.title.toLowerCase()
-          bValue = b.assignment.title.toLowerCase()
+          aValue = a.assignment.title?.toLowerCase() ?? ""
+          bValue = b.assignment.title?.toLowerCase() ?? ""
           break
         case "grade":
-          aValue = a.grade || -1
-          bValue = b.grade || -1
+          aValue = a.grade ?? -1
+          bValue = b.grade ?? -1
           break
         case "status":
           aValue = a.status
           bValue = b.status
           break
         default:
-          aValue = new Date(a[sortBy as keyof Submission] as string).getTime()
-          bValue = new Date(b[sortBy as keyof Submission] as string).getTime()
+          aValue = new Date(a.submitted_at).getTime()
+          bValue = new Date(b.submitted_at).getTime()
       }
-
-      if (sortOrder === "asc") {
-        return aValue > bValue ? 1 : -1
-      } else {
-        return aValue < bValue ? 1 : -1
-      }
+      if (sortOrder === "asc") return aValue > bValue ? 1 : -1
+      return aValue < bValue ? 1 : -1
     })
 
-    setFilteredSubmissions(filtered)
-  }
+    return filtered
+  }, [submissions, searchTerm, statusFilter, assignmentFilter, sortBy, sortOrder])
 
-  const getStatusColor = (status: string) => {
+  const stats = useMemo(() => {
+    const total = submissions.length
+    const graded = submissions.filter((s) => s.status === "graded").length
+    const late = submissions.filter((s) => s.status === "late").length
+    const gradedScores = submissions.filter((s) => s.grade != null)
+    const averageGrade = gradedScores.length
+      ? (gradedScores.reduce((acc, s) => acc + (s.grade ?? 0), 0) / gradedScores.length).toFixed(1)
+      : "N/A"
+    return { total, graded, late, averageGrade }
+  }, [submissions])
+
+  const getStatusColor = (status: SubmissionStatus) => {
     switch (status) {
       case "submitted":
         return "bg-green-50 text-green-700 border-green-200"
@@ -417,14 +305,12 @@ export default function SubmissionsPage() {
         return "bg-yellow-50 text-yellow-700 border-yellow-200"
       case "graded":
         return "bg-blue-50 text-blue-700 border-blue-200"
-      case "missing":
-        return "bg-red-50 text-red-700 border-red-200"
       default:
         return "bg-gray-50 text-gray-700 border-gray-200"
     }
   }
 
-  const getStatusIcon = (status: string) => {
+  const getStatusIcon = (status: SubmissionStatus) => {
     switch (status) {
       case "submitted":
         return <CheckCircle className="h-3 w-3" />
@@ -432,8 +318,6 @@ export default function SubmissionsPage() {
         return <Clock className="h-3 w-3" />
       case "graded":
         return <Award className="h-3 w-3" />
-      case "missing":
-        return <XCircle className="h-3 w-3" />
       default:
         return <FileText className="h-3 w-3" />
     }
@@ -442,7 +326,6 @@ export default function SubmissionsPage() {
   const getLatenessText = (submission: Submission) => {
     const dueDate = parseISO(submission.assignment.due_date)
     const submittedDate = parseISO(submission.submitted_at)
-
     if (isAfter(submittedDate, dueDate)) {
       const days = differenceInDays(submittedDate, dueDate)
       return `${days} ${days === 1 ? "day" : "days"} late`
@@ -460,11 +343,39 @@ export default function SubmissionsPage() {
       .substring(0, 2)
   }
 
+  const persistGrade = async (
+    submission: Submission,
+    grade: number,
+    feedback: string,
+  ): Promise<Submission | null> => {
+    const now = new Date().toISOString()
+    const { data, error } = await supabase
+      .from("submissions")
+      .update({
+        teacher_grade: grade,
+        teacher_feedback: feedback,
+        status: "graded",
+        updated_at: now,
+      })
+      .eq("id", submission.id)
+      .select()
+      .maybeSingle()
+
+    if (error) throw error
+    if (!data) return null
+
+    return {
+      ...submission,
+      grade,
+      feedback,
+      status: "graded",
+    }
+  }
+
   const handleGradeSubmission = async () => {
     if (!selectedSubmission) return
-
     const grade = Number.parseFloat(gradeValue)
-    if (isNaN(grade) || grade < 0 || grade > selectedSubmission.assignment.total_points) {
+    if (Number.isNaN(grade) || grade < 0 || grade > selectedSubmission.assignment.total_points) {
       toast({
         title: "Invalid Grade",
         description: `Grade must be between 0 and ${selectedSubmission.assignment.total_points}.`,
@@ -473,25 +384,95 @@ export default function SubmissionsPage() {
       return
     }
 
-    // Update local state (simulating API call)
-    setSubmissions((prev) =>
-      prev.map((sub) =>
-        sub.id === selectedSubmission.id ? { ...sub, grade, feedback: feedbackValue, status: "graded" } : sub,
-      ),
+    setIsSavingGrade(true)
+    try {
+      const updated = await persistGrade(selectedSubmission, grade, feedbackValue)
+      if (updated) {
+        setSubmissions((prev) => prev.map((s) => (s.id === updated.id ? updated : s)))
+        if (viewedSubmission?.id === updated.id) setViewedSubmission(updated)
+      }
+      toast({ title: "Saved", description: "Submission graded successfully." })
+      setIsGradingDialogOpen(false)
+    } catch (error: any) {
+      console.error("Error saving grade:", error)
+      toast({
+        title: "Failed to save grade",
+        description: error?.message ?? "Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSavingGrade(false)
+    }
+  }
+
+  const aiSuggestedGrade = (submission: Submission): number | null => {
+    const feedback = submission.ai_feedback
+    const evaluation = submission.ai_evaluation
+    const candidates = [feedback?.suggestedGrade, feedback?.grade, evaluation?.suggestedGrade, evaluation?.grade]
+    for (const c of candidates) {
+      if (typeof c === "number" && !Number.isNaN(c)) return c
+      if (typeof c === "string") {
+        const parsed = Number.parseFloat(c)
+        if (!Number.isNaN(parsed)) return parsed
+      }
+    }
+    return null
+  }
+
+  const aiFeedbackSummary = (submission: Submission): string | null => {
+    const feedback = submission.ai_feedback
+    const evaluation = submission.ai_evaluation
+    return (
+      feedback?.detailedFeedback ??
+      feedback?.feedback ??
+      feedback?.summary ??
+      evaluation?.detailedFeedback ??
+      evaluation?.feedback ??
+      evaluation?.summary ??
+      (typeof feedback === "string" ? feedback : null)
     )
+  }
 
-    toast({
-      title: "Success",
-      description: "Submission graded successfully.",
-    })
-
-    setIsGradingDialogOpen(false)
+  const applyAIGrade = async () => {
+    if (!viewedSubmission) return
+    const suggested = aiSuggestedGrade(viewedSubmission)
+    const summary = aiFeedbackSummary(viewedSubmission)
+    if (suggested == null) {
+      toast({
+        title: "No AI grade available",
+        description: "This submission does not have an AI-suggested grade to apply.",
+        variant: "destructive",
+      })
+      return
+    }
+    setIsSavingGrade(true)
+    try {
+      const updated = await persistGrade(viewedSubmission, suggested, summary ?? "")
+      if (updated) {
+        setSubmissions((prev) => prev.map((s) => (s.id === updated.id ? updated : s)))
+        setViewedSubmission(updated)
+      }
+      toast({
+        title: "AI Grade Applied",
+        description: `Grade of ${suggested} applied to submission.`,
+      })
+      setViewDialogOpen(false)
+    } catch (error: any) {
+      console.error("Error applying AI grade:", error)
+      toast({
+        title: "Failed to apply AI grade",
+        description: error?.message ?? "Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSavingGrade(false)
+    }
   }
 
   const openGradingDialog = (submission: Submission) => {
     setSelectedSubmission(submission)
-    setGradeValue(submission.grade?.toString() || "")
-    setFeedbackValue(submission.feedback || "")
+    setGradeValue(submission.grade?.toString() ?? "")
+    setFeedbackValue(submission.feedback ?? "")
     setIsGradingDialogOpen(true)
   }
 
@@ -499,37 +480,44 @@ export default function SubmissionsPage() {
     setViewedSubmission(submission)
     setViewDialogOpen(true)
     setActiveViewTab("submission")
-    setAIFeedback(null) // Will be set by useEffect
   }
 
-  const applyAIGrade = () => {
-    if (!viewedSubmission || !aiFeedback) return
-
-    // Update local state (simulating API call)
-    setSubmissions((prev) =>
-      prev.map((sub) =>
-        sub.id === viewedSubmission.id
-          ? {
-              ...sub,
-              grade: aiFeedback.suggestedGrade,
-              feedback: aiFeedback.detailedFeedback,
-              status: "graded",
-            }
-          : sub,
-      ),
-    )
-
-    toast({
-      title: "AI Grade Applied",
-      description: `Grade of ${aiFeedback.suggestedGrade} applied to submission.`,
-    })
-
-    setViewDialogOpen(false)
+  const downloadFile = async (submission: Submission) => {
+    const path = submission.file_path
+    if (!path) {
+      if (submission.script_url) {
+        window.open(submission.script_url, "_blank", "noopener,noreferrer")
+        return
+      }
+      toast({
+        title: "No file attached",
+        description: "This submission has no downloadable file.",
+        variant: "destructive",
+      })
+      return
+    }
+    setDownloadingId(submission.id)
+    try {
+      const { data, error } = await supabase.storage
+        .from(SUBMISSIONS_BUCKET)
+        .createSignedUrl(path, 60 * 5)
+      if (error) throw error
+      if (!data?.signedUrl) throw new Error("Could not create download link")
+      window.open(data.signedUrl, "_blank", "noopener,noreferrer")
+    } catch (error: any) {
+      console.error("Error generating download link:", error)
+      toast({
+        title: "Download failed",
+        description: error?.message ?? "Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setDownloadingId(null)
+    }
   }
 
   const getFileIcon = (fileName: string) => {
     const extension = fileName.split(".").pop()?.toLowerCase()
-
     switch (extension) {
       case "pdf":
         return <FileText className="h-4 w-4" />
@@ -568,7 +556,6 @@ export default function SubmissionsPage() {
     <AuthGuard allowedRoles={["teacher"]}>
       <ModernDashboardLayout>
         <div className="space-y-8">
-          {/* Header */}
           <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-purple-500 via-pink-500 to-red-500 p-8 text-white">
             <div className="absolute inset-0 bg-black/10"></div>
             <div className="relative z-10">
@@ -579,28 +566,27 @@ export default function SubmissionsPage() {
                 <div>
                   <h1 className="text-3xl font-bold">Student Submissions</h1>
                   <p className="text-white/90 text-lg">
-                    Review scripts, analyses, and acting assignments with AI feedback
+                    Review submissions for the assignments you created and apply grades.
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-6 text-sm">
                 <div className="flex items-center gap-2">
                   <Target className="h-4 w-4" />
-                  {submissions.length} Total Submissions
+                  {stats.total} Total Submissions
                 </div>
                 <div className="flex items-center gap-2">
                   <Award className="h-4 w-4" />
-                  {submissions.filter((s) => s.status === "graded").length} Graded
+                  {stats.graded} Graded
                 </div>
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4" />
-                  {submissions.filter((s) => s.status === "late").length} Late
+                  {stats.late} Late
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Stats Cards */}
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
             <div className="border-0 shadow-lg bg-gradient-to-br from-white to-purple-50 p-6 rounded-lg">
               <div className="flex items-center justify-between mb-2">
@@ -609,10 +595,10 @@ export default function SubmissionsPage() {
                   <FileText className="h-4 w-4 text-purple-600" />
                 </div>
               </div>
-              <div className="text-2xl font-bold text-purple-900">{submissions.length}</div>
+              <div className="text-2xl font-bold text-purple-900">{stats.total}</div>
               <div className="flex items-center gap-1 text-xs text-purple-600 mt-1">
                 <Users className="h-3 w-3" />
-                <span>From all students</span>
+                <span>Across all your assignments</span>
               </div>
             </div>
 
@@ -623,9 +609,7 @@ export default function SubmissionsPage() {
                   <Award className="h-4 w-4 text-green-600" />
                 </div>
               </div>
-              <div className="text-2xl font-bold text-green-900">
-                {submissions.filter((s) => s.status === "graded").length}
-              </div>
+              <div className="text-2xl font-bold text-green-900">{stats.graded}</div>
               <div className="flex items-center gap-1 text-xs text-green-600 mt-1">
                 <CheckCircle className="h-3 w-3" />
                 <span>Completed grading</span>
@@ -639,9 +623,7 @@ export default function SubmissionsPage() {
                   <Clock className="h-4 w-4 text-yellow-600" />
                 </div>
               </div>
-              <div className="text-2xl font-bold text-yellow-900">
-                {submissions.filter((s) => s.status === "submitted" || s.status === "late").length}
-              </div>
+              <div className="text-2xl font-bold text-yellow-900">{stats.total - stats.graded}</div>
               <div className="flex items-center gap-1 text-xs text-yellow-600 mt-1">
                 <AlertCircle className="h-3 w-3" />
                 <span>Awaiting review</span>
@@ -655,14 +637,7 @@ export default function SubmissionsPage() {
                   <BarChart3 className="h-4 w-4 text-blue-600" />
                 </div>
               </div>
-              <div className="text-2xl font-bold text-blue-900">
-                {submissions.filter((s) => s.grade !== null).length > 0
-                  ? (
-                      submissions.filter((s) => s.grade !== null).reduce((acc, s) => acc + (s.grade || 0), 0) /
-                      submissions.filter((s) => s.grade !== null).length
-                    ).toFixed(1)
-                  : "N/A"}
-              </div>
+              <div className="text-2xl font-bold text-blue-900">{stats.averageGrade}</div>
               <div className="flex items-center gap-1 text-xs text-blue-600 mt-1">
                 <Star className="h-3 w-3" />
                 <span>Points average</span>
@@ -670,7 +645,6 @@ export default function SubmissionsPage() {
             </div>
           </div>
 
-          {/* Filters */}
           <div className="border-0 shadow-lg p-6 rounded-lg bg-white">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div className="flex flex-col gap-4 md:flex-row md:items-center">
@@ -693,7 +667,6 @@ export default function SubmissionsPage() {
                     <SelectItem value="submitted">Submitted</SelectItem>
                     <SelectItem value="late">Late</SelectItem>
                     <SelectItem value="graded">Graded</SelectItem>
-                    <SelectItem value="missing">Missing</SelectItem>
                   </SelectContent>
                 </Select>
 
@@ -742,7 +715,9 @@ export default function SubmissionsPage() {
                       Status
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}>
+                    <DropdownMenuItem
+                      onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
+                    >
                       {sortOrder === "asc" ? (
                         <>
                           <SortDesc className="h-4 w-4 mr-2" />
@@ -761,7 +736,6 @@ export default function SubmissionsPage() {
             </div>
           </div>
 
-          {/* Submissions List */}
           {filteredSubmissions.length === 0 ? (
             <div className="border-0 shadow-lg bg-gradient-to-br from-white to-gray-50 p-12 rounded-lg text-center">
               <div className="bg-gradient-to-br from-gray-100 to-gray-200 p-6 rounded-full w-24 h-24 mx-auto mb-6 flex items-center justify-center">
@@ -769,7 +743,9 @@ export default function SubmissionsPage() {
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-2">No submissions found</h3>
               <p className="text-gray-600 mb-6 max-w-md mx-auto">
-                Try adjusting your search criteria or filters to find submissions.
+                {submissions.length === 0
+                  ? "No students have submitted any of your assignments yet."
+                  : "Try adjusting your search criteria or filters."}
               </p>
             </div>
           ) : (
@@ -781,10 +757,6 @@ export default function SubmissionsPage() {
                 >
                   <div className="flex items-start gap-4">
                     <Avatar className="h-12 w-12 border-2 border-white shadow-sm">
-                      <AvatarImage
-                        src={submission.student.avatar_url || "/placeholder.svg"}
-                        alt={submission.student.full_name}
-                      />
                       <AvatarFallback className="bg-gradient-to-br from-purple-500 to-pink-600 text-white">
                         {getInitials(submission.student.full_name)}
                       </AvatarFallback>
@@ -794,7 +766,9 @@ export default function SubmissionsPage() {
                       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                         <div>
                           <div className="flex items-center gap-2">
-                            <h3 className="text-lg font-semibold text-gray-900">{submission.student.full_name}</h3>
+                            <h3 className="text-lg font-semibold text-gray-900">
+                              {submission.student.full_name}
+                            </h3>
                             <Badge className={cn("text-xs", getStatusColor(submission.status))}>
                               {getStatusIcon(submission.status)}
                               <span className="ml-1 capitalize">{submission.status}</span>
@@ -802,14 +776,12 @@ export default function SubmissionsPage() {
                           </div>
                           <div className="flex items-center gap-2 text-sm text-gray-500">
                             <span>{submission.student.email}</span>
-                            <span>•</span>
-                            <Badge variant="outline" className="text-xs">
-                              {submission.student.semester}
-                            </Badge>
-                            {submission.student.student_id && (
+                            {submission.student.semester != null && (
                               <>
                                 <span>•</span>
-                                <span>ID: {submission.student.student_id}</span>
+                                <Badge variant="outline" className="text-xs">
+                                  Semester {submission.student.semester}
+                                </Badge>
                               </>
                             )}
                           </div>
@@ -839,7 +811,11 @@ export default function SubmissionsPage() {
                             <Theater className="h-4 w-4 text-purple-700" />
                             <span className="font-medium text-gray-900">{submission.assignment.title}</span>
                           </div>
-                          <div className="text-xs text-purple-600 mt-1">{submission.assignment.subject}</div>
+                          {submission.assignment.subject && (
+                            <div className="text-xs text-purple-600 mt-1">
+                              {submission.assignment.subject}
+                            </div>
+                          )}
                         </div>
 
                         <div className="bg-blue-50 p-3 rounded-lg">
@@ -860,14 +836,17 @@ export default function SubmissionsPage() {
                         <div className="bg-green-50 p-3 rounded-lg">
                           <div className="text-xs text-green-600 mb-1">Grade</div>
                           <div className="flex items-center gap-2">
-                            {submission.grade !== null ? (
+                            {submission.grade != null ? (
                               <>
                                 <Award className="h-4 w-4 text-green-700" />
                                 <span className="font-medium text-gray-900">
                                   {submission.grade} / {submission.assignment.total_points}
                                 </span>
                                 <span className="text-xs text-gray-500">
-                                  ({Math.round((submission.grade / submission.assignment.total_points) * 100)}
+                                  (
+                                  {Math.round(
+                                    (submission.grade / submission.assignment.total_points) * 100,
+                                  )}
                                   %)
                                 </span>
                               </>
@@ -881,7 +860,7 @@ export default function SubmissionsPage() {
                         </div>
                       </div>
 
-                      {submission.grade !== null && (
+                      {submission.grade != null && (
                         <div className="mt-3">
                           <div className="flex items-center justify-between mb-1">
                             <div className="text-xs text-gray-500">Score</div>
@@ -902,7 +881,7 @@ export default function SubmissionsPage() {
                             <MessageSquare className="h-4 w-4 text-blue-600" />
                             <span className="text-sm font-medium text-blue-700">Feedback</span>
                           </div>
-                          <p className="text-sm text-gray-700">{submission.feedback}</p>
+                          <p className="text-sm text-gray-700 whitespace-pre-wrap">{submission.feedback}</p>
                         </div>
                       )}
                     </div>
@@ -912,7 +891,6 @@ export default function SubmissionsPage() {
             </div>
           )}
 
-          {/* View Submission Dialog */}
           <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
             <DialogContent className="max-w-5xl h-[90vh] flex flex-col">
               <DialogHeader className="flex-shrink-0">
@@ -933,14 +911,9 @@ export default function SubmissionsPage() {
 
               {viewedSubmission && (
                 <div className="flex-1 overflow-hidden flex flex-col">
-                  {/* Student Info Header */}
                   <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-4 rounded-lg mb-4 flex-shrink-0">
                     <div className="flex items-center gap-4">
                       <Avatar className="h-10 w-10 border-2 border-white shadow-sm">
-                        <AvatarImage
-                          src={viewedSubmission.student.avatar_url || "/placeholder.svg"}
-                          alt={viewedSubmission.student.full_name}
-                        />
                         <AvatarFallback className="bg-gradient-to-br from-purple-500 to-pink-600 text-white">
                           {getInitials(viewedSubmission.student.full_name)}
                         </AvatarFallback>
@@ -957,18 +930,22 @@ export default function SubmissionsPage() {
                           <span>{viewedSubmission.student.email}</span>
                           <span>•</span>
                           <span>
-                            Submitted {format(new Date(viewedSubmission.submitted_at), "MMM dd, yyyy 'at' HH:mm")}
+                            Submitted{" "}
+                            {format(new Date(viewedSubmission.submitted_at), "MMM dd, yyyy 'at' HH:mm")}
                           </span>
                         </div>
                       </div>
                       <div className="text-right">
-                        {viewedSubmission.grade !== null ? (
+                        {viewedSubmission.grade != null ? (
                           <div>
                             <div className="text-xl font-bold text-purple-600">
                               {viewedSubmission.grade}/{viewedSubmission.assignment.total_points}
                             </div>
                             <div className="text-xs text-gray-500">
-                              {Math.round((viewedSubmission.grade / viewedSubmission.assignment.total_points) * 100)}%
+                              {Math.round(
+                                (viewedSubmission.grade / viewedSubmission.assignment.total_points) * 100,
+                              )}
+                              %
                             </div>
                           </div>
                         ) : (
@@ -978,8 +955,11 @@ export default function SubmissionsPage() {
                     </div>
                   </div>
 
-                  {/* Tabs */}
-                  <Tabs value={activeViewTab} onValueChange={(value) => setActiveViewTab(value as "submission" | "feedback")} className="flex-1 flex flex-col">
+                  <Tabs
+                    value={activeViewTab}
+                    onValueChange={(value) => setActiveViewTab(value as "submission" | "feedback")}
+                    className="flex-1 flex flex-col"
+                  >
                     <TabsList className="grid w-full grid-cols-2 flex-shrink-0">
                       <TabsTrigger value="submission" className="flex items-center gap-2">
                         <FileText className="h-4 w-4" />
@@ -994,164 +974,111 @@ export default function SubmissionsPage() {
                     <div className="flex-1 overflow-auto mt-4">
                       <TabsContent value="submission" className="mt-0 h-full">
                         <div className="space-y-4">
-                          {/* Assignment Details */}
                           <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
                             <h4 className="font-medium text-purple-900 mb-2 flex items-center gap-2">
                               <Theater className="h-4 w-4" />
                               {viewedSubmission.assignment.title}
                             </h4>
-                            <p className="text-sm text-purple-700 mb-3">{viewedSubmission.assignment.description}</p>
-                            <div className="flex items-center gap-4 text-xs text-purple-600">
-                              <span>Due: {format(new Date(viewedSubmission.assignment.due_date), "MMM dd, yyyy")}</span>
+                            <p className="text-sm text-purple-700 mb-3">
+                              {viewedSubmission.assignment.description}
+                            </p>
+                            <div className="flex flex-wrap items-center gap-3 text-xs text-purple-600">
+                              <span>
+                                Due: {format(new Date(viewedSubmission.assignment.due_date), "MMM dd, yyyy")}
+                              </span>
                               <span>•</span>
                               <span>Total Points: {viewedSubmission.assignment.total_points}</span>
-                              <span>•</span>
-                              <span>Subject: {viewedSubmission.assignment.subject}</span>
+                              {viewedSubmission.assignment.subject && (
+                                <>
+                                  <span>•</span>
+                                  <span>Subject: {viewedSubmission.assignment.subject}</span>
+                                </>
+                              )}
                             </div>
                           </div>
 
-                          {/* Files */}
-                          {viewedSubmission.files && viewedSubmission.files.length > 0 && (
+                          {(viewedSubmission.file_path || viewedSubmission.script_url) && (
                             <div className="bg-white border rounded-lg p-4">
                               <h5 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
                                 <Paperclip className="h-4 w-4" />
-                                Submitted Files
+                                Submitted File
                               </h5>
-                              <div className="grid grid-cols-1 gap-2">
-                                {viewedSubmission.files.map((file, index) => (
-                                  <div
-                                    key={index}
-                                    className="flex items-center gap-2 p-3 bg-gray-50 rounded border hover:bg-gray-100 transition-colors cursor-pointer"
-                                  >
-                                    {getFileIcon(file)}
-                                    <span className="text-sm text-gray-700 flex-1">{file}</span>
-                                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
-                                      <Download className="h-4 w-4" />
-                                    </Button>
-                                  </div>
-                                ))}
+                              <div className="flex items-center gap-2 p-3 bg-gray-50 rounded border hover:bg-gray-100 transition-colors">
+                                {getFileIcon(viewedSubmission.file_name ?? "submission")}
+                                <span className="text-sm text-gray-700 flex-1">
+                                  {viewedSubmission.file_name ?? "Submission file"}
+                                </span>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-8 px-2"
+                                  disabled={downloadingId === viewedSubmission.id}
+                                  onClick={() => downloadFile(viewedSubmission)}
+                                >
+                                  <Download className="h-4 w-4 mr-1" />
+                                  Open
+                                </Button>
                               </div>
                             </div>
                           )}
 
-                          {/* Submission Content */}
-                          <div className="bg-white border rounded-lg p-4">
-                            <h5 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
-                              <FileText className="h-4 w-4" />
-                              Submission Content
-                            </h5>
-                            <div className="bg-gray-50 rounded-lg p-4 border h-96 overflow-auto">
-                              <pre className="text-sm text-gray-800 whitespace-pre-wrap font-sans leading-relaxed">
-                                {viewedSubmission.content || "No content available"}
-                              </pre>
+                          {!viewedSubmission.file_path && !viewedSubmission.script_url && (
+                            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm text-yellow-800">
+                              No file is attached to this submission.
                             </div>
-                          </div>
+                          )}
                         </div>
                       </TabsContent>
 
                       <TabsContent value="feedback" className="mt-0 h-full">
-                        {aiFeedback ? (
+                        {viewedSubmission.ai_feedback || viewedSubmission.ai_evaluation ? (
                           <div className="space-y-6">
-                            {/* AI Summary */}
                             <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-6 rounded-lg border border-purple-200">
                               <div className="flex items-center gap-3 mb-4">
                                 <div className="p-2 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg">
                                   <Sparkles className="h-5 w-5 text-white" />
                                 </div>
                                 <div>
-                                  <h3 className="font-semibold text-gray-900">AI Analysis Summary</h3>
-                                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                                    <span>Confidence: {aiFeedback.confidenceScore}%</span>
-                                    <span>•</span>
-                                    <span>
-                                      Suggested Grade: {aiFeedback.suggestedGrade}/
+                                  <h3 className="font-semibold text-gray-900">AI Analysis</h3>
+                                  {aiSuggestedGrade(viewedSubmission) != null && (
+                                    <div className="text-sm text-gray-600">
+                                      Suggested Grade: {aiSuggestedGrade(viewedSubmission)}/
                                       {viewedSubmission.assignment.total_points}
-                                    </span>
-                                  </div>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
-                              <p className="text-gray-700">{aiFeedback.summary}</p>
+                              {aiFeedbackSummary(viewedSubmission) ? (
+                                <p className="text-gray-700 whitespace-pre-wrap">
+                                  {aiFeedbackSummary(viewedSubmission)}
+                                </p>
+                              ) : (
+                                <pre className="text-xs text-gray-700 whitespace-pre-wrap bg-white/60 p-3 rounded border">
+                                  {JSON.stringify(
+                                    viewedSubmission.ai_feedback ?? viewedSubmission.ai_evaluation,
+                                    null,
+                                    2,
+                                  )}
+                                </pre>
+                              )}
                             </div>
 
-                            {/* Key Insights */}
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                              {aiFeedback.keyInsights.map((insight, index) => (
-                                <div key={index} className="bg-white border rounded-lg p-4">
-                                  <div className="flex items-center justify-between mb-2">
-                                    <h4 className="font-medium text-gray-900">{insight.title}</h4>
-                                    <Badge
-                                      variant={
-                                        insight.score >= 90 ? "default" : insight.score >= 75 ? "secondary" : "outline"
-                                      }
-                                      className="text-xs"
-                                    >
-                                      {insight.score}%
-                                    </Badge>
-                                  </div>
-                                  <p className="text-sm text-gray-600 mb-3">{insight.description}</p>
-                                  <Progress value={insight.score} className="h-2" />
-                                </div>
-                              ))}
-                            </div>
-
-                            {/* Strengths and Improvements */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                                <div className="flex items-center gap-2 mb-3">
-                                  <ThumbsUp className="h-5 w-5 text-green-600" />
-                                  <h4 className="font-medium text-green-900">Strengths</h4>
-                                </div>
-                                <ul className="space-y-2">
-                                  {aiFeedback.strengths.map((strength, index) => (
-                                    <li key={index} className="flex items-start gap-2 text-sm text-green-800">
-                                      <CheckSquare className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
-                                      {strength}
-                                    </li>
-                                  ))}
-                                </ul>
+                            {aiSuggestedGrade(viewedSubmission) != null && (
+                              <div className="flex items-center gap-3 pt-4 border-t">
+                                <Button
+                                  onClick={applyAIGrade}
+                                  disabled={isSavingGrade}
+                                  className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
+                                >
+                                  <Award className="h-4 w-4 mr-2" />
+                                  Apply AI Grade ({aiSuggestedGrade(viewedSubmission)} pts)
+                                </Button>
+                                <Button variant="outline" onClick={() => openGradingDialog(viewedSubmission)}>
+                                  <Edit className="h-4 w-4 mr-2" />
+                                  Manual Grade
+                                </Button>
                               </div>
-
-                              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                                <div className="flex items-center gap-2 mb-3">
-                                  <Lightbulb className="h-5 w-5 text-amber-600" />
-                                  <h4 className="font-medium text-amber-900">Areas for Improvement</h4>
-                                </div>
-                                <ul className="space-y-2">
-                                  {aiFeedback.improvements.map((improvement, index) => (
-                                    <li key={index} className="flex items-start gap-2 text-sm text-amber-800">
-                                      <ArrowRight className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
-                                      {improvement}
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
-                            </div>
-
-                            {/* Detailed Feedback */}
-                            <div className="bg-white border rounded-lg p-6">
-                              <div className="flex items-center gap-2 mb-4">
-                                <MessageSquare className="h-5 w-5 text-purple-600" />
-                                <h4 className="font-medium text-gray-900">Detailed Feedback</h4>
-                              </div>
-                              <div className="prose prose-sm max-w-none">
-                                <div className="whitespace-pre-wrap text-gray-700">{aiFeedback.detailedFeedback}</div>
-                              </div>
-                            </div>
-
-                            {/* Action Buttons */}
-                            <div className="flex items-center gap-3 pt-4 border-t">
-                              <Button
-                                onClick={applyAIGrade}
-                                className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
-                              >
-                                <Award className="h-4 w-4 mr-2" />
-                                Apply AI Grade ({aiFeedback.suggestedGrade} pts)
-                              </Button>
-                              <Button variant="outline" onClick={() => openGradingDialog(viewedSubmission)}>
-                                <Edit className="h-4 w-4 mr-2" />
-                                Manual Grade
-                              </Button>
-                            </div>
+                            )}
                           </div>
                         ) : (
                           <div className="flex items-center justify-center h-full">
@@ -1159,7 +1086,7 @@ export default function SubmissionsPage() {
                               <div className="bg-gray-100 p-4 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
                                 <Sparkles className="h-8 w-8 text-gray-400" />
                               </div>
-                              <p className="text-gray-500">Loading AI feedback...</p>
+                              <p className="text-gray-500">No AI feedback has been generated for this submission.</p>
                             </div>
                           </div>
                         )}
@@ -1171,7 +1098,6 @@ export default function SubmissionsPage() {
             </DialogContent>
           </Dialog>
 
-          {/* Grading Dialog */}
           <Dialog open={isGradingDialogOpen} onOpenChange={setIsGradingDialogOpen}>
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
@@ -1222,10 +1148,16 @@ export default function SubmissionsPage() {
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setIsGradingDialogOpen(false)}>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsGradingDialogOpen(false)}
+                  disabled={isSavingGrade}
+                >
                   Cancel
                 </Button>
-                <Button onClick={handleGradeSubmission}>Save Grade</Button>
+                <Button onClick={handleGradeSubmission} disabled={isSavingGrade}>
+                  {isSavingGrade ? "Saving..." : "Save Grade"}
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>

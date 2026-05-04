@@ -281,58 +281,68 @@ const AdminAssignClass = () => {
 
       if (classError) throw classError;
 
-      // 2. Delete existing teacher assignments
-      const { error: deleteTeacherError } = await supabase
-        .from("class_teachers")
-        .delete()
-        .eq("class_id", editingClass.id);
+      // 2. Diff teacher membership and only touch the rows that changed.
+      //    This preserves any FK references that point at class_teachers
+      //    rows (e.g. notes, quizzes scoped per teacher_in_class).
+      const existingTeacherIds = new Set(editingClass.teachers.map((t) => t.id));
+      const selectedTeacherIds = new Set(selectedTeachers.map((t) => t.id));
+      const teachersToAdd = selectedTeachers.filter((t) => !existingTeacherIds.has(t.id));
+      const teachersToRemove = editingClass.teachers.filter((t) => !selectedTeacherIds.has(t.id));
 
-      if (deleteTeacherError) throw deleteTeacherError;
-
-      // 3. Insert new teacher assignments
-      for (const teacher of selectedTeachers) {
-        const { error: teacherError } = await supabase
+      if (teachersToRemove.length > 0) {
+        const { error: removeTeacherError } = await supabase
           .from("class_teachers")
-          .insert({
-            class_id: editingClass.id,
-            teacher_id: teacher.id,
-          });
-        
-        if (teacherError) throw teacherError;
+          .delete()
+          .eq("class_id", editingClass.id)
+          .in("teacher_id", teachersToRemove.map((t) => t.id));
+        if (removeTeacherError) throw removeTeacherError;
       }
 
-      // 4. Delete existing student assignments
-      const { error: deleteStudentError } = await supabase
-        .from("class_students")
-        .delete()
-        .eq("class_id", editingClass.id);
+      if (teachersToAdd.length > 0) {
+        const { error: addTeacherError } = await supabase
+          .from("class_teachers")
+          .insert(
+            teachersToAdd.map((teacher) => ({
+              class_id: editingClass.id,
+              teacher_id: teacher.id,
+            }))
+          );
+        if (addTeacherError) throw addTeacherError;
+      }
 
-      if (deleteStudentError) throw deleteStudentError;
+      // 3. Diff student membership the same way so we don't drop any rows
+      //    that downstream tables (submissions, quiz_submissions, etc.)
+      //    reference by class_students.id.
+      const existingStudentIds = new Set(editingClass.students.map((s) => s.id));
+      const selectedStudentIds = new Set(selectedStudents.map((s) => s.id));
+      const studentsToAdd = selectedStudents.filter((s) => !existingStudentIds.has(s.id));
+      const studentsToRemove = editingClass.students.filter((s) => !selectedStudentIds.has(s.id));
 
-      // 5. Insert new student assignments
-      if (selectedStudents.length > 0) {
-        const { error: studentInsertError } = await supabase
+      if (studentsToRemove.length > 0) {
+        const { error: removeStudentError } = await supabase
+          .from("class_students")
+          .delete()
+          .eq("class_id", editingClass.id)
+          .in("student_id", studentsToRemove.map((s) => s.id));
+        if (removeStudentError) throw removeStudentError;
+      }
+
+      if (studentsToAdd.length > 0) {
+        const { error: addStudentError } = await supabase
           .from("class_students")
           .insert(
-            selectedStudents.map((student) => ({
+            studentsToAdd.map((student) => ({
               class_id: editingClass.id,
               student_id: student.id,
             }))
           );
-
-        if (studentInsertError) throw studentInsertError;
+        if (addStudentError) throw addStudentError;
       }
 
-      // 6. Update local state
-      const updatedClass: Class = {
-        ...editingClass,
-        name: newClassName,
-        semester: selectedSemester,
-        teachers: selectedTeachers,
-        students: selectedStudents,
-      };
-
-      setClasses(classes.map(c => c.id === editingClass.id ? updatedClass : c));
+      // 4. Refresh from DB so local state matches what the server holds
+      //    (avoids the "looks updated but isn't" pitfall after a partial
+      //    failure on retry).
+      await fetchClasses();
 
       resetForm();
       setIsEditDialogOpen(false);

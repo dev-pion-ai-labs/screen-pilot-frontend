@@ -26,10 +26,16 @@ interface Assignment {
 interface Submission {
   id: string;
   script_url?: string;
+  file_path?: string;
+  file_name?: string;
+  submission_date?: string;
+  status?: string;
   ai_feedback?: any;
   grade?: number;
   created_at: string;
 }
+
+const SUBMISSIONS_BUCKET = 'assignment-submissions';
 
 export default function AssignmentDetail() {
   const { id } = useParams<{ id: string }>();
@@ -40,33 +46,39 @@ export default function AssignmentDetail() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (id) {
-      fetchAssignmentAndSubmission();
-    }
-  }, [id]);
+    if (!id || !profile?.id) return;
+    fetchAssignmentAndSubmission();
+  }, [id, profile?.id]);
 
   const fetchAssignmentAndSubmission = async () => {
+    if (!id || !profile?.id) return;
+    setLoading(true);
     try {
-      // Fetch assignment
-      const { data: assignmentData } = await supabase
+      const { data: assignmentData, error: assignmentError } = await supabase
         .from('assignments')
         .select('*')
         .eq('id', id)
-        .single();
+        .maybeSingle();
 
+      if (assignmentError) throw assignmentError;
       setAssignment(assignmentData);
 
-      // Fetch existing submission if any
-      const { data: submissionData } = await supabase
+      const { data: submissionData, error: submissionError } = await supabase
         .from('submissions')
         .select('*')
         .eq('assignment_id', id)
-        .eq('student_id', profile?.id)
-        .single();
+        .eq('student_id', profile.id)
+        .maybeSingle();
 
+      if (submissionError) throw submissionError;
       setSubmission(submissionData);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching data:', error);
+      toast({
+        title: 'Failed to load assignment',
+        description: error?.message ?? 'Please try again.',
+        variant: 'destructive'
+      });
     } finally {
       setLoading(false);
     }
@@ -74,61 +86,74 @@ export default function AssignmentDetail() {
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file || !assignment) return;
+    if (!file || !assignment || !profile?.id) return;
 
     setUploading(true);
 
+    let uploadedPath: string | null = null;
     try {
-      // Upload file to Supabase Storage
-      const fileName = `${profile?.id}/${assignment.id}/${Date.now()}-${file.name}`;
+      const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const filePath = `${profile.id}/${assignment.id}_${Date.now()}_${safeName}`;
 
-      const { error: uploadError } = await supabase.storage
-        .from('scripts')
-        .upload(fileName, file);
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from(SUBMISSIONS_BUCKET)
+        .upload(filePath, file, { cacheControl: '3600', upsert: false });
 
       if (uploadError) throw uploadError;
+      uploadedPath = uploadData.path;
 
-      // Create or update submission
+      const { data: urlData } = supabase.storage
+        .from(SUBMISSIONS_BUCKET)
+        .getPublicUrl(uploadedPath);
+
+      const now = new Date().toISOString();
       const submissionData = {
         assignment_id: assignment.id,
-        student_id: profile?.id,
-        script_url: fileName
+        student_id: profile.id,
+        file_path: uploadedPath,
+        file_name: file.name,
+        script_url: urlData.publicUrl,
+        submission_date: now,
+        status: 'submitted',
+        updated_at: now
       };
 
       if (submission) {
-        // Update existing submission
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('submissions')
           .update(submissionData)
-          .eq('id', submission.id);
+          .eq('id', submission.id)
+          .select()
+          .maybeSingle();
 
         if (error) throw error;
+        if (data) setSubmission(data);
       } else {
-        // Create new submission
         const { data, error } = await supabase
           .from('submissions')
           .insert(submissionData)
           .select()
-          .single();
+          .maybeSingle();
 
         if (error) throw error;
-        setSubmission(data);
+        if (data) setSubmission(data);
       }
 
       toast({
-        title: "Success!",
-        description: "Your script has been uploaded successfully."
+        title: 'Success!',
+        description: 'Your script has been uploaded successfully.'
       });
 
-      // Refresh data
       fetchAssignmentAndSubmission();
-
-    } catch (error) {
+    } catch (error: any) {
       console.error('Upload error:', error);
+      if (uploadedPath) {
+        await supabase.storage.from(SUBMISSIONS_BUCKET).remove([uploadedPath]);
+      }
       toast({
-        title: "Upload failed",
-        description: "There was an error uploading your file. Please try again.",
-        variant: "destructive"
+        title: 'Upload failed',
+        description: error?.message ?? 'There was an error uploading your file. Please try again.',
+        variant: 'destructive'
       });
     } finally {
       setUploading(false);
@@ -216,14 +241,14 @@ export default function AssignmentDetail() {
                   <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
                     <FileText className="h-5 w-5 text-green-600" />
                     <div className="flex-1">
-                      <p className="font-medium text-green-900">Script uploaded</p>
+                      <p className="font-medium text-green-900">{submission.file_name || 'Script uploaded'}</p>
                       <p className="text-sm text-green-700">
-                        Submitted on {format(new Date(submission.created_at), 'PPP')}
+                        Submitted on {format(new Date(submission.submission_date || submission.created_at), 'PPP')}
                       </p>
                     </div>
                   </div>
 
-                  {submission.grade !== null && (
+                  {submission.grade != null && (
                     <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                       <p className="font-medium text-blue-900">Grade: {submission.grade}/100</p>
                     </div>

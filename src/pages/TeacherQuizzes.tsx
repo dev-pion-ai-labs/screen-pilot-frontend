@@ -10,7 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Calendar } from "@/components/ui/calendar"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { supabase } from "@/integrations/supabase/client"
 import {
@@ -71,6 +73,16 @@ interface QuizSubmission {
     status: string
     student_name?: string
     student_semester?: number
+}
+
+interface QuizQuestion {
+    id: string
+    question_text: string
+    options: string[]
+    correct_option_id: number
+    explanation?: string
+    points: number
+    order_index: number
 }
 
 interface StudentResult {
@@ -369,6 +381,11 @@ export default function TeacherQuizzes() {
     const [studentResults, setStudentResults] = useState<StudentResult[]>([])
     const [detailLoading, setDetailLoading] = useState(false)
 
+    // Quiz details modal state
+    const [detailsModalQuiz, setDetailsModalQuiz] = useState<Quiz | null>(null)
+    const [detailsModalQuestions, setDetailsModalQuestions] = useState<QuizQuestion[]>([])
+    const [detailsModalLoading, setDetailsModalLoading] = useState(false)
+
     // Fetch teacher's classes
     const fetchClasses = useCallback(async () => {
         try {
@@ -609,6 +626,32 @@ export default function TeacherQuizzes() {
         }
     }
 
+    const openDetailsModal = async (quiz: Quiz) => {
+        try {
+            setDetailsModalQuiz(quiz)
+            setDetailsModalLoading(true)
+            setDetailsModalQuestions([])
+
+            const { data, error } = await supabase
+                .from('quiz_questions')
+                .select('*')
+                .eq('quiz_id', quiz.id)
+                .order('order_index', { ascending: true })
+
+            if (error) throw error
+            setDetailsModalQuestions((data || []) as unknown as QuizQuestion[])
+        } catch (error) {
+            console.error('Error fetching quiz questions:', error)
+            toast({
+                title: "Error",
+                description: "Failed to load quiz questions",
+                variant: "destructive"
+            })
+        } finally {
+            setDetailsModalLoading(false)
+        }
+    }
+
     useEffect(() => {
         if (profile) {
             fetchClasses()
@@ -746,9 +789,17 @@ export default function TeacherQuizzes() {
                                                                 <Button
                                                                     variant="outline"
                                                                     size="sm"
+                                                                    onClick={() => openDetailsModal(quiz)}
+                                                                    title="View quiz details"
+                                                                >
+                                                                    <Eye className="h-4 w-4" />
+                                                                </Button>
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="sm"
                                                                     onClick={() => fetchQuizDetail(quiz)}
                                                                 >
-                                                                    <Eye className="h-4 w-4 mr-1" />
+                                                                    <BarChart3 className="h-4 w-4 mr-1" />
                                                                     View Results
                                                                 </Button>
 
@@ -888,6 +939,163 @@ export default function TeacherQuizzes() {
                         </>
                     )}
                 </div>
+
+                {/* Quiz Details Modal */}
+                <Dialog open={!!detailsModalQuiz} onOpenChange={(open) => !open && setDetailsModalQuiz(null)}>
+                    <DialogContent className="max-w-5xl w-[95vw] max-h-[90vh] overflow-hidden flex flex-col p-0 gap-0">
+                        <DialogHeader className="px-6 pt-6 pb-5 border-b bg-gradient-to-r from-purple-50 via-white to-white">
+                            <div className="flex items-start gap-4">
+                                <div className="h-11 w-11 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center shrink-0">
+                                    <BookOpen className="h-5 w-5" />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                    <DialogTitle className="text-lg font-semibold text-gray-900 leading-snug pr-8">
+                                        {detailsModalQuiz?.title}
+                                    </DialogTitle>
+                                    {detailsModalQuiz?.description && (
+                                        <DialogDescription className="mt-1.5 whitespace-pre-wrap text-sm text-gray-600 leading-relaxed">
+                                            {detailsModalQuiz.description}
+                                        </DialogDescription>
+                                    )}
+                                    {detailsModalQuiz && (
+                                        <div className="flex flex-wrap items-center gap-2 mt-3">
+                                            <Badge variant="outline" className="capitalize bg-white">{detailsModalQuiz.status}</Badge>
+                                            <Badge variant="outline" className="bg-white flex items-center gap-1">
+                                                <Clock className="h-3 w-3" />
+                                                {detailsModalQuiz.time_limit_minutes} min
+                                            </Badge>
+                                            <Badge variant="outline" className="bg-white flex items-center gap-1">
+                                                <Target className="h-3 w-3" />
+                                                {detailsModalQuiz.total_points} pts
+                                            </Badge>
+                                            <Badge variant="outline" className="bg-white flex items-center gap-1">
+                                                <CalendarIcon className="h-3 w-3" />
+                                                Due {format(new Date(detailsModalQuiz.due_date), "MMM dd, yyyy")}
+                                            </Badge>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </DialogHeader>
+
+                        {detailsModalQuiz && (
+                            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+                                {/* Meta */}
+                                <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+                                    {[
+                                        { label: "Class", value: detailsModalQuiz.class_name || '-', span: "md:col-span-1" },
+                                        { label: "Semester", value: `Semester ${detailsModalQuiz.semester}`, span: "md:col-span-1" },
+                                        { label: "Topic", value: detailsModalQuiz.topic || '-', span: "md:col-span-2" },
+                                        { label: "Subtopic", value: detailsModalQuiz.subtopic || '-', span: "md:col-span-2" },
+                                    ].map((item) => (
+                                        <div
+                                            key={item.label}
+                                            className={cn(
+                                                "rounded-lg border border-gray-200 bg-white px-3.5 py-2.5 hover:border-purple-200 hover:bg-purple-50/30 transition-colors",
+                                                item.span
+                                            )}
+                                        >
+                                            <div className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">{item.label}</div>
+                                            <div className="mt-1 text-sm font-medium text-gray-900 break-words leading-snug">{item.value}</div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Questions */}
+                                <div>
+                                    <div className="flex items-center justify-between mb-3">
+                                        <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                                            <Target className="h-4 w-4 text-purple-600" />
+                                            Questions {!detailsModalLoading && <span className="text-gray-500 font-normal">({detailsModalQuestions.length})</span>}
+                                        </h3>
+                                    </div>
+                                    {detailsModalLoading ? (
+                                        <div className="space-y-3">
+                                            {[0, 1, 2].map((i) => (
+                                                <div key={i} className="border rounded-xl p-5 bg-white">
+                                                    <div className="flex items-start justify-between gap-4 mb-4">
+                                                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                                                            <Skeleton className="h-7 w-10 rounded-md shrink-0" />
+                                                            <div className="flex-1 space-y-2">
+                                                                <Skeleton className="h-4 w-[85%]" />
+                                                                <Skeleton className="h-4 w-[55%]" />
+                                                            </div>
+                                                        </div>
+                                                        <Skeleton className="h-6 w-12 rounded-md shrink-0" />
+                                                    </div>
+                                                    <div className="space-y-2 ml-0 sm:ml-[3.25rem]">
+                                                        {[0, 1, 2, 3].map((j) => (
+                                                            <div key={j} className="flex items-center gap-3 px-3.5 py-2.5 rounded-lg border border-gray-200 bg-gray-50/60">
+                                                                <Skeleton className="h-6 w-6 rounded-md shrink-0" />
+                                                                <Skeleton className="h-4 flex-1" style={{ maxWidth: `${60 + (j * 7) % 30}%` }} />
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : detailsModalQuestions.length === 0 ? (
+                                        <div className="text-center text-gray-500 py-8 border rounded-lg bg-gray-50/50">
+                                            No questions found for this quiz.
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-3">
+                                            {detailsModalQuestions.map((q, idx) => (
+                                                <div key={q.id} className="border rounded-xl p-5 bg-white hover:shadow-sm transition-shadow">
+                                                    <div className="flex items-start justify-between gap-4 mb-4">
+                                                        <div className="flex items-start gap-3 min-w-0">
+                                                            <span className="shrink-0 inline-flex items-center justify-center h-7 min-w-[2.5rem] px-2 rounded-md bg-purple-100 text-purple-700 text-xs font-semibold">
+                                                                Q{idx + 1}
+                                                            </span>
+                                                            <p className="font-medium text-gray-900 leading-relaxed">
+                                                                {q.question_text}
+                                                            </p>
+                                                        </div>
+                                                        <Badge variant="outline" className="shrink-0 bg-gray-50">
+                                                            {q.points} pt{q.points === 1 ? '' : 's'}
+                                                        </Badge>
+                                                    </div>
+                                                    <div className="space-y-2 ml-0 sm:ml-[3.25rem]">
+                                                        {q.options.map((opt, optIdx) => {
+                                                            const isCorrect = optIdx === q.correct_option_id
+                                                            return (
+                                                                <div
+                                                                    key={optIdx}
+                                                                    className={cn(
+                                                                        "flex items-center gap-3 px-3.5 py-2.5 rounded-lg border text-sm transition-colors",
+                                                                        isCorrect
+                                                                            ? "bg-green-50 border-green-300 text-green-900"
+                                                                            : "bg-gray-50/60 border-gray-200 text-gray-700"
+                                                                    )}
+                                                                >
+                                                                    <span className={cn(
+                                                                        "shrink-0 inline-flex items-center justify-center h-6 w-6 rounded-md text-xs font-semibold",
+                                                                        isCorrect ? "bg-green-200 text-green-800" : "bg-white border text-gray-600"
+                                                                    )}>
+                                                                        {String.fromCharCode(65 + optIdx)}
+                                                                    </span>
+                                                                    <span className={cn("flex-1", isCorrect && "font-medium")}>{opt}</span>
+                                                                    {isCorrect && (
+                                                                        <Badge className="ml-auto bg-green-600 hover:bg-green-600 shrink-0">Correct</Badge>
+                                                                    )}
+                                                                </div>
+                                                            )
+                                                        })}
+                                                    </div>
+                                                    {q.explanation && (
+                                                        <div className="mt-4 ml-0 sm:ml-[3.25rem] p-3.5 rounded-lg bg-blue-50/70 border border-blue-100 text-sm text-blue-900 leading-relaxed">
+                                                            <span className="font-semibold">Explanation: </span>{q.explanation}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </DialogContent>
+                </Dialog>
             </ModernDashboardLayout>
         </AuthGuard>
     )

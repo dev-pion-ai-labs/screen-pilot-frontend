@@ -4,19 +4,19 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 export const AdminAssignClassShimmer = () => {
   return (
-    <div className="min-h-screen p-8">
-      {/* Header Section */}
-      <div className="text-center space-y-4">
-        <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-gray-300 to-gray-400 rounded-3xl mb-6 shadow-2xl animate-pulse">
-          <Skeleton className="w-10 h-10 bg-white/50" />
+    <div className="min-h-screen p-6">
+      {/* Header + Create Button Row */}
+      <div className="flex items-center justify-between gap-4 mb-4">
+        <div className="flex items-center gap-4 min-w-0">
+          <div className="inline-flex items-center justify-center w-12 h-12 bg-gradient-to-br from-gray-300 to-gray-400 rounded-xl shadow-md animate-pulse shrink-0">
+            <Skeleton className="w-6 h-6 bg-white/50" />
+          </div>
+          <div className="flex items-baseline gap-3 min-w-0">
+            <Skeleton className="h-7 w-48 bg-gradient-to-r from-gray-200 to-gray-300 shrink-0" />
+            <Skeleton className="h-4 w-72 bg-gray-200" />
+          </div>
         </div>
-        <Skeleton className="h-14 w-96 mx-auto bg-gradient-to-r from-gray-200 to-gray-300" />
-        <Skeleton className="h-6 w-[600px] mx-auto bg-gray-200" />
-      </div>
-
-      {/* Create New Class Button */}
-      <div className="flex justify-center my-8">
-        <Skeleton className="h-14 w-64 rounded-2xl bg-gray-300" />
+        <Skeleton className="h-10 w-44 rounded-xl bg-gray-300 shrink-0" />
       </div>
 
       {/* Classes Table */}

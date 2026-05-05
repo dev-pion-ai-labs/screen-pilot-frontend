@@ -419,16 +419,14 @@ const AdminAssignClass = () => {
   return (
     <AuthGuard allowedRoles={["admin"]}>
       <ModernDashboardLayout>
-        <div className="min-h-screen p-8">
-          <AdminClassHeader />
-
-          <div className="flex justify-center mb-2">
+        <div className="min-h-screen p-6">
+          <div className="flex items-center justify-between gap-4 mb-4">
+            <AdminClassHeader />
             <Button
-              size="lg"
               onClick={() => setIsAddDialogOpen(true)}
-              className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-lg px-8 py-4 text-lg font-semibold rounded-2xl"
+              className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-md rounded-xl shrink-0"
             >
-              <Plus className="w-6 h-6 mr-3" />
+              <Plus className="w-4 h-4 mr-2" />
               Create New Class
             </Button>
           </div>

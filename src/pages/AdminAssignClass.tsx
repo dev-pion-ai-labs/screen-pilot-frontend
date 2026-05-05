@@ -13,11 +13,14 @@ import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { type Program } from "@/data/syllabus";
 
 interface Teacher {
   id: string;
   full_name: string;
   email: string;
+  semester?: number | null;
+  program?: Program | null;
 }
 
 interface Student {
@@ -25,12 +28,14 @@ interface Student {
   full_name: string;
   email: string;
   semester?: number;
+  program?: Program | null;
 }
 
 interface Class {
   id: string;
   name: string;
-  semester: number; // ✅ Added missing semester field
+  semester: number;
+  program: Program | null;
   teachers: Teacher[];
   students: Student[];
   createdAt: string;
@@ -48,6 +53,7 @@ const AdminAssignClass = () => {
 
   const [newClassName, setNewClassName] = useState("");
   const [selectedSemester, setSelectedSemester] = useState<number>(1);
+  const [selectedProgram, setSelectedProgram] = useState<Program>("BA");
   const [selectedTeachers, setSelectedTeachers] = useState<Teacher[]>([]);
   const [selectedStudents, setSelectedStudents] = useState<Student[]>([]);
 
@@ -60,7 +66,7 @@ const AdminAssignClass = () => {
   const fetchTeachers = async () => {
     const { data, error } = await supabase
       .from("profiles")
-      .select("id, full_name, email")
+      .select("id, full_name, email, semester, program")
       .eq("role", "teacher")
       .order("full_name", { ascending: true });
 
@@ -73,13 +79,13 @@ const AdminAssignClass = () => {
       return;
     }
 
-    setTeachers(data || []);
+    setTeachers((data || []) as Teacher[]);
   };
 
   const fetchStudents = async () => {
     const { data, error } = await supabase
       .from("profiles")
-      .select("id, full_name, email, semester")
+      .select("id, full_name, email, semester, program")
       .eq("role", "student")
       .order("full_name", { ascending: true });
 
@@ -92,7 +98,7 @@ const AdminAssignClass = () => {
       return;
     }
 
-    setStudents(data || []);
+    setStudents((data || []) as Student[]);
   };
 
   const fetchClasses = async () => {
@@ -103,14 +109,15 @@ const AdminAssignClass = () => {
         id,
         name,
         semester,
+        program,
         created_at,
         class_teachers (
           teacher_id,
-          profiles (id, full_name, email)
+          profiles (id, full_name, email, program)
         ),
         class_students (
           student_id,
-          profiles (id, full_name, email, semester)
+          profiles (id, full_name, email, semester, program)
         )
       `);
 
@@ -124,10 +131,11 @@ const AdminAssignClass = () => {
       return;
     }
 
-    const formatted = (data || []).map((c) => ({
+    const formatted: Class[] = (data || []).map((c: any) => ({
       id: c.id,
       name: c.name,
       semester: c.semester,
+      program: c.program ?? null,
       createdAt: c.created_at,
       teachers: c.class_teachers.map((t: any) => t.profiles),
       students: c.class_students.map((s: any) => s.profiles),
@@ -174,6 +182,7 @@ const AdminAssignClass = () => {
           {
             name: newClassName,
             semester: selectedSemester,
+            program: selectedProgram,
           },
         ])
         .select()
@@ -214,6 +223,7 @@ const AdminAssignClass = () => {
         id: classId,
         name: newClassName,
         semester: selectedSemester,
+        program: selectedProgram,
         teachers: selectedTeachers,
         students: selectedStudents,
         createdAt: classData.created_at,
@@ -276,6 +286,7 @@ const AdminAssignClass = () => {
         .update({
           name: newClassName,
           semester: selectedSemester,
+          program: selectedProgram,
         })
         .eq("id", editingClass.id);
 
@@ -386,6 +397,7 @@ const AdminAssignClass = () => {
   const resetForm = () => {
     setNewClassName("");
     setSelectedSemester(1);
+    setSelectedProgram("BA");
     setSelectedTeachers([]);
     setSelectedStudents([]);
   };
@@ -394,6 +406,7 @@ const AdminAssignClass = () => {
     setEditingClass(classItem);
     setNewClassName(classItem.name);
     setSelectedSemester(classItem.semester);
+    setSelectedProgram(classItem.program ?? "BA");
     setSelectedTeachers(classItem.teachers);
     setSelectedStudents(classItem.students);
     setIsEditDialogOpen(true);
@@ -446,6 +459,8 @@ const AdminAssignClass = () => {
             setClassName={setNewClassName}
             selectedSemester={selectedSemester}
             setSelectedSemester={setSelectedSemester}
+            selectedProgram={selectedProgram}
+            setSelectedProgram={setSelectedProgram}
             selectedTeachers={selectedTeachers}
             setSelectedTeachers={setSelectedTeachers}
             selectedStudents={selectedStudents}
@@ -464,6 +479,8 @@ const AdminAssignClass = () => {
             setClassName={setNewClassName}
             selectedSemester={selectedSemester}
             setSelectedSemester={setSelectedSemester}
+            selectedProgram={selectedProgram}
+            setSelectedProgram={setSelectedProgram}
             selectedTeachers={selectedTeachers}
             setSelectedTeachers={setSelectedTeachers}
             selectedStudents={selectedStudents}

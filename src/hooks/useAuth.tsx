@@ -9,6 +9,7 @@ interface Profile {
   full_name: string;
   role: 'admin' | 'teacher' | 'student';
   semester?: number;
+  program?: 'BA' | 'MA';
   created_at?: string;
   updated_at?: string;
 }

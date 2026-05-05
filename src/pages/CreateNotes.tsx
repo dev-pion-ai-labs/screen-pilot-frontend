@@ -49,113 +49,7 @@ import 'react-quill/dist/quill.snow.css'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 
-// Semester syllabus (reusing from CreateQuiz)
-const semester1Syllabus = {
-  introductionToDirection: {
-    topic: "Introduction to Direction",
-    subtopics: [
-      "Film Analysis",
-      "Different approaches to Shoot and types of film",
-      "Case studies of Filmmakers and their approach",
-      "Case studies of Filmmakers in historical perspective",
-      "Writing Actuality Report",
-      "Film Diary (Analysis of films, director and scripts, thoughts, ideas/stories,scenes, photographs)"
-    ]
-  },
-  visualStorytellingAndCollaboration: {
-    topic: "Visual Storytelling and Collaboration",
-    subtopics: [
-      "Introduction to visual storytelling (Composition, Cutting, Closeup, Continuity, Camera Angle)",
-      "Recreating a Painting",
-      "Collaboration with Camera, Edit and Sound",
-      "Turning Actualities into stories (Writing on observation)",
-      "Trip to closed public space (e.g. Library, Museum)",
-      "Trip to an open public space (e.g. Park, Market place, Bus stop)"
-    ]
-  },
-  principlesOfContinuity: {
-    topic: "Principles of Continuity",
-    subtopics: [
-      "Decoupage (cutting scripts and planning visual for cinematic connection) and Continuity",
-      "Aspects of continuity",
-      "Time and Space in films",
-      "Scene analysis of Classical Hollywood films and contemporary films"
-    ]
-  },
-  conceptIdeationAndResearch: {
-    topic: "Concept, Ideation & Research",
-    subtopics: [
-      "Types of stories",
-      "Developing a concept",
-      "Usage of VFX elements",
-      "Oral narrative skills",
-      "Creative Writing (Personal Memoir, Descriptive Writing)",
-      "Reading and Analysis of short stories"
-    ]
-  },
-  theoriesAndFormatsOfScriptwriting: {
-    topic: "Theories and Formats of Scriptwriting",
-    subtopics: [
-      "History of Storytelling",
-      "Screenplay writing - Overview and Process",
-      "Elements of a screenplay",
-      "Premise, Plot, Treatment, Characters, Conflict",
-      "Screenwriting Softwares",
-      "Introductions to Story structures  - I (Three-Act Structure, 5 Act Structure)",
-      "Creating simple screenplays using 3 act structure"
-    ]
-  }
-}
-
-const semester2Syllabus = {
-  stagingAndBlocking: {
-    topic: "Staging and Blocking",
-    subtopics: [
-      "Understanding the concept of staging and blocking",
-      "Types of staging and blocking",
-      "Usage of props and space",
-      "I, A, L, C, S patterns",
-      "Blocking for VFX"
-    ]
-  },
-  workingWithActors: {
-    topic: "Working with Actors",
-    subtopics: [
-      "Staging a scene with actors",
-      "Exercise on Improvisation",
-      "Styles of acting",
-      "Difference between stage and film acting",
-      "Working with Virtual/Digital Actors : Possibilities & Limitations"
-    ]
-  },
-  sceneAnalysis: {
-    topic: "Scene Analysis",
-    subtopics: [
-      "Dialogue – Acting - Composition-Staging and Blocking along with use of Visualization tools like",
-      "Traditional/Digital Storyboards & AI tools for mood boards"
-    ]
-  },
-  dialogueWritingAndStoryStructures: {
-    topic: "Dialogue Writing & Story Structures",
-    subtopics: [
-      "Dialogue, monologue and conversation",
-      "Types of dialogue",
-      "Writing effective dialogue",
-      "Dialogue through observation",
-      "Dialogue in a situation",
-      "Story Structures II (Hero's Journey, Dan Harmon Story Circle)",
-      "Creating effective story conflicts"
-    ]
-  },
-  rhythmAndPace: {
-    topic: "Rhythm and Pace",
-    subtopics: [
-      "Usage of Edit, Sound and BGM from Director's Point of View",
-      "Tonalities of Dialogue",
-      "Space and Action Dynamics"
-    ]
-  }
-}
+import { getSyllabus, type Program, type Syllabus } from "@/data/syllabus"
 
 interface Profile {
   id: string;
@@ -171,6 +65,7 @@ interface Class {
   id: string;
   name: string;
   semester: number;
+  program?: Program | null;
   created_at: string;
   updated_at: string;
 }
@@ -649,8 +544,8 @@ export default function CreateNotes() {
   // Update available topics when class is selected
   useEffect(() => {
     if (selectedClass) {
-      const syllabus = selectedClass.semester === 1 ? semester1Syllabus : semester2Syllabus
-      setAvailableTopics(syllabus)
+      const syllabus = getSyllabus(selectedClass.program, selectedClass.semester)
+      setAvailableTopics((syllabus ?? {}) as Syllabus)
       setSelectedTopic("")
       setSelectedSubtopic("")
       setAvailableSubtopics([])
@@ -675,6 +570,7 @@ export default function CreateNotes() {
             id,
             name,
             semester,
+            program,
             created_at,
             updated_at
           )
@@ -1092,12 +988,12 @@ const generateNotes = async () => {
                           </div>
                           <Label className="text-lg font-bold text-gray-800">Step 3: Select Topic</Label>
                         </div>
-                        <Select value={selectedTopic} onValueChange={setSelectedTopic}>
+                        <Select value={selectedTopic} onValueChange={setSelectedTopic} disabled={Object.keys(availableTopics).length === 0}>
                           <SelectTrigger className="h-14 text-lg border-2 border-gray-200 hover:border-blue-300 transition-colors">
-                            <SelectValue placeholder="Choose a topic from the curriculum..." />
+                            <SelectValue placeholder={Object.keys(availableTopics).length === 0 ? "No syllabus available for this class" : "Choose a topic from the curriculum..."} />
                           </SelectTrigger>
                           <SelectContent>
-                            {Object.entries(availableTopics).map(([key, value]) => (
+                            {Object.entries(availableTopics).map(([key, value]: [string, any]) => (
                               <SelectItem key={key} value={key} className="py-4">
                                 <div>
                                   <div className="font-semibold text-base">{value.topic}</div>
@@ -1109,6 +1005,11 @@ const generateNotes = async () => {
                             ))}
                           </SelectContent>
                         </Select>
+                        {selectedClass && Object.keys(availableTopics).length === 0 && (
+                          <p className="text-xs text-amber-600">
+                            Syllabus for {selectedClass.program ?? "this program"} Sem {selectedClass.semester} is not available yet — contact admin.
+                          </p>
+                        )}
                       </div>
 
                       {/* Step 4: Subtopic Selection */}

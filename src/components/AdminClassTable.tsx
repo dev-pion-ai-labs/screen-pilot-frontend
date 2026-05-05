@@ -30,6 +30,7 @@ interface Class {
   teachers: Teacher[];
   students: Student[];
   semester: number;
+  program?: "BA" | "MA" | null;
   createdAt: string;
 }
 
@@ -62,6 +63,9 @@ export const AdminClassTable = ({
                 </TableHead>
                 <TableHead className="font-bold text-gray-700 text-lg py-6 px-8">
                   Teacher
+                </TableHead>
+                <TableHead className="font-bold text-gray-700 text-lg py-6 px-8">
+                  Program
                 </TableHead>
                 <TableHead className="font-bold text-gray-700 text-lg py-6 px-8">
                   Semester
@@ -97,6 +101,17 @@ export const AdminClassTable = ({
                         </Badge>
                       ))}
                     </div>
+                  </TableCell>
+                  <TableCell className="py-6 px-8">
+                    {classItem.program ? (
+                      <Badge className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white border-0 px-3 py-1 text-sm font-medium rounded-full">
+                        {classItem.program}
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-gray-500 px-3 py-1">
+                        N/A
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell className="font-semibold text-gray-900 text-lg py-6 px-8">
                     {classItem.semester}

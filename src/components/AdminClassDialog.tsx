@@ -25,11 +25,14 @@ import {
   GraduationCap,
   Search,
 } from "lucide-react";
+import { PROGRAM_OPTIONS, type Program } from "@/data/syllabus";
 
 interface Teacher {
   id: string;
   full_name: string;
   email: string;
+  semester?: number | null;
+  program?: Program | null;
 }
 
 interface Student {
@@ -37,6 +40,7 @@ interface Student {
   full_name: string;
   email: string;
   semester?: number;
+  program?: Program | null;
 }
 
 
@@ -49,6 +53,8 @@ interface AdminClassDialogProps {
   setClassName: (name: string) => void;
   selectedSemester: number;
   setSelectedSemester: (semester: number) => void;
+  selectedProgram: Program;
+  setSelectedProgram: (program: Program) => void;
   selectedTeachers: Teacher[];
   setSelectedTeachers: (teachers: Teacher[]) => void;
   selectedStudents: Student[];
@@ -65,6 +71,7 @@ interface TeacherSelectionModalProps {
   selectedTeachers: string[];
   onSelectionChange: (teacherIds: string[]) => void;
   onConfirm: () => void;
+  programFilter: Program;
 }
 
 interface StudentSelectionModalProps {
@@ -74,6 +81,7 @@ interface StudentSelectionModalProps {
   selectedStudents: string[];
   onSelectionChange: (studentIds: string[]) => void;
   onConfirm: () => void;
+  programFilter: Program;
 }
 
 export const TeacherSelectionModal = ({
@@ -83,14 +91,19 @@ export const TeacherSelectionModal = ({
   selectedTeachers,
   onSelectionChange,
   onConfirm,
+  programFilter,
 }: TeacherSelectionModalProps) => {
   const [searchTerm, setSearchTerm] = useState("");
 
-  const filteredTeachers = teachers.filter(
-    (teacher) =>
+  // Filter by selected program; teachers without a program (legacy rows)
+  // are still selectable so admins can backfill them.
+  const filteredTeachers = teachers.filter((teacher) => {
+    const matchesSearch =
       teacher.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      teacher.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+      teacher.email.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesProgram = !teacher.program || teacher.program === programFilter;
+    return matchesSearch && matchesProgram;
+  });
 
   const handleSelectionChange = (teacherId: string, checked: boolean) => {
     if (checked) {
@@ -179,6 +192,11 @@ export const TeacherSelectionModal = ({
                   <div className="text-xs text-gray-600 truncate">
                     {teacher.email}
                   </div>
+                  <div className="flex items-center gap-2 mt-1">
+                    <div className={`text-xs px-2 py-0.5 rounded-full font-medium ${teacher.program ? "bg-indigo-100 text-indigo-800" : "bg-gray-100 text-gray-600"}`}>
+                      {teacher.program ?? "Unassigned"}
+                    </div>
+                  </div>
                 </div>
               </div>
             ))}
@@ -196,6 +214,7 @@ export const StudentSelectionModal = ({
   selectedStudents,
   onSelectionChange,
   onConfirm,
+  programFilter,
 }: StudentSelectionModalProps) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedSemester, setSelectedSemester] = useState<string>("all");
@@ -209,7 +228,9 @@ export const StudentSelectionModal = ({
       selectedSemester === "all" ||
       student.semester?.toString() === selectedSemester;
 
-    return matchesSearch && matchesSemester;
+    const matchesProgram = !student.program || student.program === programFilter;
+
+    return matchesSearch && matchesSemester && matchesProgram;
   });
 
   const handleSelectionChange = (studentId: string, checked: boolean) => {
@@ -323,6 +344,9 @@ export const StudentSelectionModal = ({
                     <div className="text-xs bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full font-medium">
                       Sem {student.semester || "N/A"}
                     </div>
+                    <div className={`text-xs px-2 py-0.5 rounded-full font-medium ${student.program ? "bg-indigo-100 text-indigo-800" : "bg-gray-100 text-gray-600"}`}>
+                      {student.program ?? "Unassigned"}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -343,6 +367,8 @@ export const AdminClassDialog = ({
   setClassName,
   selectedSemester,
   setSelectedSemester,
+  selectedProgram,
+  setSelectedProgram,
   selectedTeachers,
   setSelectedTeachers,
   selectedStudents,
@@ -421,6 +447,27 @@ export const AdminClassDialog = ({
                 placeholder="Enter class name.."
                 className="h-14 text-lg rounded-xl border-2 border-gray-200 focus:border-indigo-500 transition-colors"
               />
+            </div>
+
+            <div className="space-y-3">
+              <Label className="text-lg font-semibold text-gray-700">
+                Program
+              </Label>
+              <div className={`grid gap-3 ${PROGRAM_OPTIONS.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
+                {PROGRAM_OPTIONS.map((prog) => (
+                  <button
+                    key={prog}
+                    type="button"
+                    onClick={() => setSelectedProgram(prog)}
+                    className={`h-14 text-lg rounded-xl border-2 font-semibold transition-colors ${selectedProgram === prog
+                      ? "border-indigo-500 bg-indigo-500 text-white"
+                      : "border-gray-200 bg-white hover:border-indigo-300 hover:bg-indigo-50"
+                    }`}
+                  >
+                    {prog}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -566,6 +613,7 @@ export const AdminClassDialog = ({
         selectedTeachers={tempSelectedTeachers}
         onSelectionChange={setTempSelectedTeachers}
         onConfirm={handleTeacherSelection}
+        programFilter={selectedProgram}
       />
 
       <StudentSelectionModal
@@ -578,6 +626,7 @@ export const AdminClassDialog = ({
         selectedStudents={tempSelectedStudents}
         onSelectionChange={setTempSelectedStudents}
         onConfirm={handleStudentSelection}
+        programFilter={selectedProgram}
       />
     </>
   );

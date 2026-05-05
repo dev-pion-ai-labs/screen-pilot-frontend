@@ -178,6 +178,7 @@ export type Database = {
           email: string
           full_name: string
           id: string
+          program: string | null
           role: string
           semester: number | null
           updated_at: string
@@ -187,6 +188,7 @@ export type Database = {
           email: string
           full_name: string
           id: string
+          program?: string | null
           role: string
           semester?: number | null
           updated_at?: string
@@ -196,6 +198,7 @@ export type Database = {
           email?: string
           full_name?: string
           id?: string
+          program?: string | null
           role?: string
           semester?: number | null
           updated_at?: string

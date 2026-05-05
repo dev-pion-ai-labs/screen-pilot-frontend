@@ -80,11 +80,12 @@ export const AdminUsersShimmer = () => {
               <div className="bg-white rounded-2xl shadow-lg overflow-hidden border-0">
                 {/* Table Header */}
                 <div className="bg-gradient-to-r from-gray-50 to-blue-50 border-0">
-                  <div className="grid grid-cols-6 gap-4 py-4 px-4">
+                  <div className="grid grid-cols-7 gap-4 py-4 px-4">
                     <ShimmerBox className="h-4 w-16 rounded bg-zinc-200" />
                     <ShimmerBox className="h-4 w-20 rounded bg-neutral-200" />
                     <ShimmerBox className="h-4 w-12 rounded bg-slate-200" />
                     <ShimmerBox className="h-4 w-20 rounded bg-gray-200" />
+                    <ShimmerBox className="h-4 w-16 rounded bg-indigo-100" />
                     <ShimmerBox className="h-4 w-16 rounded bg-gray-300" />
                     <ShimmerBox className="h-4 w-16 rounded bg-zinc-100" />
                   </div>
@@ -93,22 +94,25 @@ export const AdminUsersShimmer = () => {
                 {/* Table Body */}
                 <div className="space-y-0">
                   {[...Array(8)].map((_, i) => (
-                    <div key={i} className="grid grid-cols-6 gap-4 py-4 px-4 border-b border-gray-100 last:border-b-0">
+                    <div key={i} className="grid grid-cols-7 gap-4 py-4 px-4 border-b border-gray-100 last:border-b-0">
                       {/* Name */}
                       <ShimmerBox className="h-4 w-32 rounded bg-gray-200" />
-                      
+
                       {/* Email */}
                       <ShimmerBox className="h-4 w-40 rounded bg-neutral-100" />
-                      
+
                       {/* Role Badge */}
                       <ShimmerBox className="h-6 w-16 rounded-full bg-slate-100" />
-                      
+
                       {/* Semester */}
                       <ShimmerBox className="h-6 w-20 rounded-full bg-zinc-200" />
-                      
+
+                      {/* Program */}
+                      <ShimmerBox className="h-6 w-12 rounded-full bg-indigo-100" />
+
                       {/* Created Date */}
                       <ShimmerBox className="h-4 w-20 rounded bg-gray-100" />
-                      
+
                       {/* Actions */}
                       <div className="flex gap-2">
                         <ShimmerBox className="h-8 w-8 rounded bg-slate-200" />

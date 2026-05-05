@@ -31,9 +31,10 @@ export const AdminAssignClassShimmer = () => {
           <div className="overflow-x-auto">
             {/* Table Header */}
             <div className="bg-gradient-to-r from-gray-50 to-gray-100 border-0">
-              <div className="grid grid-cols-5 gap-4 py-6 px-8">
+              <div className="grid grid-cols-6 gap-4 py-6 px-8">
                 <Skeleton className="h-5 w-24 bg-gray-200" />
                 <Skeleton className="h-5 w-20 bg-gray-200" />
+                <Skeleton className="h-5 w-16 bg-indigo-100" />
                 <Skeleton className="h-5 w-20 bg-gray-200" />
                 <Skeleton className="h-5 w-20 bg-gray-200" />
                 <Skeleton className="h-5 w-16 bg-gray-200" />
@@ -43,20 +44,23 @@ export const AdminAssignClassShimmer = () => {
             {/* Table Body */}
             <div className="space-y-0">
               {[...Array(6)].map((_, i) => (
-                <div key={i} className={`grid grid-cols-5 gap-4 py-6 px-8 border-b border-gray-100 last:border-b-0 ${
+                <div key={i} className={`grid grid-cols-6 gap-4 py-6 px-8 border-b border-gray-100 last:border-b-0 ${
                   i % 2 === 0 ? "bg-white" : "bg-gray-50/50"
                 }`}>
                   {/* Class Name */}
                   <Skeleton className="h-5 w-40 bg-gray-200" />
-                  
+
                   {/* Teacher */}
                   <div className="flex flex-wrap gap-2">
                     <Skeleton className="h-6 w-24 rounded-full bg-gray-300" />
                   </div>
-                  
+
+                  {/* Program */}
+                  <Skeleton className="h-6 w-12 rounded-full bg-indigo-100" />
+
                   {/* Semester */}
                   <Skeleton className="h-5 w-4 bg-gray-200" />
-                  
+
                   {/* Students Count */}
                   <div className="flex items-center gap-3">
                     <div className="flex items-center gap-2 bg-gray-100 px-3 py-2 rounded-full">
@@ -64,7 +68,7 @@ export const AdminAssignClassShimmer = () => {
                       <Skeleton className="h-4 w-4 bg-gray-300" />
                     </div>
                   </div>
-                  
+
                   {/* Actions */}
                   <div className="flex gap-3">
                     <Skeleton className="h-8 w-16 rounded-xl bg-gray-200" />

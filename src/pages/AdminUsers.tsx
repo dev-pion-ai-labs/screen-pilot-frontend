@@ -16,6 +16,7 @@ import { Users, UserPlus, Trash2, Edit, Search, GraduationCap, School, Shield, L
 import { toast } from "@/hooks/use-toast"
 import { ModernDashboardLayout } from "@/components/ModernDashboardLayout"
 import { AdminUsersShimmer } from "@/components/AdminUsersShimmer"
+import { PROGRAM_OPTIONS, type Program } from "@/data/syllabus"
 
 interface User {
   id: string
@@ -23,6 +24,7 @@ interface User {
   full_name: string
   role: "admin" | "teacher" | "student"
   semester?: number
+  program?: Program
   created_at: string
   updated_at: string
 }
@@ -44,6 +46,7 @@ const AdminUsers = () => {
     full_name: "",
     role: "student" as "admin" | "teacher" | "student",
     semester: 1,
+    program: "BA" as Program,
     password: "",
   })
 
@@ -73,6 +76,7 @@ const AdminUsers = () => {
         full_name: profile.full_name,
         role: profile.role as "admin" | "teacher" | "student",
         semester: profile.semester || undefined,
+        program: (profile.program as Program | null) || undefined,
         created_at: profile.created_at,
         updated_at: profile.updated_at,
       }))
@@ -117,7 +121,8 @@ const AdminUsers = () => {
             password: newUser.password,
             full_name: newUser.full_name,
             role: newUser.role,
-            semester: newUser.semester
+            semester: newUser.semester,
+            program: newUser.role === "admin" ? null : newUser.program
           })
         }
       )
@@ -126,6 +131,19 @@ const AdminUsers = () => {
 
       if (!response.ok) {
         throw new Error(result.error || "Failed to create user")
+      }
+
+      // Backfill program directly on the profile in case the create-user
+      // edge function does not yet forward this field. Safe no-op once the
+      // function is updated to pass `program` through.
+      if (newUser.role !== "admin") {
+        const { error: programError } = await supabase
+          .from("profiles")
+          .update({ program: newUser.program })
+          .eq("email", newUser.email)
+        if (programError) {
+          console.warn("Failed to set program on new profile:", programError)
+        }
       }
 
       toast({
@@ -169,11 +187,22 @@ const AdminUsers = () => {
         return
       }
 
+      // Validate program for non-admin roles
+      if (user.role !== "admin" && user.program && !["BA", "MA"].includes(user.program)) {
+        toast({
+          title: "Error",
+          description: "Program must be BA or MA",
+          variant: "destructive",
+        })
+        return
+      }
+
       // Prepare update data
       const updateData = {
         full_name: user.full_name,
         role: user.role,
         semester: user.role === "student" ? user.semester : null,
+        program: user.role === "admin" ? null : (user.program ?? "BA"),
         updated_at: new Date().toISOString(),
       }
 
@@ -294,6 +323,7 @@ const AdminUsers = () => {
       full_name: "",
       role: "student",
       semester: 1,
+      program: "BA",
       password: "",
     })
     setSearchTerm("")
@@ -488,6 +518,28 @@ const AdminUsers = () => {
                         </div>
                       )}
 
+                      {/* Program Selector — applies to students and teachers */}
+                      {newUser.role !== "admin" && (
+                        <div className="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-xl p-4">
+                          <Label className="text-sm font-medium text-gray-700 mb-2 block">Select Program</Label>
+                          <div className={`grid gap-2 ${PROGRAM_OPTIONS.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
+                            {PROGRAM_OPTIONS.map((prog) => (
+                              <button
+                                key={prog}
+                                type="button"
+                                className={`p-2 text-sm rounded-lg border-2 font-medium ${newUser.program === prog
+                                  ? "border-indigo-500 bg-indigo-500 text-white"
+                                  : "border-indigo-200 bg-white hover:border-indigo-400 hover:bg-indigo-100"
+                                  }`}
+                                onClick={() => setNewUser({ ...newUser, program: prog })}
+                              >
+                                {prog}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Footer Buttons */}
                       <div className="flex flex-col-reverse md:flex-row justify-between gap-3">
                         <Button
@@ -673,6 +725,7 @@ const AdminUsers = () => {
                         <TableHead className="font-semibold text-gray-700 py-4">Email</TableHead>
                         <TableHead className="font-semibold text-gray-700 py-4">Role</TableHead>
                         <TableHead className="font-semibold text-gray-700 py-4">Semester</TableHead>
+                        <TableHead className="font-semibold text-gray-700 py-4">Program</TableHead>
                         <TableHead className="font-semibold text-gray-700 py-4">Created</TableHead>
                         <TableHead className="font-semibold text-gray-700 py-4">Actions</TableHead>
                       </TableRow>
@@ -742,6 +795,35 @@ const AdminUsers = () => {
                             ) : user.semester ? (
                               <Badge className="bg-gradient-to-r from-green-500 to-emerald-500 text-white border-0">
                                 Semester {user.semester}
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-gray-500">
+                                N/A
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-gray-600 py-4">
+                            {editingUser?.id === user.id && editingUser.role !== "admin" ? (
+                              <Select
+                                value={editingUser.program ?? "BA"}
+                                onValueChange={(value: Program) =>
+                                  setEditingUser({ ...editingUser, program: value })
+                                }
+                              >
+                                <SelectTrigger className="w-24 border-gray-200 focus:border-blue-400 focus:ring-blue-400">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {PROGRAM_OPTIONS.map((prog) => (
+                                    <SelectItem key={prog} value={prog}>
+                                      {prog}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ) : user.program ? (
+                              <Badge className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white border-0">
+                                {user.program}
                               </Badge>
                             ) : (
                               <Badge variant="outline" className="text-gray-500">

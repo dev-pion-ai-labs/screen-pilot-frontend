@@ -1314,11 +1314,7 @@ export default function TeacherNotes() {
                                                                 </Button>
 
 
-                                                                {note.is_shared ? (
-                                                                    <Badge variant="outline" className="text-xs">
-                                                                        Already Shared
-                                                                    </Badge>
-                                                                ) : (
+                                                                {!note.is_shared && (
                                                                     <Button
                                                                         variant="outline"
                                                                         size="sm"

@@ -57,6 +57,7 @@ export type Database = {
           due_date: string
           estimated_time: number | null
           id: string
+          is_sem_end: boolean
           semester: number | null
           status: string | null
           subject: string | null
@@ -74,6 +75,7 @@ export type Database = {
           due_date: string
           estimated_time?: number | null
           id?: string
+          is_sem_end?: boolean
           semester?: number | null
           status?: string | null
           subject?: string | null
@@ -91,6 +93,7 @@ export type Database = {
           due_date?: string
           estimated_time?: number | null
           id?: string
+          is_sem_end?: boolean
           semester?: number | null
           status?: string | null
           subject?: string | null
@@ -326,6 +329,7 @@ export type Database = {
           ai_evaluation: Json | null
           ai_feedback: Json | null
           assignment_id: string
+          attachments: Json
           created_at: string
           file_name: string | null
           file_path: string | null
@@ -343,6 +347,7 @@ export type Database = {
           ai_evaluation?: Json | null
           ai_feedback?: Json | null
           assignment_id: string
+          attachments?: Json
           created_at?: string
           file_name?: string | null
           file_path?: string | null
@@ -360,6 +365,7 @@ export type Database = {
           ai_evaluation?: Json | null
           ai_feedback?: Json | null
           assignment_id?: string
+          attachments?: Json
           created_at?: string
           file_name?: string | null
           file_path?: string | null

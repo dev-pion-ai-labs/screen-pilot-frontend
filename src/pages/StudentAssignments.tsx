@@ -72,6 +72,15 @@ interface Assignment {
   submissions?: Submission[];
 }
 
+interface SubmissionAttachment {
+  category: string;
+  file_name: string;
+  file_path: string;
+  script_url: string;
+  size?: number;
+  content_type?: string;
+}
+
 interface Submission {
   id: string;
   status: string;
@@ -83,6 +92,24 @@ interface Submission {
   file_path: string | null;
   grade: number | null;
   ai_feedback?: any;
+  attachments?: SubmissionAttachment[] | null;
+}
+
+const ATTACHMENT_CATEGORIES = [
+  "Logline",
+  "Synopsis",
+  "Screenplay",
+  "Floor Plan",
+  "Shot Division",
+  "Crew Roles",
+  "Other",
+] as const;
+type AttachmentCategory = (typeof ATTACHMENT_CATEGORIES)[number];
+
+interface PendingAttachment {
+  id: string;
+  file: File;
+  category: AttachmentCategory;
 }
 
 interface Profile {
@@ -765,7 +792,7 @@ export default function StudentAssignments() {
   const [selectedAssignment, setSelectedAssignment] =
     useState<Assignment | null>(null);
   const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedAttachments, setSelectedAttachments] = useState<PendingAttachment[]>([]);
   const [submissionStep, setSubmissionStep] = useState<"upload" | "submitting">(
     "upload"
   );
@@ -808,9 +835,10 @@ export default function StudentAssignments() {
               teacher_feedback,
               file_name,
               file_path,
+              attachments,
               grade,
               ai_feedback,
-               ai_feedback_show 
+               ai_feedback_show
             )
           )
         `
@@ -840,45 +868,87 @@ export default function StudentAssignments() {
   };
 
   // --- File upload handler ---
-  const handleFileUpload = async (
-    event: React.ChangeEvent<HTMLInputElement>
-  ): Promise<void> => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>): void => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
     const allowedTypes = [
       "application/pdf",
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       "text/plain",
+      "image/png",
+      "image/jpeg",
+      "image/jpg",
     ];
-    if (!allowedTypes.includes(file.type)) {
+    const accepted: PendingAttachment[] = [];
+    const rejected: { name: string; reason: string }[] = [];
+
+    Array.from(files).forEach((file) => {
+      if (!allowedTypes.includes(file.type)) {
+        rejected.push({ name: file.name, reason: "Unsupported type" });
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        rejected.push({ name: file.name, reason: "Larger than 10MB" });
+        return;
+      }
+      // Default each new file to Screenplay; the student can change the
+      // classification before submitting so faculty can segregate later.
+      accepted.push({
+        id: uuidv4(),
+        file,
+        category: "Screenplay",
+      });
+    });
+
+    if (rejected.length > 0) {
       toast({
-        title: "Invalid file type",
-        description: "Please upload a PDF, DOCX, or TXT file.",
+        title: "Some files were skipped",
+        description: rejected
+          .map((r) => `${r.name}: ${r.reason}`)
+          .join("; "),
         variant: "destructive",
       });
-      return;
     }
-    if (file.size > 10 * 1024 * 1024) {
-      toast({
-        title: "File too large",
-        description: "File size should be less than 10MB",
-        variant: "destructive",
-      });
-      return;
+
+    if (accepted.length > 0) {
+      setSelectedAttachments((prev) => [...prev, ...accepted]);
     }
-    setSelectedFile(file);
+
+    // Reset the input so picking the same filename again still fires onChange.
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const setAttachmentCategory = (id: string, category: AttachmentCategory) => {
+    setSelectedAttachments((prev) =>
+      prev.map((a) => (a.id === id ? { ...a, category } : a))
+    );
+  };
+
+  const removeAttachment = (id: string) => {
+    setSelectedAttachments((prev) => prev.filter((a) => a.id !== id));
   };
 
   // --- Upload to Supabase Storage ---
-  const uploadFileToSupabase = async (
+  const uploadAttachmentToSupabase = async (
     file: File,
     studentId: string,
-    assignmentId: string
-  ): Promise<{ filePath: string; publicUrl: string }> => {
+    studentEmail: string,
+    assignmentId: string,
+    category: AttachmentCategory,
+  ): Promise<{ filePath: string; publicUrl: string; storedName: string }> => {
     const timestamp = Date.now();
+    // Embed the student's email in the storage object name so faculty can
+    // segregate documents at the final stage without needing to look up the
+    // student id. Underscores keep the path safe for Supabase storage.
+    const emailSlug = (studentEmail || "student")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "");
+    const categorySlug = category.toLowerCase().replace(/\s+/g, "-");
     const safeFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
-    const filePath = `${studentId}/${assignmentId}_${timestamp}_${safeFileName}`;
-    const { data, error } = await supabase.storage
+    const storedName = `${emailSlug}__${categorySlug}__${safeFileName}`;
+    const filePath = `${studentId}/${assignmentId}_${timestamp}_${storedName}`;
+    const { error } = await supabase.storage
       .from("assignment-submissions")
       .upload(filePath, file, {
         cacheControl: "3600",
@@ -888,54 +958,122 @@ export default function StudentAssignments() {
     const { data: urlData } = supabase.storage
       .from("assignment-submissions")
       .getPublicUrl(filePath);
-    return { filePath, publicUrl: urlData.publicUrl };
+    return { filePath, publicUrl: urlData.publicUrl, storedName };
   };
 
+  const callEvaluatorAgent = async (
+    criteria: string,
+    subtopic: string,
+    file_url: string,
+  ) => {
+    // Hard timeout so a stalled agent never leaves the student staring at a
+    // hung dialog. Submission persistence has already happened by the time
+    // this call runs, so a timeout just means "AI feedback is delayed."
+    return await agentsPostJson(
+      "/api/assignments/evaluate",
+      {
+        criteria,
+        subtopic,
+        file_url,
+      },
+      { timeoutMs: 90_000 },
+    );
+  };
 
-
- const callEvaluatorAgent = async (criteria: string, subtopic: string, file_url: string) => {
-  return await agentsPostJson("/api/assignments/evaluate", {
-    criteria,
-    subtopic,
-    file_url,
-  });
-};
-
-  // --- Submission Handler ---
-  const handleSubmitAssignment = async (): Promise<void> => {
-    if (!selectedAssignment || !selectedFile || !user || !profile) return;
-    setSubmissionStep("submitting");
-
-    let uploadedPath: string | null = null;
+  const runAiEvaluationInBackground = async (
+    submissionId: string,
+    assignment: Assignment,
+    fileUrl: string,
+  ): Promise<void> => {
     try {
-      // 1. Upload file
-      const { filePath, publicUrl } = await uploadFileToSupabase(
-        selectedFile,
-        user.id,
-        selectedAssignment.id
-      );
-      uploadedPath = filePath;
-
-      // 2. Get AI evaluation
       const aiResult = await callEvaluatorAgent(
-        selectedAssignment.ai_generated_content, // criteria
-        selectedAssignment.title, // subtopic
-        publicUrl // file_url
+        assignment.ai_generated_content,
+        assignment.title,
+        fileUrl,
       );
-
-      // 3. Parse AI result. The agent occasionally returns malformed JSON
-      // for ai_feedback — fall back to the raw string so the submission
-      // still saves instead of leaving an orphan upload.
       const aiData = parseAIFeedback(aiResult);
       let parsedAiFeedback: any = aiData.ai_feedback;
       if (typeof parsedAiFeedback === "string") {
         try {
           parsedAiFeedback = JSON.parse(parsedAiFeedback);
         } catch {
-          // keep the raw string; ai_feedback column is jsonb but accepts strings
+          // keep the raw string; ai_feedback is jsonb but accepts strings
         }
       }
 
+      const { error: updateErr } = await supabase
+        .from("submissions")
+        .update({
+          ai_feedback: parsedAiFeedback,
+          ai_evaluation: aiData.ai_evaluation,
+          grade: aiData.grade,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", submissionId);
+      if (updateErr) throw updateErr;
+
+      toast({
+        title: "AI feedback ready ✨",
+        description: "Open your submission to view the rubric and feedback.",
+      });
+      fetchAssignments();
+    } catch (err: any) {
+      console.error("Background AI evaluation failed:", err);
+      toast({
+        title: "AI feedback delayed",
+        description:
+          "Your submission is saved. AI evaluation didn't complete in time — your faculty will review it manually.",
+      });
+    }
+  };
+
+  // --- Submission Handler ---
+  const handleSubmitAssignment = async (): Promise<void> => {
+    if (
+      !selectedAssignment ||
+      selectedAttachments.length === 0 ||
+      !user ||
+      !profile
+    )
+      return;
+    setSubmissionStep("submitting");
+
+    const studentEmail =
+      (profile as Profile).email || user.email || `student-${user.id}`;
+    const uploadedPaths: string[] = [];
+    let submissionInserted = false;
+
+    try {
+      // 1. Upload all attachments. Each gets the student's email embedded
+      //    in the storage object name plus a category tag so the final
+      //    segregation step is just a filename split.
+      const uploaded: SubmissionAttachment[] = [];
+      for (const attachment of selectedAttachments) {
+        const { filePath, publicUrl } = await uploadAttachmentToSupabase(
+          attachment.file,
+          user.id,
+          studentEmail,
+          selectedAssignment.id,
+          attachment.category,
+        );
+        uploadedPaths.push(filePath);
+        uploaded.push({
+          category: attachment.category,
+          file_name: attachment.file.name,
+          file_path: filePath,
+          script_url: publicUrl,
+          size: attachment.file.size,
+          content_type: attachment.file.type,
+        });
+      }
+
+      // The first file is treated as the "primary" submission so the
+      // existing AI evaluator (which expects a single URL) and the
+      // download UI keep working without changes.
+      const primary = uploaded[0];
+
+      // 2. Insert submission row immediately. If the AI evaluator times
+      //    out or errors later, the student's submission is already safe.
       const submissionId = uuidv4();
       const now = new Date().toISOString();
 
@@ -943,13 +1081,11 @@ export default function StudentAssignments() {
         id: submissionId,
         assignment_id: selectedAssignment.id,
         student_id: user.id,
-        script_url: publicUrl,
-        file_path: filePath,
-        file_name: selectedFile.name,
+        script_url: primary.script_url,
+        file_path: primary.file_path,
+        file_name: primary.file_name,
+        attachments: uploaded as any,
         submission_date: now,
-        ai_feedback: parsedAiFeedback,
-        grade: aiData.grade,
-        ai_evaluation: aiData.ai_evaluation,
         status: "submitted",
         created_at: now,
         updated_at: now,
@@ -959,27 +1095,43 @@ export default function StudentAssignments() {
         .from("submissions")
         .insert([submissionPayload]);
       if (insertErr) throw insertErr;
+      submissionInserted = true;
 
       toast({
         title: "Assignment submitted! 🎉",
-        description: "AI evaluation and feedback attached.",
+        description:
+          "Your files are saved. AI feedback may take up to 90 seconds and will appear automatically.",
       });
+
+      // Capture state before resetting so the background task isn't
+      // affected by the dialog close that follows.
+      const assignmentForEval = selectedAssignment;
+      const primaryUrlForEval = primary.script_url;
+
       setSubmitDialogOpen(false);
-      setSelectedFile(null);
+      setSelectedAttachments([]);
       setSubmissionStep("upload");
       setAdditionalNotes("");
       setSelectedAssignment(null);
       fetchAssignments();
+
+      // 3. Best-effort AI evaluation. Failure does not affect the saved
+      //    submission — it just means the rubric and feedback may not be
+      //    auto-populated.
+      void runAiEvaluationInBackground(
+        submissionId,
+        assignmentForEval,
+        primaryUrlForEval,
+      );
     } catch (error: any) {
-      // Clean up the orphan upload so the user can retry without
-      // accumulating dead files in storage.
-      if (uploadedPath) {
+      // Clean up orphan uploads so a retry doesn't accumulate dead files.
+      if (!submissionInserted && uploadedPaths.length > 0) {
         try {
           await supabase.storage
             .from("assignment-submissions")
-            .remove([uploadedPath]);
+            .remove(uploadedPaths);
         } catch (cleanupErr) {
-          console.error("Failed to remove orphan upload:", cleanupErr);
+          console.error("Failed to remove orphan uploads:", cleanupErr);
         }
       }
       toast({
@@ -992,7 +1144,7 @@ export default function StudentAssignments() {
   };
 
   const resetSubmission = (): void => {
-    setSelectedFile(null);
+    setSelectedAttachments([]);
     setSubmissionStep("upload");
     setAdditionalNotes("");
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -1444,6 +1596,21 @@ export default function StudentAssignments() {
                                     )}
                                   </span>
                                 </div>
+                                {Array.isArray(submission.attachments) &&
+                                  submission.attachments.length > 1 && (
+                                    <div className="mt-2 flex flex-wrap gap-2">
+                                      {submission.attachments.map((att, i) => (
+                                        <Badge
+                                          key={`${att.file_path}-${i}`}
+                                          variant="secondary"
+                                          className="bg-white/80 text-green-700 border border-green-200"
+                                        >
+                                          <FileText className="h-3 w-3 mr-1" />
+                                          {att.category}: {att.file_name}
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  )}
                               </div>
                             )}
                           </CardContent>
@@ -1461,7 +1628,7 @@ export default function StudentAssignments() {
               onOpenChange={() => {
                 setSelectedAssignment(null);
                 setSubmitDialogOpen(false);
-                setSelectedFile(null);
+                setSelectedAttachments([]);
                 setSubmissionStep("upload");
               }}
             >
@@ -1961,29 +2128,72 @@ export default function StudentAssignments() {
                         <div className="space-y-4">
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Upload File (txt / pdf / docx)
+                              Upload Files (PDF / DOCX / TXT / PNG / JPG)
                             </label>
+                            <p className="text-xs text-gray-500 mb-2">
+                              Add multiple documents — logline, synopsis,
+                              screenplay, floor plan, shot divisions, crew
+                              roles, etc. Tag each file so faculty can
+                              segregate them later.
+                            </p>
                             <Input
                               ref={fileInputRef}
                               type="file"
-                              accept=".pdf,.docx,.txt"
+                              accept=".pdf,.docx,.txt,.png,.jpg,.jpeg"
+                              multiple
                               onChange={handleFileUpload}
                               disabled={submissionStep === "submitting"}
                               className="border-blue-200 focus:border-blue-400 focus:ring-blue-400"
                             />
-                            {selectedFile && (
-                              <div className="flex items-center gap-2 mt-2 p-2 bg-white/80 rounded-lg">
-                                <FileText className="h-4 w-4 text-blue-600" />
-                                <span className="text-sm font-medium">
-                                  {selectedFile.name}
-                                </span>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={resetSubmission}
-                                >
-                                  <X className="h-3 w-3" />
-                                </Button>
+                            {selectedAttachments.length > 0 && (
+                              <div className="mt-3 space-y-2">
+                                {selectedAttachments.map((att) => (
+                                  <div
+                                    key={att.id}
+                                    className="flex items-center gap-2 p-2 bg-white/80 rounded-lg border border-blue-100"
+                                  >
+                                    <FileText className="h-4 w-4 text-blue-600 shrink-0" />
+                                    <span
+                                      className="text-sm font-medium truncate flex-1"
+                                      title={att.file.name}
+                                    >
+                                      {att.file.name}
+                                    </span>
+                                    <Select
+                                      value={att.category}
+                                      onValueChange={(v) =>
+                                        setAttachmentCategory(
+                                          att.id,
+                                          v as AttachmentCategory,
+                                        )
+                                      }
+                                      disabled={
+                                        submissionStep === "submitting"
+                                      }
+                                    >
+                                      <SelectTrigger className="w-[150px] h-8 text-xs">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {ATTACHMENT_CATEGORIES.map((cat) => (
+                                          <SelectItem key={cat} value={cat}>
+                                            {cat}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => removeAttachment(att.id)}
+                                      disabled={
+                                        submissionStep === "submitting"
+                                      }
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                ))}
                               </div>
                             )}
                           </div>
@@ -2032,7 +2242,7 @@ export default function StudentAssignments() {
                     </Button>
 
                     {submissionStep === "upload" &&
-                      selectedFile &&
+                      selectedAttachments.length > 0 &&
                       submitDialogOpen && (
                         <Button
                           onClick={handleSubmitAssignment}

@@ -16,16 +16,19 @@ interface AssignmentCreatorProps {
   semester?: number;
   topic?: string;
   onAssignmentCreated?: () => void;
+  // When true, the assignment is flagged as a semester-end assessment so the
+  // faculty's Sem-End tab can manage it separately from regular assignments.
+  isSemEnd?: boolean;
 }
 
-export const AssignmentCreator = ({ aiResponse, semester, topic, onAssignmentCreated }: AssignmentCreatorProps) => {
+export const AssignmentCreator = ({ aiResponse, semester, topic, onAssignmentCreated, isSemEnd = false }: AssignmentCreatorProps) => {
   const { user } = useAuth();
   const [isCreating, setIsCreating] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     description: aiResponse || '',
     semester: semester || 1,
-    topic: topic || '',
+    topic: topic || (isSemEnd ? 'Semester End Assessment' : ''),
     due_date: '',
     total_points: 100,
     estimated_time: 0,
@@ -70,7 +73,8 @@ export const AssignmentCreator = ({ aiResponse, semester, topic, onAssignmentCre
             estimated_time: formData.estimated_time,
             difficulty: formData.difficulty,
             ai_generated_content: aiResponse,
-            status: 'published'
+            status: 'published',
+            is_sem_end: isSemEnd
           }
         ])
         .select()
@@ -79,8 +83,8 @@ export const AssignmentCreator = ({ aiResponse, semester, topic, onAssignmentCre
       if (error) throw error;
 
       toast({
-        title: "Assignment Created Successfully!",
-        description: `Assignment has been created and assigned to all Semester ${formData.semester} students.`
+        title: isSemEnd ? "Semester-End Assessment Created!" : "Assignment Created Successfully!",
+        description: `${isSemEnd ? 'Sem-End assessment' : 'Assignment'} has been created and assigned to all Semester ${formData.semester} students.`
       });
 
       // Reset form
@@ -88,7 +92,7 @@ export const AssignmentCreator = ({ aiResponse, semester, topic, onAssignmentCre
         title: '',
         description: '',
         semester: 1,
-        topic: '',
+        topic: isSemEnd ? 'Semester End Assessment' : '',
         due_date: '',
         total_points: 100,
         estimated_time: 0,
@@ -111,7 +115,9 @@ export const AssignmentCreator = ({ aiResponse, semester, topic, onAssignmentCre
   return (
     <Card className="w-full max-w-2xl mx-auto">
       <CardHeader>
-        <CardTitle>Create New Assignment</CardTitle>
+        <CardTitle>
+          {isSemEnd ? 'Create Semester-End Assessment' : 'Create New Assignment'}
+        </CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">

@@ -34,7 +34,9 @@ import {
   AlertTriangle,
   TrendingUp,
   Target,
+  GraduationCap,
 } from "lucide-react";
+import { AssignmentCreator } from "@/components/AssignmentCreator";
 import { format } from "date-fns";
 import {
   Dialog,
@@ -70,6 +72,7 @@ interface Assignment {
   status: string;
   created_at: string;
   ai_generated_content: any;
+  is_sem_end?: boolean;
   assignment_enrollments?: any[];
   submissions?: any[];
 }
@@ -120,8 +123,11 @@ const TeacherAssignment = () => {
     useState<string>("all");
 
   // Filter functions
-  const filterAssignments = (assignments: Assignment[]) => {
+  const filterAssignments = (assignments: Assignment[], opts?: { onlySemEnd?: boolean; excludeSemEnd?: boolean }) => {
     return assignments.filter((assignment) => {
+      const semEnd = !!assignment.is_sem_end;
+      if (opts?.onlySemEnd && !semEnd) return false;
+      if (opts?.excludeSemEnd && semEnd) return false;
       const semesterMatch =
         semesterFilter === "all" ||
         assignment.semester === Number.parseInt(semesterFilter);
@@ -1034,6 +1040,13 @@ const exportAssignmentToDocx = async (assignment: Assignment) => {
                       Manage Assignments
                     </TabsTrigger>
                     <TabsTrigger
+                      value="sem-end"
+                      className="rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-amber-500 data-[state=active]:to-orange-500 data-[state=active]:text-white transition-all duration-300"
+                    >
+                      <GraduationCap className="h-4 w-4 mr-2" />
+                      Sem-End
+                    </TabsTrigger>
+                    <TabsTrigger
                       value="submissions"
                       className="rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-pink-500 data-[state=active]:text-white transition-all duration-300"
                     >
@@ -1103,7 +1116,7 @@ const exportAssignmentToDocx = async (assignment: Assignment) => {
                       </div>
                     ) : (
                       <div className="grid gap-6">
-                        {filterAssignments(assignments).map((assignment) => (
+                        {filterAssignments(assignments, { excludeSemEnd: true }).map((assignment) => (
                           <Card
                             key={assignment.id}
                             className="border-0 bg-white/80 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
@@ -1211,6 +1224,100 @@ const exportAssignmentToDocx = async (assignment: Assignment) => {
                         ))}
                       </div>
                     )}
+                  </div>
+                </TabsContent>
+
+                {/* Sem-End assessments */}
+                <TabsContent value="sem-end" className="p-6">
+                  <div className="space-y-6">
+                    <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl p-6 border border-amber-200">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="p-2 bg-gradient-to-r from-amber-500 to-orange-500 rounded-lg">
+                          <GraduationCap className="h-5 w-5 text-white" />
+                        </div>
+                        <h3 className="text-xl font-bold text-amber-900">
+                          Semester-End Assessments
+                        </h3>
+                      </div>
+                      <p className="text-sm text-amber-800">
+                        Build a semester-end assessment manually for your
+                        students. These show up alongside other assignments
+                        for them but stay grouped under this tab for you.
+                      </p>
+                    </div>
+
+                    <AssignmentCreator
+                      isSemEnd
+                      onAssignmentCreated={fetchAssignments}
+                    />
+
+                    <div>
+                      <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-amber-600" />
+                        Existing Sem-End Assessments
+                      </h4>
+                      {filterAssignments(assignments, { onlySemEnd: true })
+                        .length === 0 ? (
+                        <div className="bg-white rounded-2xl shadow p-8 text-center border border-amber-100">
+                          <p className="text-gray-600">
+                            No semester-end assessments yet. Use the form above
+                            to create your first one.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="grid gap-4">
+                          {filterAssignments(assignments, { onlySemEnd: true }).map(
+                            (assignment) => (
+                              <Card
+                                key={assignment.id}
+                                className="border-0 bg-white/80 backdrop-blur-sm shadow-lg"
+                              >
+                                <CardHeader className="pb-3">
+                                  <div className="flex justify-between items-start">
+                                    <div>
+                                      <CardTitle className="text-lg font-bold text-gray-900">
+                                        {assignment.title}
+                                      </CardTitle>
+                                      <p className="text-sm text-gray-600 mt-1">
+                                        {assignment.topic}
+                                      </p>
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <Badge className="bg-gradient-to-r from-amber-500 to-orange-500 text-white border-0">
+                                        Sem-End
+                                      </Badge>
+                                      <Badge className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white border-0">
+                                        Sem {assignment.semester}
+                                      </Badge>
+                                    </div>
+                                  </div>
+                                </CardHeader>
+                                <CardContent>
+                                  <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
+                                    <span className="flex items-center gap-1">
+                                      <Calendar className="h-4 w-4" />
+                                      Due {format(new Date(assignment.due_date), "MMM dd, yyyy")}
+                                    </span>
+                                    <span className="flex items-center gap-1">
+                                      <Award className="h-4 w-4" />
+                                      {assignment.total_points} points
+                                    </span>
+                                    <span className="flex items-center gap-1">
+                                      <Users className="h-4 w-4" />
+                                      {assignment.assignment_enrollments?.[0]?.count || 0} students
+                                    </span>
+                                    <span className="flex items-center gap-1">
+                                      <FileText className="h-4 w-4" />
+                                      {assignment.submissions?.length || 0} submissions
+                                    </span>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            ),
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </TabsContent>
 

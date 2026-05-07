@@ -21,7 +21,16 @@ async function getAuthHeader(): Promise<string> {
   return `Bearer ${token}`;
 }
 
-export async function agentsFetch(path: string, init: RequestInit = {}): Promise<Response> {
+export interface AgentsRequestOptions {
+  timeoutMs?: number;
+  signal?: AbortSignal;
+}
+
+export async function agentsFetch(
+  path: string,
+  init: RequestInit = {},
+  options: AgentsRequestOptions = {},
+): Promise<Response> {
   const url = path.startsWith("http") ? path : `${AGENTS_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
 
   const authHeader = await getAuthHeader();
@@ -31,14 +40,48 @@ export async function agentsFetch(path: string, init: RequestInit = {}): Promise
     headers.set("Content-Type", "application/json");
   }
 
-  return fetch(url, { ...init, headers });
+  if (options.timeoutMs && options.timeoutMs > 0) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), options.timeoutMs);
+    if (options.signal) {
+      if (options.signal.aborted) controller.abort();
+      else options.signal.addEventListener("abort", () => controller.abort(), { once: true });
+    }
+    try {
+      return await fetch(url, { ...init, headers, signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  return fetch(url, { ...init, headers, signal: options.signal });
 }
 
-export async function agentsPostJson<T = unknown>(path: string, payload: unknown): Promise<T> {
-  const response = await agentsFetch(path, {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
+export async function agentsPostJson<T = unknown>(
+  path: string,
+  payload: unknown,
+  options: AgentsRequestOptions = {},
+): Promise<T> {
+  let response: Response;
+  try {
+    response = await agentsFetch(
+      path,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      },
+      options,
+    );
+  } catch (err: any) {
+    if (err?.name === "AbortError") {
+      throw new Error(
+        options.timeoutMs
+          ? `Request timed out after ${Math.round(options.timeoutMs / 1000)}s`
+          : "Request was aborted",
+      );
+    }
+    throw err;
+  }
   if (!response.ok) {
     const text = await response.text();
     throw new Error(`Agents API ${response.status}: ${text || response.statusText}`);
@@ -46,8 +89,23 @@ export async function agentsPostJson<T = unknown>(path: string, payload: unknown
   return (await response.json()) as T;
 }
 
-export async function agentsGetJson<T = unknown>(path: string): Promise<T> {
-  const response = await agentsFetch(path, { method: "GET" });
+export async function agentsGetJson<T = unknown>(
+  path: string,
+  options: AgentsRequestOptions = {},
+): Promise<T> {
+  let response: Response;
+  try {
+    response = await agentsFetch(path, { method: "GET" }, options);
+  } catch (err: any) {
+    if (err?.name === "AbortError") {
+      throw new Error(
+        options.timeoutMs
+          ? `Request timed out after ${Math.round(options.timeoutMs / 1000)}s`
+          : "Request was aborted",
+      );
+    }
+    throw err;
+  }
   if (!response.ok) {
     const text = await response.text();
     throw new Error(`Agents API ${response.status}: ${text || response.statusText}`);

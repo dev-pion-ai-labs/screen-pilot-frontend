@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AuthGuard } from "@/components/AuthGuard";
 import { ModernDashboardLayout } from "@/components/ModernDashboardLayout";
 import { AssignmentsShimmer } from "@/components/AssignmentsShimmer";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -873,6 +874,12 @@ export default function StudentAssignments() {
     }
   };
 
+  // The category that newly-picked files will be tagged with. Set when the
+  // student clicks one of the category buttons; the click also triggers the
+  // hidden file input so each button acts as its own "upload <category>"
+  // affordance.
+  const [pickerCategory, setPickerCategory] = useState<AttachmentCategory>("Assignment");
+
   // --- File upload handler ---
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>): void => {
     const files = event.target.files;
@@ -897,13 +904,13 @@ export default function StudentAssignments() {
         rejected.push({ name: file.name, reason: "Larger than 10MB" });
         return;
       }
-      // Default each new file to "Assignment" — the safe choice for a
-      // regular single-doc submission. Film students explicitly retag
-      // each file (Logline, Synopsis, Screenplay…) before submitting.
+      // Tag with whichever category button the student clicked to open the
+      // picker. They can still re-tag any file from the per-row dropdown
+      // below if they grabbed the wrong type.
       accepted.push({
         id: uuidv4(),
         file,
-        category: "Assignment",
+        category: pickerCategory,
       });
     });
 
@@ -923,6 +930,18 @@ export default function StudentAssignments() {
 
     // Reset the input so picking the same filename again still fires onChange.
     if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  // Triggered when the student clicks one of the category chips. Sets the
+  // category that the file picker will tag the next selection with, then
+  // opens the OS file dialog.
+  const openPickerForCategory = (category: AttachmentCategory) => {
+    setPickerCategory(category);
+    // setState is async but the click handler runs synchronously; using
+    // a microtask ensures the new state is applied before the file dialog
+    // opens. In practice the picker doesn't actually use this state until
+    // a file is chosen, so this is belt-and-braces.
+    setTimeout(() => fileInputRef.current?.click(), 0);
   };
 
   const setAttachmentCategory = (id: string, category: AttachmentCategory) => {
@@ -2167,81 +2186,189 @@ export default function StudentAssignments() {
 
                         <div className="space-y-4">
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Upload Files (PDF / DOCX / TXT / PNG / JPG)
+                            <label className="block text-sm font-semibold text-gray-800 mb-1">
+                              What are you submitting?
                             </label>
                             <p className="text-xs text-gray-500 mb-3">
-                              Submitting one document? Leave the type as
-                              <span className="font-semibold text-gray-700"> Assignment</span>.
-                              For film projects, attach multiple files and tag
-                              each one (Logline, Synopsis, Screenplay, Floor Plan,
-                              Shot Division, Crew Roles).
+                              Click a button below to upload that type of
+                              document. PDF / DOCX / TXT / PNG / JPG, up to
+                              10 MB each. You can upload more than one file.
                             </p>
-                            <Input
-                              ref={fileInputRef}
-                              type="file"
-                              accept=".pdf,.docx,.txt,.png,.jpg,.jpeg"
-                              multiple
-                              onChange={handleFileUpload}
-                              disabled={submissionStep === "submitting"}
-                              className="border-blue-200 focus:border-blue-400 focus:ring-blue-400"
-                            />
+
+                            {/* Document type dropdown sits ABOVE the file
+                                input. Whatever is selected here gets applied
+                                to every file the student picks next; they
+                                can change the type per file in the list
+                                below if needed. */}
+                            <div className="grid grid-cols-1 sm:grid-cols-[200px_1fr] gap-3 items-end">
+                              <div>
+                                <label className="block text-[11px] uppercase tracking-wide text-gray-500 font-semibold mb-1">
+                                  Document Type
+                                </label>
+                                <Select
+                                  value={pickerCategory}
+                                  onValueChange={(v) =>
+                                    setPickerCategory(v as AttachmentCategory)
+                                  }
+                                  disabled={submissionStep === "submitting"}
+                                >
+                                  <SelectTrigger className="w-full h-10 bg-blue-50 border-blue-300 font-medium text-blue-900">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {ATTACHMENT_CATEGORIES.map((cat) => (
+                                      <SelectItem key={cat} value={cat}>
+                                        {cat}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div>
+                                <label className="block text-[11px] uppercase tracking-wide text-gray-500 font-semibold mb-1">
+                                  Files
+                                </label>
+                                <Input
+                                  ref={fileInputRef}
+                                  type="file"
+                                  accept=".pdf,.docx,.txt,.png,.jpg,.jpeg"
+                                  multiple
+                                  onChange={handleFileUpload}
+                                  disabled={submissionStep === "submitting"}
+                                  className="border-blue-200 focus:border-blue-400 focus:ring-blue-400 h-10"
+                                />
+                              </div>
+                            </div>
                             {selectedAttachments.length > 0 && (
-                              <div className="mt-3 space-y-2">
-                                {selectedAttachments.map((att) => (
-                                  <div
-                                    key={att.id}
-                                    className="flex items-center gap-3 p-3 bg-white rounded-lg border border-blue-200 shadow-sm"
-                                  >
-                                    <FileText className="h-5 w-5 text-blue-600 shrink-0" />
-                                    <div className="flex-1 min-w-0">
-                                      <div
-                                        className="text-sm font-medium truncate text-gray-900"
-                                        title={att.file.name}
-                                      >
-                                        {att.file.name}
-                                      </div>
-                                      <div className="flex items-center gap-2 mt-1.5">
-                                        <span className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold">
-                                          Document type
-                                        </span>
-                                        <Select
-                                          value={att.category}
-                                          onValueChange={(v) =>
-                                            setAttachmentCategory(
-                                              att.id,
-                                              v as AttachmentCategory,
-                                            )
-                                          }
+                              <div className="mt-5 space-y-4">
+                                <div className="flex items-baseline justify-between">
+                                  <h4 className="text-sm font-semibold text-gray-800">
+                                    Files ready to submit
+                                  </h4>
+                                  <span className="text-xs text-gray-500">
+                                    {selectedAttachments.length} file
+                                    {selectedAttachments.length === 1 ? "" : "s"}
+                                    {" • "}
+                                    {
+                                      new Set(
+                                        selectedAttachments.map((a) => a.category),
+                                      ).size
+                                    }{" "}
+                                    type
+                                    {new Set(
+                                      selectedAttachments.map((a) => a.category),
+                                    ).size === 1
+                                      ? ""
+                                      : "s"}
+                                  </span>
+                                </div>
+                                {/* Group files by category so a film student
+                                    submitting a Logline + Synopsis +
+                                    Screenplay sees three labeled sections
+                                    instead of a flat list. Categories with
+                                    no files are hidden. */}
+                                {ATTACHMENT_CATEGORIES.filter((cat) =>
+                                  selectedAttachments.some(
+                                    (a) => a.category === cat,
+                                  ),
+                                ).map((cat) => {
+                                  const filesInCat = selectedAttachments.filter(
+                                    (a) => a.category === cat,
+                                  );
+                                  return (
+                                    <div
+                                      key={cat}
+                                      className="rounded-xl bg-white border border-blue-200 shadow-sm overflow-hidden"
+                                    >
+                                      <div className="flex items-center justify-between px-4 py-2 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100">
+                                        <div className="flex items-center gap-2">
+                                          <Badge className="bg-blue-600 text-white border-0 text-[11px]">
+                                            {cat}
+                                          </Badge>
+                                          <span className="text-xs text-gray-600">
+                                            {filesInCat.length} file
+                                            {filesInCat.length === 1 ? "" : "s"}
+                                          </span>
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() => openPickerForCategory(cat)}
                                           disabled={
                                             submissionStep === "submitting"
                                           }
+                                          className="text-xs text-blue-700 hover:text-blue-900 font-medium disabled:opacity-50"
                                         >
-                                          <SelectTrigger className="w-[180px] h-8 text-xs bg-blue-50 border-blue-300 font-medium text-blue-900">
-                                            <SelectValue />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            {ATTACHMENT_CATEGORIES.map((cat) => (
-                                              <SelectItem key={cat} value={cat}>
-                                            {cat}
-                                          </SelectItem>
+                                          + Add another
+                                        </button>
+                                      </div>
+                                      <div className="divide-y divide-gray-100">
+                                        {filesInCat.map((att) => (
+                                          <div
+                                            key={att.id}
+                                            className="flex items-center gap-3 px-4 py-2.5"
+                                          >
+                                            <FileText className="h-4 w-4 text-blue-600 shrink-0" />
+                                            <div
+                                              className="flex-1 min-w-0 text-sm text-gray-900 truncate"
+                                              title={att.file.name}
+                                            >
+                                              {att.file.name}
+                                            </div>
+                                            <span className="text-[11px] text-gray-500 shrink-0 hidden sm:inline">
+                                              {(att.file.size / 1024).toFixed(0)}{" "}
+                                              KB
+                                            </span>
+                                            <Select
+                                              value={att.category}
+                                              onValueChange={(v) =>
+                                                setAttachmentCategory(
+                                                  att.id,
+                                                  v as AttachmentCategory,
+                                                )
+                                              }
+                                              disabled={
+                                                submissionStep === "submitting"
+                                              }
+                                            >
+                                              <SelectTrigger
+                                                className="w-[140px] h-7 text-xs bg-white border-gray-300 font-medium text-gray-700"
+                                                title="Change document type"
+                                              >
+                                                <SelectValue />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                {ATTACHMENT_CATEGORIES.map(
+                                                  (c) => (
+                                                    <SelectItem
+                                                      key={c}
+                                                      value={c}
+                                                    >
+                                                      {c}
+                                                    </SelectItem>
+                                                  ),
+                                                )}
+                                              </SelectContent>
+                                            </Select>
+                                            <Button
+                                              size="sm"
+                                              variant="ghost"
+                                              onClick={() =>
+                                                removeAttachment(att.id)
+                                              }
+                                              disabled={
+                                                submissionStep === "submitting"
+                                              }
+                                              className="h-7 w-7 p-0"
+                                              title="Remove this file"
+                                            >
+                                              <X className="h-3.5 w-3.5" />
+                                            </Button>
+                                          </div>
                                         ))}
-                                      </SelectContent>
-                                        </Select>
                                       </div>
                                     </div>
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      onClick={() => removeAttachment(att.id)}
-                                      disabled={
-                                        submissionStep === "submitting"
-                                      }
-                                    >
-                                      <X className="h-3 w-3" />
-                                    </Button>
-                                  </div>
-                                ))}
+                                  );
+                                })}
                               </div>
                             )}
                           </div>

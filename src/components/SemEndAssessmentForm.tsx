@@ -5,10 +5,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { toast } from "@/hooks/use-toast";
-import { CheckCircle2, GraduationCap, Loader2, Users } from "lucide-react";
+import {
+  CalendarIcon,
+  CheckCircle2,
+  Clock,
+  Loader2,
+  Users,
+} from "lucide-react";
+import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
 interface TeacherClass {
@@ -34,10 +46,12 @@ export const SemEndAssessmentForm = ({ onCreated }: SemEndAssessmentFormProps) =
   const [loadingClasses, setLoadingClasses] = useState(true);
   const [selectedClassId, setSelectedClassId] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [dueDate, setDueDate] = useState<Date | undefined>(undefined);
+  const [dueTime, setDueTime] = useState<string>("23:59");
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [formData, setFormData] = useState({
     title: "",
     description: "",
-    due_date: "",
     total_points: 100,
   });
 
@@ -109,13 +123,25 @@ export const SemEndAssessmentForm = ({ onCreated }: SemEndAssessmentFormProps) =
       });
       return;
     }
-    if (!formData.title.trim() || !formData.description.trim() || !formData.due_date) {
+    if (!formData.title.trim() || !formData.description.trim() || !dueDate) {
       toast({
         title: "Fill in title, description, and due date",
         variant: "destructive",
       });
       return;
     }
+
+    // Combine the picked calendar date with the time-input value into a
+    // single Date so we keep both pieces of information (datetime-local
+    // gave us this for free; we now build it ourselves).
+    const [hh, mm] = (dueTime || "23:59").split(":").map((n) => parseInt(n, 10));
+    const dueDateTime = new Date(dueDate);
+    dueDateTime.setHours(
+      Number.isFinite(hh) ? hh : 23,
+      Number.isFinite(mm) ? mm : 59,
+      0,
+      0,
+    );
 
     setIsSubmitting(true);
     let assignmentId: string | null = null;
@@ -133,7 +159,7 @@ export const SemEndAssessmentForm = ({ onCreated }: SemEndAssessmentFormProps) =
             class_id: selectedClass.id,
             semester: selectedClass.semester,
             topic: "Semester End Assessment",
-            due_date: new Date(formData.due_date).toISOString(),
+            due_date: dueDateTime.toISOString(),
             total_points: formData.total_points,
             difficulty: "medium",
             ai_generated_content: formData.description,
@@ -187,7 +213,9 @@ export const SemEndAssessmentForm = ({ onCreated }: SemEndAssessmentFormProps) =
             : `Created for ${selectedClass.name}, but the class has no students enrolled yet.`,
       });
 
-      setFormData({ title: "", description: "", due_date: "", total_points: 100 });
+      setFormData({ title: "", description: "", total_points: 100 });
+      setDueDate(undefined);
+      setDueTime("23:59");
       setSelectedClassId("");
       onCreated?.();
     } catch (err) {
@@ -216,15 +244,7 @@ export const SemEndAssessmentForm = ({ onCreated }: SemEndAssessmentFormProps) =
   };
 
   return (
-    <Card className="w-full max-w-3xl mx-auto">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <GraduationCap className="h-5 w-5 text-amber-600" />
-          Create Semester-End Assessment
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-5">
+    <form onSubmit={handleSubmit} className="space-y-5">
           <div>
             <div className="flex items-center justify-between mb-3">
               <Label className="text-sm font-semibold text-gray-800">
@@ -342,19 +362,61 @@ export const SemEndAssessmentForm = ({ onCreated }: SemEndAssessmentFormProps) =
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="sem-end-due">Due Date</Label>
-              <Input
-                id="sem-end-due"
-                type="datetime-local"
-                value={formData.due_date}
-                onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
-                required
-              />
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="sm:col-span-2">
+              <Label className="text-sm font-medium text-gray-800">
+                Due Date &amp; Time
+              </Label>
+              <div className="grid grid-cols-[1fr_140px] gap-2 mt-1">
+                <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className={cn(
+                        "h-10 w-full justify-start text-left font-normal",
+                        !dueDate && "text-muted-foreground",
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+                      <span className="truncate">
+                        {dueDate ? format(dueDate, "PPP") : "Pick a date"}
+                      </span>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={dueDate}
+                      onSelect={(d) => {
+                        setDueDate(d);
+                        setIsCalendarOpen(false);
+                      }}
+                      disabled={(date) => {
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        return date < today;
+                      }}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+                <div className="relative">
+                  <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                  <Input
+                    aria-label="Due time"
+                    type="time"
+                    value={dueTime}
+                    onChange={(e) => setDueTime(e.target.value)}
+                    className="h-10 pl-9"
+                  />
+                </div>
+              </div>
             </div>
             <div>
-              <Label htmlFor="sem-end-points">Total Points</Label>
+              <Label htmlFor="sem-end-points" className="text-sm font-medium text-gray-800">
+                Total Points
+              </Label>
               <Input
                 id="sem-end-points"
                 type="number"
@@ -366,6 +428,7 @@ export const SemEndAssessmentForm = ({ onCreated }: SemEndAssessmentFormProps) =
                     total_points: parseInt(e.target.value || "0", 10),
                   })
                 }
+                className="h-10 mt-1"
                 required
               />
             </div>
@@ -380,8 +443,6 @@ export const SemEndAssessmentForm = ({ onCreated }: SemEndAssessmentFormProps) =
             {isSubmitting ? "Publishing…" : "Create & Assign Sem-End Assessment"}
           </Button>
         </form>
-      </CardContent>
-    </Card>
   );
 };
 

@@ -115,6 +115,7 @@ const TeacherAssignment = () => {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("manage");
+  const [semEndDialogOpen, setSemEndDialogOpen] = useState(false);
   const [viewSubmission, setViewSubmission] = useState<Submission | null>(null);
   const [gradeInput, setGradeInput] = useState("");
   const [feedbackInput, setFeedbackInput] = useState("");
@@ -1021,12 +1022,22 @@ const exportAssignmentToDocx = async (assignment: Assignment) => {
                 Manage your assignments and review student submissions
               </p>
             </div>
-            <Link to="/teacher/create-assignment">
-              <Button className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700">
-                <Plus className="h-4 w-4 mr-2" />
-                Create Assignment
+            {activeTab === "sem-end" ? (
+              <Button
+                onClick={() => setSemEndDialogOpen(true)}
+                className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600"
+              >
+                <GraduationCap className="h-4 w-4 mr-2" />
+                Create Sem-End Assessment
               </Button>
-            </Link>
+            ) : (
+              <Link to="/teacher/create-assignment">
+                <Button className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Assignment
+                </Button>
+              </Link>
+            )}
           </div>
 
           <Tabs
@@ -1232,38 +1243,29 @@ const exportAssignmentToDocx = async (assignment: Assignment) => {
                 {/* Sem-End assessments */}
                 <TabsContent value="sem-end" className="p-6">
                   <div className="space-y-6">
-                    <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl p-6 border border-amber-200">
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="p-2 bg-gradient-to-r from-amber-500 to-orange-500 rounded-lg">
-                          <GraduationCap className="h-5 w-5 text-white" />
-                        </div>
-                        <h3 className="text-xl font-bold text-amber-900">
-                          Semester-End Assessments
-                        </h3>
-                      </div>
-                      <p className="text-sm text-amber-800">
-                        Build a semester-end assessment manually for your
-                        students. Pick a class — its program and semester
-                        come along — and every enrolled student in that
-                        class is assigned automatically. These show up
-                        alongside other assignments for students but stay
-                        grouped under this tab for you.
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                        <GraduationCap className="h-5 w-5 text-amber-600" />
+                        Existing Sem-End Assessments
+                      </h3>
+                      <p className="text-sm text-gray-600 mt-1">
+                        Sem-end assessments you've published. Use the
+                        <span className="font-medium text-amber-700"> Create Sem-End Assessment</span> button
+                        above to add a new one — it'll be assigned to every
+                        student in the class you pick.
                       </p>
                     </div>
 
-                    <SemEndAssessmentForm onCreated={fetchAssignments} />
-
                     <div>
-                      <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                        <FileText className="h-4 w-4 text-amber-600" />
-                        Existing Sem-End Assessments
-                      </h4>
                       {filterAssignments(assignments, { onlySemEnd: true })
                         .length === 0 ? (
                         <div className="bg-white rounded-2xl shadow p-8 text-center border border-amber-100">
                           <p className="text-gray-600">
-                            No semester-end assessments yet. Use the form above
-                            to create your first one.
+                            No semester-end assessments yet. Click{" "}
+                            <span className="font-semibold text-amber-700">
+                              Create Sem-End Assessment
+                            </span>{" "}
+                            in the top right to add your first one.
                           </p>
                         </div>
                       ) : (
@@ -2188,6 +2190,30 @@ const exportAssignmentToDocx = async (assignment: Assignment) => {
             </DialogContent>
           </Dialog>
 
+          {/* Sem-End Assessment Creation Dialog — opened by the
+              "Create Sem-End Assessment" button in the page header
+              when the Sem-End tab is active. */}
+          <Dialog
+            open={semEndDialogOpen}
+            onOpenChange={setSemEndDialogOpen}
+          >
+            <DialogContent className="max-w-3xl w-full max-h-[90vh] flex flex-col bg-white border-0 shadow-2xl">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-xl font-bold text-gray-900">
+                  <GraduationCap className="h-5 w-5 text-amber-600" />
+                  Create Semester-End Assessment
+                </DialogTitle>
+              </DialogHeader>
+              <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+                <SemEndAssessmentForm
+                  onCreated={() => {
+                    fetchAssignments();
+                    setSemEndDialogOpen(false);
+                  }}
+                />
+              </div>
+            </DialogContent>
+          </Dialog>
 
           {/* Assignment Details Modal in Manage Assignments */}
 <Dialog

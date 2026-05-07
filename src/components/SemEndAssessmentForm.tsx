@@ -5,17 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
-import { GraduationCap, Loader2, Users } from "lucide-react";
+import { CheckCircle2, GraduationCap, Loader2, Users } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface TeacherClass {
   id: string;
@@ -221,16 +215,8 @@ export const SemEndAssessmentForm = ({ onCreated }: SemEndAssessmentFormProps) =
     }
   };
 
-  const formatClassLabel = (c: TeacherClass) => {
-    const parts = [c.name];
-    if (c.program) parts.push(c.program);
-    parts.push(`Sem ${c.semester}`);
-    parts.push(`${c.student_count} student${c.student_count === 1 ? "" : "s"}`);
-    return parts.join(" • ");
-  };
-
   return (
-    <Card className="w-full max-w-2xl mx-auto">
+    <Card className="w-full max-w-3xl mx-auto">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <GraduationCap className="h-5 w-5 text-amber-600" />
@@ -238,43 +224,97 @@ export const SemEndAssessmentForm = ({ onCreated }: SemEndAssessmentFormProps) =
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <Label htmlFor="sem-end-class">Class</Label>
+            <div className="flex items-center justify-between mb-3">
+              <Label className="text-sm font-semibold text-gray-800">
+                Class
+              </Label>
+              {selectedClass && (
+                <span className="text-xs text-amber-700 font-medium">
+                  {selectedClass.student_count} student
+                  {selectedClass.student_count === 1 ? "" : "s"} will be enrolled
+                </span>
+              )}
+            </div>
             {loadingClasses ? (
-              <div className="text-sm text-gray-500 py-2">Loading your classes…</div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {[0, 1].map((i) => (
+                  <div
+                    key={i}
+                    className="h-24 rounded-2xl bg-gradient-to-br from-gray-100 to-gray-50 animate-pulse"
+                  />
+                ))}
+              </div>
             ) : classes.length === 0 ? (
-              <div className="text-sm text-gray-600 py-2">
-                You don't have any classes assigned yet. Ask an admin to assign you to a class first.
+              <div className="rounded-2xl border border-dashed border-amber-300 bg-amber-50/50 px-4 py-6 text-sm text-amber-900 text-center">
+                You don't have any classes assigned yet. Ask an admin to add
+                you to a class first.
               </div>
             ) : (
-              <Select value={selectedClassId} onValueChange={setSelectedClassId}>
-                <SelectTrigger id="sem-end-class">
-                  <SelectValue placeholder="Pick the class this assessment is for" />
-                </SelectTrigger>
-                <SelectContent>
-                  {classes.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {formatClassLabel(c)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-            {selectedClass && (
-              <div className="mt-2 flex flex-wrap gap-2">
-                {selectedClass.program && (
-                  <Badge variant="secondary" className="bg-purple-100 text-purple-800 border-0">
-                    {selectedClass.program}
-                  </Badge>
-                )}
-                <Badge variant="secondary" className="bg-indigo-100 text-indigo-800 border-0">
-                  Sem {selectedClass.semester}
-                </Badge>
-                <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 border-0">
-                  <Users className="h-3 w-3 mr-1" />
-                  {selectedClass.student_count} students will be enrolled
-                </Badge>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {classes.map((c) => {
+                  const isSelected = c.id === selectedClassId;
+                  return (
+                    <button
+                      type="button"
+                      key={c.id}
+                      onClick={() => setSelectedClassId(c.id)}
+                      className={cn(
+                        "group relative text-left rounded-2xl border p-4 transition-all duration-200",
+                        "focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2",
+                        isSelected
+                          ? "border-amber-500 bg-gradient-to-br from-amber-50 to-orange-50 shadow-md ring-1 ring-amber-300"
+                          : "border-gray-200 bg-white hover:border-amber-300 hover:shadow-sm",
+                      )}
+                    >
+                      {isSelected && (
+                        <CheckCircle2 className="absolute top-3 right-3 h-5 w-5 text-amber-600" />
+                      )}
+                      <div className="space-y-2 pr-6">
+                        <div
+                          className={cn(
+                            "font-semibold leading-tight",
+                            isSelected ? "text-amber-900" : "text-gray-900",
+                          )}
+                        >
+                          {c.name}
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {c.program && (
+                            <Badge
+                              variant="secondary"
+                              className={cn(
+                                "border-0 text-[11px] font-medium",
+                                isSelected
+                                  ? "bg-purple-200 text-purple-900"
+                                  : "bg-purple-100 text-purple-800",
+                              )}
+                            >
+                              {c.program}
+                            </Badge>
+                          )}
+                          <Badge
+                            variant="secondary"
+                            className={cn(
+                              "border-0 text-[11px] font-medium",
+                              isSelected
+                                ? "bg-indigo-200 text-indigo-900"
+                                : "bg-indigo-100 text-indigo-800",
+                            )}
+                          >
+                            Sem {c.semester}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-xs text-gray-600">
+                          <Users className="h-3 w-3" />
+                          {c.student_count} student
+                          {c.student_count === 1 ? "" : "s"}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>

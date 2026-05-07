@@ -96,7 +96,11 @@ interface Submission {
   attachments?: SubmissionAttachment[] | null;
 }
 
+// First entry is the default for any new file. "Assignment" covers a
+// regular single-doc submission; the other tags are for film projects
+// where a student attaches multiple specialised documents at once.
 const ATTACHMENT_CATEGORIES = [
+  "Assignment",
   "Logline",
   "Synopsis",
   "Screenplay",
@@ -893,12 +897,13 @@ export default function StudentAssignments() {
         rejected.push({ name: file.name, reason: "Larger than 10MB" });
         return;
       }
-      // Default each new file to Screenplay; the student can change the
-      // classification before submitting so faculty can segregate later.
+      // Default each new file to "Assignment" — the safe choice for a
+      // regular single-doc submission. Film students explicitly retag
+      // each file (Logline, Synopsis, Screenplay…) before submitting.
       accepted.push({
         id: uuidv4(),
         file,
-        category: "Screenplay",
+        category: "Assignment",
       });
     });
 
@@ -935,15 +940,14 @@ export default function StudentAssignments() {
     file: File,
     studentId: string,
     studentEmail: string,
-    assignmentTitle: string,
+    assignmentId: string,
     category: AttachmentCategory,
   ): Promise<{ filePath: string; publicUrl: string; storedName: string }> => {
-    // Faculty asked for filenames in the format
-    //   {Category}_{studentEmail}_{assignmentName}.{ext}
-    // so documents are self-describing when downloaded in bulk. The email
-    // is preserved with @ and . so it reads naturally; only filesystem-
-    // hostile chars are replaced. assignmentTitle is slugified to avoid
-    // spaces / punctuation breaking storage paths.
+    // Filename format: {Category}_{studentEmail}.{ext}
+    //   e.g. Logline_jane@marqait.com.pdf
+    // Assignment context comes from the storage path (assignmentId folder)
+    // and the submissions row, so we keep the visible filename short and
+    // self-describing — category + who submitted it.
     const ext = file.name.includes(".")
       ? file.name.split(".").pop()!.toLowerCase().replace(/[^a-z0-9]/g, "")
       : "bin";
@@ -952,14 +956,12 @@ export default function StudentAssignments() {
       .replace(/\s+/g, "")
       .replace(/[^a-zA-Z0-9@._+-]/g, "_");
     const categoryPart = category.replace(/\s+/g, "_");
-    const titlePart = (assignmentTitle || "assignment")
-      .replace(/[^a-zA-Z0-9]+/g, "_")
-      .replace(/^_+|_+$/g, "")
-      .slice(0, 80) || "assignment";
-    const storedName = `${categoryPart}_${emailPart}_${titlePart}.${ext}`;
-    const filePath = `${studentId}/${storedName}`;
-    // upsert:true so re-submitting the same category+ext for the same
-    // assignment cleanly replaces the prior file instead of erroring.
+    const storedName = `${categoryPart}_${emailPart}.${ext}`;
+    // assignmentId scopes the path so the same student's same-category
+    // file across two assignments doesn't collide. upsert:true so a
+    // re-submission of the same category cleanly replaces the prior file
+    // instead of erroring.
+    const filePath = `${studentId}/${assignmentId}/${storedName}`;
     const { error } = await supabase.storage
       .from("assignment-submissions")
       .upload(filePath, file, {
@@ -1057,15 +1059,16 @@ export default function StudentAssignments() {
 
     try {
       // 1. Upload all attachments. Each is renamed to
-      //    {Category}_{email}_{assignment}.{ext} so faculty get
-      //    self-describing filenames at download time.
+      //    {Category}_{email}.{ext} so faculty get short, self-describing
+      //    filenames at download time. Assignment scoping lives in the
+      //    storage path (assignmentId folder), not the filename.
       const uploaded: SubmissionAttachment[] = [];
       for (const attachment of selectedAttachments) {
         const { filePath, publicUrl, storedName } = await uploadAttachmentToSupabase(
           attachment.file,
           user.id,
           studentEmail,
-          selectedAssignment.title,
+          selectedAssignment.id,
           attachment.category,
         );
         uploadedPaths.push(filePath);
@@ -2167,11 +2170,12 @@ export default function StudentAssignments() {
                             <label className="block text-sm font-medium text-gray-700 mb-2">
                               Upload Files (PDF / DOCX / TXT / PNG / JPG)
                             </label>
-                            <p className="text-xs text-gray-500 mb-2">
-                              Add multiple documents — logline, synopsis,
-                              screenplay, floor plan, shot divisions, crew
-                              roles, etc. Tag each file so faculty can
-                              segregate them later.
+                            <p className="text-xs text-gray-500 mb-3">
+                              Submitting one document? Leave the type as
+                              <span className="font-semibold text-gray-700"> Assignment</span>.
+                              For film projects, attach multiple files and tag
+                              each one (Logline, Synopsis, Screenplay, Floor Plan,
+                              Shot Division, Crew Roles).
                             </p>
                             <Input
                               ref={fileInputRef}
@@ -2187,38 +2191,45 @@ export default function StudentAssignments() {
                                 {selectedAttachments.map((att) => (
                                   <div
                                     key={att.id}
-                                    className="flex items-center gap-2 p-2 bg-white/80 rounded-lg border border-blue-100"
+                                    className="flex items-center gap-3 p-3 bg-white rounded-lg border border-blue-200 shadow-sm"
                                   >
-                                    <FileText className="h-4 w-4 text-blue-600 shrink-0" />
-                                    <span
-                                      className="text-sm font-medium truncate flex-1"
-                                      title={att.file.name}
-                                    >
-                                      {att.file.name}
-                                    </span>
-                                    <Select
-                                      value={att.category}
-                                      onValueChange={(v) =>
-                                        setAttachmentCategory(
-                                          att.id,
-                                          v as AttachmentCategory,
-                                        )
-                                      }
-                                      disabled={
-                                        submissionStep === "submitting"
-                                      }
-                                    >
-                                      <SelectTrigger className="w-[150px] h-8 text-xs">
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {ATTACHMENT_CATEGORIES.map((cat) => (
-                                          <SelectItem key={cat} value={cat}>
+                                    <FileText className="h-5 w-5 text-blue-600 shrink-0" />
+                                    <div className="flex-1 min-w-0">
+                                      <div
+                                        className="text-sm font-medium truncate text-gray-900"
+                                        title={att.file.name}
+                                      >
+                                        {att.file.name}
+                                      </div>
+                                      <div className="flex items-center gap-2 mt-1.5">
+                                        <span className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold">
+                                          Document type
+                                        </span>
+                                        <Select
+                                          value={att.category}
+                                          onValueChange={(v) =>
+                                            setAttachmentCategory(
+                                              att.id,
+                                              v as AttachmentCategory,
+                                            )
+                                          }
+                                          disabled={
+                                            submissionStep === "submitting"
+                                          }
+                                        >
+                                          <SelectTrigger className="w-[180px] h-8 text-xs bg-blue-50 border-blue-300 font-medium text-blue-900">
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            {ATTACHMENT_CATEGORIES.map((cat) => (
+                                              <SelectItem key={cat} value={cat}>
                                             {cat}
                                           </SelectItem>
                                         ))}
                                       </SelectContent>
-                                    </Select>
+                                        </Select>
+                                      </div>
+                                    </div>
                                     <Button
                                       size="sm"
                                       variant="ghost"

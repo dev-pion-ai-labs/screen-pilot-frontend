@@ -1010,38 +1010,31 @@ const exportAssignmentToDocx = async (assignment: Assignment) => {
   return (
     <AuthGuard allowedRoles={["teacher"]}>
       <ModernDashboardLayout>
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
-          <div className="max-w-7xl mx-auto space-y-8 p-8">
-            {/* Header */}
-            <div className="relative text-center space-y-4">
-              <div className="absolute right-0 top-0">
-                <Link to="/teacher/create-assignment">
-                  <Button className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create Assignment
-                  </Button>
-                </Link>
-              </div>
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl mb-4">
-                <BookOpen className="w-8 h-8 text-white" />
-              </div>
-              <h1 className="text-5xl font-bold bg-gradient-to-r from-gray-900 via-blue-800 to-purple-800 bg-clip-text text-transparent">
+        <div className="max-w-7xl mx-auto space-y-6">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">
                 Assignment Management
               </h1>
-              <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              <p className="text-gray-600 mt-1">
                 Manage your assignments and review student submissions
               </p>
             </div>
+            <Link to="/teacher/create-assignment">
+              <Button className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700">
+                <Plus className="h-4 w-4 mr-2" />
+                Create Assignment
+              </Button>
+            </Link>
+          </div>
 
-            {/* Main Content */}
-            <div className="bg-white/70 backdrop-blur-sm rounded-3xl shadow-2xl border-0 overflow-hidden">
-              <Tabs
-                value={activeTab}
-                onValueChange={setActiveTab}
-                className="w-full"
-              >
-                <div className="bg-gradient-to-r from-gray-50 to-blue-50 px-6 py-4">
-                  <TabsList className="bg-white/80 backdrop-blur-sm border-0 shadow-lg rounded-2xl p-1">
+          <Tabs
+            value={activeTab}
+            onValueChange={setActiveTab}
+            className="w-full"
+          >
+            <TabsList className="bg-white border shadow-sm rounded-xl p-1">
                     <TabsTrigger
                       value="manage"
                       className="rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-purple-500 data-[state=active]:text-white transition-all duration-300"
@@ -1064,7 +1057,6 @@ const exportAssignmentToDocx = async (assignment: Assignment) => {
                       View Submissions
                     </TabsTrigger>
                   </TabsList>
-                </div>
 
                 {/* Assignment overview */}
                 <TabsContent value="manage" className="p-6">
@@ -1505,10 +1497,9 @@ const exportAssignmentToDocx = async (assignment: Assignment) => {
                   </div>
                 </TabsContent>
               </Tabs>
-            </div>
-          </div>
+        </div>
 
-          {/* Submission Review Modal */}
+        {/* Submission Review Modal */}
           <Dialog
             open={!!viewSubmission}
             onOpenChange={() => setViewSubmission(null)}
@@ -2328,8 +2319,6 @@ const exportAssignmentToDocx = async (assignment: Assignment) => {
     </DialogFooter>
   </DialogContent>
 </Dialog>
-
-        </div>
       </ModernDashboardLayout>
     </AuthGuard>
   );

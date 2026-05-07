@@ -69,6 +69,7 @@ interface Assignment {
   difficulty: string;
   created_at: string;
   ai_generated_content: any;
+  is_sem_end?: boolean;
   submissions?: Submission[];
 }
 
@@ -826,6 +827,7 @@ export default function StudentAssignments() {
             difficulty,
             created_at,
             ai_generated_content,
+            is_sem_end,
             submissions (
               id,
               status,
@@ -1493,12 +1495,22 @@ export default function StudentAssignments() {
                       return (
                         <Card
                           key={assignment.id}
-                          className="border-0 bg-white/80 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
+                          className={
+                            assignment.is_sem_end
+                              ? "bg-gradient-to-br from-amber-50/80 to-orange-50/80 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-2 border-amber-300 ring-1 ring-amber-200"
+                              : "border-0 bg-white/80 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
+                          }
                         >
                           <CardContent className="p-6">
                             <div className="flex items-start justify-between mb-4">
                               <div className="flex-1">
-                                <div className="flex items-center gap-3 mb-3">
+                                <div className="flex items-center gap-3 mb-3 flex-wrap">
+                                  {assignment.is_sem_end && (
+                                    <Badge className="bg-gradient-to-r from-amber-500 to-orange-500 text-white border-0 shadow-sm">
+                                      <GraduationCap className="h-3 w-3 mr-1" />
+                                      Sem-End Assessment
+                                    </Badge>
+                                  )}
                                   <h3 className="text-xl font-bold text-gray-900">
                                     {assignment.title}
                                   </h3>

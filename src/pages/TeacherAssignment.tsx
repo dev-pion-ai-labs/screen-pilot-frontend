@@ -36,7 +36,7 @@ import {
   Target,
   GraduationCap,
 } from "lucide-react";
-import { AssignmentCreator } from "@/components/AssignmentCreator";
+import { SemEndAssessmentForm } from "@/components/SemEndAssessmentForm";
 import { format } from "date-fns";
 import {
   Dialog,
@@ -97,7 +97,17 @@ interface Submission {
   file_name?: string;
   file_path?: string;
   script_url?: string;
+  attachments?: SubmissionAttachment[] | null;
   profiles?: { full_name: string };
+}
+
+interface SubmissionAttachment {
+  category: string;
+  file_name: string;
+  file_path: string;
+  script_url: string;
+  size?: number;
+  content_type?: string;
 }
 
 const TeacherAssignment = () => {
@@ -1241,15 +1251,15 @@ const exportAssignmentToDocx = async (assignment: Assignment) => {
                       </div>
                       <p className="text-sm text-amber-800">
                         Build a semester-end assessment manually for your
-                        students. These show up alongside other assignments
-                        for them but stay grouped under this tab for you.
+                        students. Pick a class — its program and semester
+                        come along — and every enrolled student in that
+                        class is assigned automatically. These show up
+                        alongside other assignments for students but stay
+                        grouped under this tab for you.
                       </p>
                     </div>
 
-                    <AssignmentCreator
-                      isSemEnd
-                      onAssignmentCreated={fetchAssignments}
-                    />
+                    <SemEndAssessmentForm onCreated={fetchAssignments} />
 
                     <div>
                       <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
@@ -1446,7 +1456,7 @@ const exportAssignmentToDocx = async (assignment: Assignment) => {
                                     </Badge>
                                   </TableCell>
                                   <TableCell className="py-4">
-                                    <div className="flex gap-2">
+                                    <div className="flex gap-2 items-center">
                                       {submission.file_path &&
                                         submission.file_name && (
                                           <Button
@@ -1462,6 +1472,16 @@ const exportAssignmentToDocx = async (assignment: Assignment) => {
                                           >
                                             <Download className="h-4 w-4" />
                                           </Button>
+                                        )}
+                                      {Array.isArray(submission.attachments) &&
+                                        submission.attachments.length > 1 && (
+                                          <Badge
+                                            variant="secondary"
+                                            className="bg-blue-50 text-blue-700 border border-blue-200"
+                                            title="Open the review dialog to download every attached document."
+                                          >
+                                            +{submission.attachments.length - 1}
+                                          </Badge>
                                         )}
                                       <Button
                                         variant="outline"
@@ -1503,6 +1523,92 @@ const exportAssignmentToDocx = async (assignment: Assignment) => {
 
               {viewSubmission && (
                 <div className="flex-1 min-h-0 overflow-y-auto py-2 space-y-6">
+                  {/* Submitted documents — every attachment the student
+                      uploaded. The "primary" file goes first; the rest
+                      come from the new attachments jsonb column. Older
+                      submissions without that column still show a single
+                      download row via the file_path/file_name fallback. */}
+                  {(() => {
+                    const allAttachments: SubmissionAttachment[] = (() => {
+                      if (
+                        Array.isArray(viewSubmission.attachments) &&
+                        viewSubmission.attachments.length > 0
+                      ) {
+                        return viewSubmission.attachments as SubmissionAttachment[];
+                      }
+                      if (viewSubmission.file_path && viewSubmission.file_name) {
+                        return [
+                          {
+                            category: "Submission",
+                            file_name: viewSubmission.file_name,
+                            file_path: viewSubmission.file_path,
+                            script_url: viewSubmission.script_url || "",
+                          },
+                        ];
+                      }
+                      return [];
+                    })();
+
+                    if (allAttachments.length === 0) return null;
+
+                    return (
+                      <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-2xl p-6 border border-emerald-100">
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="p-2 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-lg">
+                            <FileText className="h-5 w-5 text-white" />
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-bold text-gray-900">
+                              Submitted Documents
+                            </h3>
+                            <p className="text-sm text-gray-600">
+                              {allAttachments.length === 1
+                                ? "1 file submitted"
+                                : `${allAttachments.length} files submitted`}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="grid gap-2">
+                          {allAttachments.map((att, idx) => (
+                            <div
+                              key={`${att.file_path}-${idx}`}
+                              className="flex items-center gap-3 bg-white/80 rounded-xl p-3 border border-emerald-100"
+                            >
+                              <FileText className="h-4 w-4 text-emerald-600 shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <Badge
+                                    variant="secondary"
+                                    className="bg-emerald-100 text-emerald-800 border-0 text-xs"
+                                  >
+                                    {att.category}
+                                  </Badge>
+                                  <span
+                                    className="text-sm font-medium text-gray-900 truncate"
+                                    title={att.file_name}
+                                  >
+                                    {att.file_name}
+                                  </span>
+                                </div>
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  downloadSubmission(att.file_path, att.file_name)
+                                }
+                                className="hover:bg-emerald-50 border-emerald-200 shrink-0"
+                              >
+                                <Download className="h-4 w-4 mr-1" />
+                                Download
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                   {/* Enhanced Overall Score Section */}
                   {(() => {
                     const getOverallData = (submission: any) => {

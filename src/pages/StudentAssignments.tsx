@@ -933,26 +933,36 @@ export default function StudentAssignments() {
     file: File,
     studentId: string,
     studentEmail: string,
-    assignmentId: string,
+    assignmentTitle: string,
     category: AttachmentCategory,
   ): Promise<{ filePath: string; publicUrl: string; storedName: string }> => {
-    const timestamp = Date.now();
-    // Embed the student's email in the storage object name so faculty can
-    // segregate documents at the final stage without needing to look up the
-    // student id. Underscores keep the path safe for Supabase storage.
-    const emailSlug = (studentEmail || "student")
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "_")
-      .replace(/^_+|_+$/g, "");
-    const categorySlug = category.toLowerCase().replace(/\s+/g, "-");
-    const safeFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
-    const storedName = `${emailSlug}__${categorySlug}__${safeFileName}`;
-    const filePath = `${studentId}/${assignmentId}_${timestamp}_${storedName}`;
+    // Faculty asked for filenames in the format
+    //   {Category}_{studentEmail}_{assignmentName}.{ext}
+    // so documents are self-describing when downloaded in bulk. The email
+    // is preserved with @ and . so it reads naturally; only filesystem-
+    // hostile chars are replaced. assignmentTitle is slugified to avoid
+    // spaces / punctuation breaking storage paths.
+    const ext = file.name.includes(".")
+      ? file.name.split(".").pop()!.toLowerCase().replace(/[^a-z0-9]/g, "")
+      : "bin";
+    const emailPart = (studentEmail || "student")
+      .trim()
+      .replace(/\s+/g, "")
+      .replace(/[^a-zA-Z0-9@._+-]/g, "_");
+    const categoryPart = category.replace(/\s+/g, "_");
+    const titlePart = (assignmentTitle || "assignment")
+      .replace(/[^a-zA-Z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 80) || "assignment";
+    const storedName = `${categoryPart}_${emailPart}_${titlePart}.${ext}`;
+    const filePath = `${studentId}/${storedName}`;
+    // upsert:true so re-submitting the same category+ext for the same
+    // assignment cleanly replaces the prior file instead of erroring.
     const { error } = await supabase.storage
       .from("assignment-submissions")
       .upload(filePath, file, {
         cacheControl: "3600",
-        upsert: false,
+        upsert: true,
       });
     if (error) throw error;
     const { data: urlData } = supabase.storage
@@ -1044,22 +1054,26 @@ export default function StudentAssignments() {
     let submissionInserted = false;
 
     try {
-      // 1. Upload all attachments. Each gets the student's email embedded
-      //    in the storage object name plus a category tag so the final
-      //    segregation step is just a filename split.
+      // 1. Upload all attachments. Each is renamed to
+      //    {Category}_{email}_{assignment}.{ext} so faculty get
+      //    self-describing filenames at download time.
       const uploaded: SubmissionAttachment[] = [];
       for (const attachment of selectedAttachments) {
-        const { filePath, publicUrl } = await uploadAttachmentToSupabase(
+        const { filePath, publicUrl, storedName } = await uploadAttachmentToSupabase(
           attachment.file,
           user.id,
           studentEmail,
-          selectedAssignment.id,
+          selectedAssignment.title,
           attachment.category,
         );
         uploadedPaths.push(filePath);
         uploaded.push({
           category: attachment.category,
-          file_name: attachment.file.name,
+          // Use the formatted filename (storedName) so when faculty
+          // download from the teacher dashboard the file lands as
+          // Logline_student@gmail.com_assignment_name.pdf rather than
+          // the student's original local filename.
+          file_name: storedName,
           file_path: filePath,
           script_url: publicUrl,
           size: attachment.file.size,
@@ -1106,7 +1120,16 @@ export default function StudentAssignments() {
       // Capture state before resetting so the background task isn't
       // affected by the dialog close that follows.
       const assignmentForEval = selectedAssignment;
-      const primaryUrlForEval = primary.script_url;
+      // The AI evaluator only knows how to read text-bearing documents
+      // (PDF/DOCX/TXT). Pick the first such attachment for evaluation;
+      // fall back to the primary file if nothing matches. If the student
+      // only uploaded images, skip evaluation entirely so we don't trip
+      // the backend's "non-extractable PDF" 400.
+      const evalCandidate =
+        uploaded.find((a) => /\.pdf($|\?)/i.test(a.script_url)) ||
+        uploaded.find((a) => /\.docx($|\?)/i.test(a.script_url)) ||
+        uploaded.find((a) => /\.txt($|\?)/i.test(a.script_url)) ||
+        null;
 
       setSubmitDialogOpen(false);
       setSelectedAttachments([]);
@@ -1118,11 +1141,13 @@ export default function StudentAssignments() {
       // 3. Best-effort AI evaluation. Failure does not affect the saved
       //    submission — it just means the rubric and feedback may not be
       //    auto-populated.
-      void runAiEvaluationInBackground(
-        submissionId,
-        assignmentForEval,
-        primaryUrlForEval,
-      );
+      if (evalCandidate) {
+        void runAiEvaluationInBackground(
+          submissionId,
+          assignmentForEval,
+          evalCandidate.script_url,
+        );
+      }
     } catch (error: any) {
       // Clean up orphan uploads so a retry doesn't accumulate dead files.
       if (!submissionInserted && uploadedPaths.length > 0) {

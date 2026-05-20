@@ -396,6 +396,130 @@ export type Database = {
           },
         ]
       }
+      comment_bank: {
+        Row: {
+          id: string
+          semester: number
+          subject_id: string
+          grade: string
+          body: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          semester: number
+          subject_id: string
+          grade: string
+          body: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          semester?: number
+          subject_id?: string
+          grade?: string
+          body?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comment_bank_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      student_grades: {
+        Row: {
+          id: string
+          student_id: string
+          semester: number
+          subject_id: string
+          grade: string
+          comment_id: string
+          teacher_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          student_id: string
+          semester: number
+          subject_id: string
+          grade: string
+          comment_id: string
+          teacher_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          student_id?: string
+          semester?: number
+          subject_id?: string
+          grade?: string
+          comment_id?: string
+          teacher_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_grades_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_grades_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_grades_comment_id_fkey"
+            columns: ["comment_id"]
+            isOneToOne: false
+            referencedRelation: "comment_bank"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_grades_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subjects: {
+        Row: {
+          id: string
+          code: string
+          name: string
+          display_order: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          code: string
+          name: string
+          display_order?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          code?: string
+          name?: string
+          display_order?: number
+          created_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

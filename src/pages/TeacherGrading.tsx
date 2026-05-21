@@ -635,8 +635,6 @@ export default function TeacherGrading() {
                           c.name,
                           c.semester && `Sem ${c.semester}`,
                           c.program,
-                          c.specialization &&
-                            SPECIALIZATION_LABELS[c.specialization],
                         ]
                           .filter(Boolean)
                           .join(" | ")}

@@ -114,12 +114,6 @@ export function AppSidebar() {
             description: "Review student script submissions",
           },
           {
-            name: "Grading",
-            href: "/teacher/grading",
-            icon: GraduationCap,
-            description: "Grade students and pick comments",
-          },
-          {
             name: "Quizzes",
             href: "/teacher/quiz",
             icon: Brain,
@@ -137,11 +131,17 @@ export function AppSidebar() {
             icon: Book,
             description: "Manage film terminology",
           },
-           {
+          {
             name: "Student Monitoring",
             href: "/teacher/student-work",
             icon: GraduationCap,
             description: "Monitor student progress and work",
+          },
+          {
+            name: "Grading",
+            href: "/teacher/grading",
+            icon: GraduationCap,
+            description: "Grade students and pick comments",
           },
         ];
       case "student":

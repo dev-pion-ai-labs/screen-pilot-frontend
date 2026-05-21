@@ -755,10 +755,14 @@ export default function TeacherGrading() {
               </CardHeader>
               <CardContent>
                 {loadingRefData || loadingGrades ? (
-                  <div className="flex items-center gap-2 text-sm text-slate-500 py-6">
-                    <Loader2 className="h-4 w-4 animate-spin" /> Loading
-                    grades…
-                  </div>
+                  // Mirror the real layout (3 cards for spec / 6 for
+                  // foundation) so navigating in from "Edit grades" doesn't
+                  // flash empty-state placeholders before the real grid
+                  // hydrates.
+                  <GradingSkeleton
+                    count={gradingSubjectCodes.length || 3}
+                    showTabs={gradingSemesters.length > 1}
+                  />
                 ) : gradingSemesters.length === 1 ? (
                   // Sem 3+ specialisation class — just one semester to grade.
                   <div className="mt-2">
@@ -784,5 +788,41 @@ export default function TeacherGrading() {
         </div>
       </ModernDashboardLayout>
     </AuthGuard>
+  );
+}
+
+function GradingSkeleton({
+  count,
+  showTabs,
+}: {
+  count: number;
+  showTabs: boolean;
+}) {
+  return (
+    <div className="space-y-3">
+      {showTabs && (
+        <div className="flex gap-2 mb-3">
+          <Skeleton className="h-9 w-20" />
+          <Skeleton className="h-9 w-20" />
+        </div>
+      )}
+      {Array.from({ length: count }).map((_, i) => (
+        <Card key={i} className="border-slate-200">
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between gap-4 mb-3">
+              <div className="space-y-2 flex-1">
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="h-3 w-56" />
+              </div>
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-9 w-24" />
+                <Skeleton className="h-9 w-20" />
+              </div>
+            </div>
+            <Skeleton className="h-10 w-full" />
+          </CardContent>
+        </Card>
+      ))}
+    </div>
   );
 }

@@ -143,6 +143,12 @@ export function AppSidebar() {
             icon: GraduationCap,
             description: "Grade students and pick comments",
           },
+          {
+            name: "Report Cards",
+            href: "/teacher/report-card",
+            icon: FileText,
+            description: "View and edit student report cards",
+          },
         ];
       case "student":
         return [
@@ -182,6 +188,12 @@ export function AppSidebar() {
             href: "/student/explore-beyond-syllabus",
             icon: Compass,
             description: "Additional resources",
+          },
+          {
+            name: "My Report Card",
+            href: "/student/report-card",
+            icon: FileText,
+            description: "See your final grades and summary",
           },
         ];
       default:

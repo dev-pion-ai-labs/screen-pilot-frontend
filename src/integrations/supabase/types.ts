@@ -145,6 +145,105 @@ export type Database = {
           },
         ]
       }
+      classes: {
+        Row: {
+          id: string
+          name: string
+          semester: number
+          program: string | null
+          specialization: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          semester: number
+          program?: string | null
+          specialization?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          semester?: number
+          program?: string | null
+          specialization?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      class_teachers: {
+        Row: {
+          id: string
+          class_id: string
+          teacher_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          class_id: string
+          teacher_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          class_id?: string
+          teacher_id?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "class_teachers_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "class_teachers_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      class_students: {
+        Row: {
+          id: string
+          class_id: string
+          student_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          class_id: string
+          student_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          class_id?: string
+          student_id?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "class_students_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "class_students_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       deleted_users: {
         Row: {
           created_at: string | null

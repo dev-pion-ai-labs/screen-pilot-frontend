@@ -13,7 +13,11 @@ import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { type Program } from "@/data/syllabus";
+import {
+  type Program,
+  type Specialization,
+  SPECIALIZATION_MIN_SEMESTER,
+} from "@/data/syllabus";
 
 interface Teacher {
   id: string;
@@ -36,6 +40,7 @@ interface Class {
   name: string;
   semester: number;
   program: Program | null;
+  specialization: Specialization | null;
   teachers: Teacher[];
   students: Student[];
   createdAt: string;
@@ -54,6 +59,8 @@ const AdminAssignClass = () => {
   const [newClassName, setNewClassName] = useState("");
   const [selectedSemester, setSelectedSemester] = useState<number>(1);
   const [selectedProgram, setSelectedProgram] = useState<Program>("BA");
+  const [selectedSpecialization, setSelectedSpecialization] =
+    useState<Specialization | null>(null);
   const [selectedTeachers, setSelectedTeachers] = useState<Teacher[]>([]);
   const [selectedStudents, setSelectedStudents] = useState<Student[]>([]);
 
@@ -110,6 +117,7 @@ const AdminAssignClass = () => {
         name,
         semester,
         program,
+        specialization,
         created_at,
         class_teachers (
           teacher_id,
@@ -136,6 +144,7 @@ const AdminAssignClass = () => {
       name: c.name,
       semester: c.semester,
       program: c.program ?? null,
+      specialization: c.specialization ?? null,
       createdAt: c.created_at,
       teachers: c.class_teachers.map((t: any) => t.profiles),
       students: c.class_students.map((s: any) => s.profiles),
@@ -174,6 +183,24 @@ const AdminAssignClass = () => {
       return;
     }
 
+    if (
+      selectedSemester >= SPECIALIZATION_MIN_SEMESTER &&
+      !selectedSpecialization
+    ) {
+      toast({
+        title: "Error",
+        description: "Please pick a specialisation for Sem 3+ classes",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // For Sem 1-2 we always store null, even if a stale value lingers in state.
+    const specializationToSave =
+      selectedSemester >= SPECIALIZATION_MIN_SEMESTER
+        ? selectedSpecialization
+        : null;
+
     try {
       // 1. Create class in DB
       const { data: classData, error: classError } = await supabase
@@ -183,6 +210,7 @@ const AdminAssignClass = () => {
             name: newClassName,
             semester: selectedSemester,
             program: selectedProgram,
+            specialization: specializationToSave,
           },
         ])
         .select()
@@ -224,6 +252,7 @@ const AdminAssignClass = () => {
         name: newClassName,
         semester: selectedSemester,
         program: selectedProgram,
+        specialization: specializationToSave,
         teachers: selectedTeachers,
         students: selectedStudents,
         createdAt: classData.created_at,
@@ -279,6 +308,23 @@ const AdminAssignClass = () => {
       return;
     }
 
+    if (
+      selectedSemester >= SPECIALIZATION_MIN_SEMESTER &&
+      !selectedSpecialization
+    ) {
+      toast({
+        title: "Error",
+        description: "Please pick a specialisation for Sem 3+ classes",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const specializationToSave =
+      selectedSemester >= SPECIALIZATION_MIN_SEMESTER
+        ? selectedSpecialization
+        : null;
+
     try {
       // 1. Update class details
       const { error: classError } = await supabase
@@ -287,6 +333,7 @@ const AdminAssignClass = () => {
           name: newClassName,
           semester: selectedSemester,
           program: selectedProgram,
+          specialization: specializationToSave,
         })
         .eq("id", editingClass.id);
 
@@ -398,6 +445,7 @@ const AdminAssignClass = () => {
     setNewClassName("");
     setSelectedSemester(1);
     setSelectedProgram("BA");
+    setSelectedSpecialization(null);
     setSelectedTeachers([]);
     setSelectedStudents([]);
   };
@@ -407,6 +455,7 @@ const AdminAssignClass = () => {
     setNewClassName(classItem.name);
     setSelectedSemester(classItem.semester);
     setSelectedProgram(classItem.program ?? "BA");
+    setSelectedSpecialization(classItem.specialization);
     setSelectedTeachers(classItem.teachers);
     setSelectedStudents(classItem.students);
     setIsEditDialogOpen(true);
@@ -461,6 +510,8 @@ const AdminAssignClass = () => {
             setSelectedSemester={setSelectedSemester}
             selectedProgram={selectedProgram}
             setSelectedProgram={setSelectedProgram}
+            selectedSpecialization={selectedSpecialization}
+            setSelectedSpecialization={setSelectedSpecialization}
             selectedTeachers={selectedTeachers}
             setSelectedTeachers={setSelectedTeachers}
             selectedStudents={selectedStudents}
@@ -481,6 +532,8 @@ const AdminAssignClass = () => {
             setSelectedSemester={setSelectedSemester}
             selectedProgram={selectedProgram}
             setSelectedProgram={setSelectedProgram}
+            selectedSpecialization={selectedSpecialization}
+            setSelectedSpecialization={setSelectedSpecialization}
             selectedTeachers={selectedTeachers}
             setSelectedTeachers={setSelectedTeachers}
             selectedStudents={selectedStudents}

@@ -9,7 +9,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Edit, Trash2, Users, School } from "lucide-react";
+import { Edit, Trash2, Users, School, AlertTriangle } from "lucide-react";
+import {
+  SPECIALIZATION_LABELS,
+  SPECIALIZATION_MIN_SEMESTER,
+  type Specialization,
+} from "@/data/syllabus";
 
 interface Teacher {
   id: string;
@@ -31,6 +36,7 @@ interface Class {
   students: Student[];
   semester: number;
   program?: "BA" | "MA" | null;
+  specialization?: Specialization | null;
   createdAt: string;
 }
 
@@ -69,6 +75,9 @@ export const AdminClassTable = ({
                 </TableHead>
                 <TableHead className="font-bold text-gray-700 text-lg py-6 px-8">
                   Semester
+                </TableHead>
+                <TableHead className="font-bold text-gray-700 text-lg py-6 px-8">
+                  Specialisation
                 </TableHead>
                 <TableHead className="font-bold text-gray-700 text-lg py-6 px-8">
                   Students
@@ -115,6 +124,22 @@ export const AdminClassTable = ({
                   </TableCell>
                   <TableCell className="font-semibold text-gray-900 text-lg py-6 px-8">
                     {classItem.semester}
+                  </TableCell>
+                  <TableCell className="py-6 px-8">
+                    {classItem.semester < SPECIALIZATION_MIN_SEMESTER ? (
+                      <Badge variant="outline" className="text-gray-400 px-3 py-1">
+                        —
+                      </Badge>
+                    ) : classItem.specialization ? (
+                      <Badge className="bg-gradient-to-r from-amber-500 to-orange-500 text-white border-0 px-3 py-1 text-sm font-medium rounded-full">
+                        {SPECIALIZATION_LABELS[classItem.specialization]}
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-red-100 text-red-700 border border-red-200 px-3 py-1 text-sm font-medium rounded-full flex items-center gap-1 w-fit">
+                        <AlertTriangle className="w-3 h-3" />
+                        Not set
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell className="py-6 px-8">
                     <div className="flex items-center gap-3">

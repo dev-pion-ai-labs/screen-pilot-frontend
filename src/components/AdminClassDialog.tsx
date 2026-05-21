@@ -25,7 +25,14 @@ import {
   GraduationCap,
   Search,
 } from "lucide-react";
-import { PROGRAM_OPTIONS, type Program } from "@/data/syllabus";
+import {
+  PROGRAM_OPTIONS,
+  SPECIALIZATION_LABELS,
+  SPECIALIZATION_MIN_SEMESTER,
+  SPECIALIZATION_OPTIONS,
+  type Program,
+  type Specialization,
+} from "@/data/syllabus";
 
 interface Teacher {
   id: string;
@@ -55,6 +62,8 @@ interface AdminClassDialogProps {
   setSelectedSemester: (semester: number) => void;
   selectedProgram: Program;
   setSelectedProgram: (program: Program) => void;
+  selectedSpecialization: Specialization | null;
+  setSelectedSpecialization: (spec: Specialization | null) => void;
   selectedTeachers: Teacher[];
   setSelectedTeachers: (teachers: Teacher[]) => void;
   selectedStudents: Student[];
@@ -369,6 +378,8 @@ export const AdminClassDialog = ({
   setSelectedSemester,
   selectedProgram,
   setSelectedProgram,
+  selectedSpecialization,
+  setSelectedSpecialization,
   selectedTeachers,
   setSelectedTeachers,
   selectedStudents,
@@ -377,6 +388,7 @@ export const AdminClassDialog = ({
   students,
   onResetForm,
 }: AdminClassDialogProps) => {
+  const needsSpecialization = selectedSemester >= SPECIALIZATION_MIN_SEMESTER;
   const [isTeacherModalOpen, setIsTeacherModalOpen] = useState(false);
   const [isStudentModalOpen, setIsStudentModalOpen] = useState(false);
   const [tempSelectedTeachers, setTempSelectedTeachers] = useState<string[]>([]);
@@ -522,7 +534,13 @@ export const AdminClassDialog = ({
                 </Label>
                 <Select
                   value={selectedSemester.toString()}
-                  onValueChange={(value) => setSelectedSemester(parseInt(value))}
+                  onValueChange={(value) => {
+                    const next = parseInt(value);
+                    setSelectedSemester(next);
+                    if (next < SPECIALIZATION_MIN_SEMESTER) {
+                      setSelectedSpecialization(null);
+                    }
+                  }}
                 >
                   <SelectTrigger className="h-14 text-lg rounded-xl border-2 border-gray-200 focus:border-purple-500">
                     <SelectValue placeholder="Select Semester" />
@@ -538,6 +556,35 @@ export const AdminClassDialog = ({
                 </Select>
               </div>
             </div>
+
+            {needsSpecialization && (
+              <div className="space-y-3">
+                <Label className="text-lg font-semibold text-gray-700">
+                  Specialisation
+                </Label>
+                <p className="text-sm text-gray-500 -mt-1">
+                  Sem 3+ classes belong to one specialisation track. Direction
+                  and Production are common across all tracks.
+                </p>
+                <Select
+                  value={selectedSpecialization ?? ""}
+                  onValueChange={(value) =>
+                    setSelectedSpecialization(value as Specialization)
+                  }
+                >
+                  <SelectTrigger className="h-14 text-lg rounded-xl border-2 border-gray-200 focus:border-purple-500">
+                    <SelectValue placeholder="Select Specialisation" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SPECIALIZATION_OPTIONS.map((spec) => (
+                      <SelectItem key={spec} value={spec}>
+                        {SPECIALIZATION_LABELS[spec]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             <div className="space-y-4">
               <Label className="text-lg font-semibold text-gray-700">

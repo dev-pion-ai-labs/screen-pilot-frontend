@@ -28,7 +28,13 @@ import {
   Loader2,
   Save,
   CheckCircle2,
+  AlertTriangle,
 } from "lucide-react";
+import {
+  SPECIALIZATION_LABELS,
+  SPECIALIZATION_MIN_SEMESTER,
+  type Specialization,
+} from "@/data/syllabus";
 
 type Grade = "A" | "B" | "C" | "D";
 const GRADES: Grade[] = ["A", "B", "C", "D"];
@@ -53,6 +59,7 @@ interface TeacherClass {
   name: string;
   semester: number | null;
   program: string | null;
+  specialization: Specialization | null;
   student_count: number;
 }
 
@@ -80,12 +87,20 @@ const FOUNDATION_SUBJECT_CODES = [
   "editing",
 ];
 
+// Sem III+ classes grade 3 subjects: the class's specialisation, plus Direction
+// and Production which stay common across all tracks.
+const COMMON_SPECIALIZATION_CODES = ["direction", "production"];
+
 // Cell state — what the teacher has selected for one (semester, subject) cell.
+// savedGrade / savedCommentId track what's persisted, so the button can show
+// "Saved" while the current selection matches and "Save" the moment the user
+// picks a different grade or comment.
 interface CellState {
   grade: Grade | "";
   commentId: string;
   saving: boolean;
-  savedAt: number | null; // timestamp of last successful save, used for the brief checkmark
+  savedGrade: Grade | "";
+  savedCommentId: string;
 }
 
 type GridState = Record<string, CellState>; // key = `${semester}:${subjectId}`
@@ -110,26 +125,20 @@ export default function TeacherGrading() {
   const [selectedStudentId, setSelectedStudentId] = useState<string>("");
   const [grid, setGrid] = useState<GridState>({});
 
-  // 1. Load reference data (subjects + the entire Sem I/II comment bank).
-  // The comment bank is small (384 rows), so we fetch it once and filter
-  // client-side rather than re-querying each time the grade changes.
+  // 1. Load the subjects reference list once. Comments are loaded lazily per
+  // class (see below) so a Sem 3 VFX class doesn't pay for Sem I-II data.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoadingRefData(true);
       try {
-        const [subjRes, commentsRes] = await Promise.all([
-          supabase.from("subjects").select("*").order("display_order"),
-          supabase
-            .from("comment_bank")
-            .select("id, semester, subject_id, grade, body")
-            .in("semester", [1, 2]),
-        ]);
+        const { data, error } = await supabase
+          .from("subjects")
+          .select("*")
+          .order("display_order");
         if (cancelled) return;
-        if (subjRes.error) throw subjRes.error;
-        if (commentsRes.error) throw commentsRes.error;
-        setSubjects(subjRes.data ?? []);
-        setCommentBank((commentsRes.data ?? []) as Comment[]);
+        if (error) throw error;
+        setSubjects(data ?? []);
       } catch (err) {
         toast({
           title: "Couldn't load grading data",
@@ -154,7 +163,9 @@ export default function TeacherGrading() {
       try {
         const { data, error } = await supabase
           .from("class_teachers")
-          .select("class_id, classes:class_id ( id, name, semester, program )")
+          .select(
+            "class_id, classes:class_id ( id, name, semester, program, specialization )",
+          )
           .eq("teacher_id", teacherId);
         if (error) throw error;
         if (cancelled) return;
@@ -172,6 +183,7 @@ export default function TeacherGrading() {
               name: cls.name,
               semester: cls.semester,
               program: cls.program,
+              specialization: (cls.specialization ?? null) as Specialization | null,
               student_count: count ?? 0,
             } as TeacherClass;
           }),
@@ -191,6 +203,65 @@ export default function TeacherGrading() {
       cancelled = true;
     };
   }, [teacherId, toast]);
+
+  const selectedClass = useMemo(
+    () => classes.find((c) => c.id === selectedClassId) ?? null,
+    [classes, selectedClassId],
+  );
+
+  // Which semesters this class is graded against. Sem 1-2 classes always
+  // grade against the full Sem I/II foundation; Sem 3+ classes grade only
+  // their own semester.
+  const gradingSemesters = useMemo<number[]>(() => {
+    if (!selectedClass?.semester) return [];
+    if (selectedClass.semester < SPECIALIZATION_MIN_SEMESTER) return [1, 2];
+    return [selectedClass.semester];
+  }, [selectedClass]);
+
+  // Which subject codes are graded for this class. Foundation = the six
+  // common subjects; specialisation = the class's spec + Direction + Production.
+  // For a Sem 3+ class with no specialisation set yet, returns [] so the UI
+  // can show the "ask admin to set specialisation" guard instead of the grid.
+  const gradingSubjectCodes = useMemo<string[]>(() => {
+    if (!selectedClass?.semester) return [];
+    if (selectedClass.semester < SPECIALIZATION_MIN_SEMESTER) {
+      return FOUNDATION_SUBJECT_CODES;
+    }
+    if (!selectedClass.specialization) return [];
+    return [selectedClass.specialization, ...COMMON_SPECIALIZATION_CODES];
+  }, [selectedClass]);
+
+  // Hydrate comment bank for the class's semesters whenever the class changes.
+  useEffect(() => {
+    if (gradingSemesters.length === 0) {
+      setCommentBank([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from("comment_bank")
+          .select("id, semester, subject_id, grade, body")
+          .in("semester", gradingSemesters);
+        if (cancelled) return;
+        if (error) throw error;
+        setCommentBank((data ?? []) as Comment[]);
+      } catch (err) {
+        toast({
+          title: "Couldn't load comments",
+          description: (err as Error).message,
+          variant: "destructive",
+        });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // gradingSemesters is derived from selectedClass; comparing by JSON to
+    // avoid refetching when the array reference changes but contents don't.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(gradingSemesters), toast]);
 
   // 3. When a class is picked, load its students.
   useEffect(() => {
@@ -246,7 +317,7 @@ export default function TeacherGrading() {
   // so the dropdowns show what was previously saved (and updates overwrite
   // instead of creating duplicate rows).
   useEffect(() => {
-    if (!selectedStudentId) {
+    if (!selectedStudentId || gradingSemesters.length === 0) {
       setGrid({});
       return;
     }
@@ -258,7 +329,7 @@ export default function TeacherGrading() {
           .from("student_grades")
           .select("subject_id, semester, grade, comment_id")
           .eq("student_id", selectedStudentId)
-          .in("semester", [1, 2]);
+          .in("semester", gradingSemesters);
         if (error) throw error;
         if (cancelled) return;
         const next: GridState = {};
@@ -267,7 +338,8 @@ export default function TeacherGrading() {
             grade: row.grade as Grade,
             commentId: row.comment_id,
             saving: false,
-            savedAt: null,
+            savedGrade: row.grade as Grade,
+            savedCommentId: row.comment_id,
           };
         });
         setGrid(next);
@@ -284,14 +356,17 @@ export default function TeacherGrading() {
     return () => {
       cancelled = true;
     };
-  }, [selectedStudentId, toast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedStudentId, JSON.stringify(gradingSemesters), toast]);
 
-  const foundationSubjects = useMemo(() => {
-    const bycode = new Map(subjects.map((s) => [s.code, s]));
-    return FOUNDATION_SUBJECT_CODES.map((code) => bycode.get(code)).filter(
-      Boolean,
-    ) as Subject[];
-  }, [subjects]);
+  // Resolve the class's subject codes (foundation 6 or spec 3) into actual
+  // Subject rows, preserving the configured display order.
+  const gradingSubjects = useMemo(() => {
+    const byCode = new Map(subjects.map((s) => [s.code, s]));
+    return gradingSubjectCodes
+      .map((code) => byCode.get(code))
+      .filter(Boolean) as Subject[];
+  }, [subjects, gradingSubjectCodes]);
 
   // Comments grouped by (semester, subject_id, grade) for fast dropdown lookups.
   const commentsByCell = useMemo(() => {
@@ -310,7 +385,8 @@ export default function TeacherGrading() {
       grade: "",
       commentId: "",
       saving: false,
-      savedAt: null,
+      savedGrade: "",
+      savedCommentId: "",
     };
 
   const updateCell = (
@@ -334,7 +410,7 @@ export default function TeacherGrading() {
   ) => {
     // Changing the grade clears the previously selected comment, since the
     // comment list is grade-filtered.
-    updateCell(semester, subjectId, { grade, commentId: "", savedAt: null });
+    updateCell(semester, subjectId, { grade, commentId: "" });
   };
 
   const onCommentChange = (
@@ -342,7 +418,7 @@ export default function TeacherGrading() {
     subjectId: string,
     commentId: string,
   ) => {
-    updateCell(semester, subjectId, { commentId, savedAt: null });
+    updateCell(semester, subjectId, { commentId });
   };
 
   const saveCell = async (semester: number, subjectId: string) => {
@@ -371,7 +447,8 @@ export default function TeacherGrading() {
       if (error) throw error;
       updateCell(semester, subjectId, {
         saving: false,
-        savedAt: Date.now(),
+        savedGrade: cell.grade,
+        savedCommentId: cell.commentId,
       });
     } catch (err) {
       updateCell(semester, subjectId, { saving: false });
@@ -385,21 +462,36 @@ export default function TeacherGrading() {
 
   const selectedStudent = students.find((s) => s.id === selectedStudentId);
 
-  const renderSemesterPanel = (semester: 1 | 2) => (
+  const renderSemesterPanel = (semester: number) => (
     <div className="space-y-3">
-      {foundationSubjects.map((subject) => {
+      {gradingSubjects.map((subject) => {
         const cell = getCell(semester, subject.id);
         const commentChoices = cell.grade
           ? commentsByCell.get(`${semester}:${subject.id}:${cell.grade}`) ?? []
           : [];
-        const recentlySaved =
-          cell.savedAt && Date.now() - cell.savedAt < 4000;
+        const isSaved =
+          cell.savedGrade !== "" &&
+          cell.savedCommentId !== "" &&
+          cell.grade === cell.savedGrade &&
+          cell.commentId === cell.savedCommentId;
+        const isSpecializationSubject =
+          !!selectedClass?.specialization &&
+          subject.code === selectedClass.specialization;
         return (
           <Card key={subject.id} className="border-slate-200">
             <CardContent className="p-4">
               <div className="flex items-start justify-between gap-4 mb-3">
                 <div>
-                  <h4 className="font-medium text-slate-900">{subject.name}</h4>
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-medium text-slate-900">
+                      {subject.name}
+                    </h4>
+                    {isSpecializationSubject && (
+                      <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800 border border-amber-200">
+                        Specialisation
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-slate-500">
                     Pick a grade, then choose the matching comment.
                   </p>
@@ -426,12 +518,17 @@ export default function TeacherGrading() {
                     size="sm"
                     onClick={() => saveCell(semester, subject.id)}
                     disabled={
-                      cell.saving || !cell.grade || !cell.commentId
+                      cell.saving || !cell.grade || !cell.commentId || isSaved
+                    }
+                    className={
+                      isSaved
+                        ? "bg-emerald-600 hover:bg-emerald-600 text-white disabled:opacity-100"
+                        : "bg-indigo-600 hover:bg-indigo-700 text-white"
                     }
                   >
                     {cell.saving ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : recentlySaved ? (
+                    ) : isSaved ? (
                       <>
                         <CheckCircle2 className="h-4 w-4 mr-1" />
                         Saved
@@ -459,12 +556,14 @@ export default function TeacherGrading() {
                     }
                   />
                 </SelectTrigger>
-                <SelectContent className="max-w-[640px]">
+                <SelectContent
+                  className="w-[var(--radix-select-trigger-width)] max-h-[60vh]"
+                >
                   {commentChoices.map((c) => (
                     <SelectItem
                       key={c.id}
                       value={c.id}
-                      className="whitespace-normal py-2"
+                      className="whitespace-normal py-2 pr-8"
                     >
                       <span className="text-sm leading-snug">{c.body}</span>
                     </SelectItem>
@@ -491,8 +590,8 @@ export default function TeacherGrading() {
                 Grading &amp; Comments
               </h1>
               <p className="text-sm text-slate-500">
-                Foundation semesters (Sem I &amp; II). Pick a student, set a
-                grade per subject, then choose a comment.
+                Pick a class and student, set a grade per subject, then choose
+                a comment.
               </p>
             </div>
           </div>
@@ -532,9 +631,15 @@ export default function TeacherGrading() {
                   <SelectContent>
                     {classes.map((c) => (
                       <SelectItem key={c.id} value={c.id}>
-                        {c.name}
-                        {c.semester ? ` · Sem ${c.semester}` : ""}
-                        {c.program ? ` · ${c.program}` : ""}
+                        {[
+                          c.name,
+                          c.semester && `Sem ${c.semester}`,
+                          c.program,
+                          c.specialization &&
+                            SPECIALIZATION_LABELS[c.specialization],
+                        ]
+                          .filter(Boolean)
+                          .join(" | ")}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -574,7 +679,31 @@ export default function TeacherGrading() {
             </CardContent>
           </Card>
 
-          {selectedStudent && (
+          {selectedClass &&
+            selectedClass.semester != null &&
+            selectedClass.semester >= SPECIALIZATION_MIN_SEMESTER &&
+            !selectedClass.specialization && (
+              <Card className="border-amber-200 bg-amber-50">
+                <CardContent className="flex items-start gap-3 py-4">
+                  <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+                  <div className="text-sm text-amber-900">
+                    <div className="font-medium">
+                      Specialisation not set for this class
+                    </div>
+                    <div className="text-amber-800 mt-1">
+                      This is a Sem {selectedClass.semester} class but no
+                      specialisation has been assigned. Ask an admin to set one
+                      on{" "}
+                      <span className="font-mono">/admin/assign-class</span>{" "}
+                      (Screenwriting, Cinematography, Editing, Sound Design, or
+                      VFX) before grading can begin.
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+          {selectedStudent && gradingSubjectCodes.length > 0 && (
             <Card>
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
@@ -601,6 +730,11 @@ export default function TeacherGrading() {
                   <div className="flex items-center gap-2 text-sm text-slate-500 py-6">
                     <Loader2 className="h-4 w-4 animate-spin" /> Loading
                     grades…
+                  </div>
+                ) : gradingSemesters.length === 1 ? (
+                  // Sem 3+ specialisation class — just one semester to grade.
+                  <div className="mt-2">
+                    {renderSemesterPanel(gradingSemesters[0])}
                   </div>
                 ) : (
                   <Tabs defaultValue="1" className="w-full">

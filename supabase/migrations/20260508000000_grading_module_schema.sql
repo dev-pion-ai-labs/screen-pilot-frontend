@@ -76,14 +76,19 @@ ALTER TABLE public.subjects        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.comment_bank    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.student_grades  ENABLE ROW LEVEL SECURITY;
 
+-- Policies use DROP-then-CREATE so this migration can be re-run safely after
+-- a partial failure (PostgreSQL has no CREATE POLICY IF NOT EXISTS).
+DROP POLICY IF EXISTS "subjects_read_authenticated" ON public.subjects;
 CREATE POLICY "subjects_read_authenticated"
   ON public.subjects FOR SELECT
   TO authenticated USING (true);
 
+DROP POLICY IF EXISTS "comment_bank_read_authenticated" ON public.comment_bank;
 CREATE POLICY "comment_bank_read_authenticated"
   ON public.comment_bank FOR SELECT
   TO authenticated USING (true);
 
+DROP POLICY IF EXISTS "student_grades_select" ON public.student_grades;
 CREATE POLICY "student_grades_select"
   ON public.student_grades FOR SELECT
   TO authenticated
@@ -95,6 +100,7 @@ CREATE POLICY "student_grades_select"
     )
   );
 
+DROP POLICY IF EXISTS "student_grades_insert" ON public.student_grades;
 CREATE POLICY "student_grades_insert"
   ON public.student_grades FOR INSERT
   TO authenticated
@@ -105,6 +111,7 @@ CREATE POLICY "student_grades_insert"
     )
   );
 
+DROP POLICY IF EXISTS "student_grades_update" ON public.student_grades;
 CREATE POLICY "student_grades_update"
   ON public.student_grades FOR UPDATE
   TO authenticated
@@ -121,6 +128,7 @@ CREATE POLICY "student_grades_update"
     )
   );
 
+DROP POLICY IF EXISTS "student_grades_delete" ON public.student_grades;
 CREATE POLICY "student_grades_delete"
   ON public.student_grades FOR DELETE
   TO authenticated

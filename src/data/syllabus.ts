@@ -726,6 +726,34 @@ export const PROGRAM_OPTIONS: Program[] = ["BA", "MA"];
 // legacy MA row is in the DB.
 export const ALL_PROGRAMS: Program[] = ["BA", "MA"];
 
+// Specialisation tracks for Sem 3+ classes. Direction and Production stay
+// common across all tracks, so they are NOT listed here.
+export type Specialization =
+  | "screenwriting"
+  | "cinematography"
+  | "editing"
+  | "sound_design"
+  | "vfx";
+
+export const SPECIALIZATION_OPTIONS: Specialization[] = [
+  "screenwriting",
+  "cinematography",
+  "editing",
+  "sound_design",
+  "vfx",
+];
+
+export const SPECIALIZATION_LABELS: Record<Specialization, string> = {
+  screenwriting: "Screenwriting",
+  cinematography: "Cinematography",
+  editing: "Editing",
+  sound_design: "Sound Design",
+  vfx: "VFX",
+};
+
+// The semester from which a specialisation becomes required.
+export const SPECIALIZATION_MIN_SEMESTER = 3;
+
 export const getSyllabus = (
   program?: Program | string | null,
   semester?: number | null,

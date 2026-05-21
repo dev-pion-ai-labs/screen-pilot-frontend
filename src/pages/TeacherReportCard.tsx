@@ -66,6 +66,9 @@ export default function TeacherReportCard() {
   const [selectedClassId, setSelectedClassId] = useState<string>("");
   const [selectedStudentId, setSelectedStudentId] = useState<string>("");
   const [report, setReport] = useState<ReportCardData>(EMPTY_REPORT);
+  // Snapshot of the report as last loaded/saved — used to compute "dirty"
+  // so the Save button stays disabled until the teacher actually edits.
+  const [originalReport, setOriginalReport] = useState<ReportCardData>(EMPTY_REPORT);
 
   // 1. Teacher's classes (for the class picker).
   useEffect(() => {
@@ -147,7 +150,10 @@ export default function TeacherReportCard() {
       setLoadingReport(true);
       try {
         const data = await loadReportCard(selectedStudentId);
-        if (!cancelled) setReport(data);
+        if (!cancelled) {
+          setReport(data);
+          setOriginalReport(data);
+        }
       } catch (err) {
         if (!cancelled) {
           toast({
@@ -168,6 +174,16 @@ export default function TeacherReportCard() {
   const selectedStudent = useMemo(
     () => students.find((s) => s.id === selectedStudentId) ?? null,
     [students, selectedStudentId],
+  );
+
+  // Any of the 4 editable fields differ from the last loaded/saved version.
+  const isDirty = useMemo(
+    () =>
+      report.portfolioUrl !== originalReport.portfolioUrl ||
+      report.creativeComment !== originalReport.creativeComment ||
+      report.technicalComment !== originalReport.technicalComment ||
+      report.professionalComment !== originalReport.professionalComment,
+    [report, originalReport],
   );
 
   const handleChange: NonNullable<
@@ -194,6 +210,8 @@ export default function TeacherReportCard() {
           { onConflict: "student_id" },
         );
       if (error) throw error;
+      // Mark current state as the new baseline so isDirty goes false.
+      setOriginalReport(report);
       toast({ title: "Report card saved" });
     } catch (err) {
       toast({
@@ -320,6 +338,9 @@ export default function TeacherReportCard() {
                 data={report}
                 editable
                 saving={saving}
+                isDirty={isDirty}
+                editClassId={selectedClassId}
+                editStudentId={selectedStudentId}
                 onChange={handleChange}
                 onSave={handleSave}
               />

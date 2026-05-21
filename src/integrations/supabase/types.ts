@@ -595,6 +595,57 @@ export type Database = {
           },
         ]
       }
+      student_report_card: {
+        Row: {
+          id: string
+          student_id: string
+          portfolio_url: string | null
+          creative_comment: string | null
+          technical_comment: string | null
+          professional_comment: string | null
+          updated_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          student_id: string
+          portfolio_url?: string | null
+          creative_comment?: string | null
+          technical_comment?: string | null
+          professional_comment?: string | null
+          updated_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          student_id?: string
+          portfolio_url?: string | null
+          creative_comment?: string | null
+          technical_comment?: string | null
+          professional_comment?: string | null
+          updated_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_report_card_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_report_card_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subjects: {
         Row: {
           id: string

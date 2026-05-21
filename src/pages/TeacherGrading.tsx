@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { AuthGuard } from "@/components/AuthGuard";
 import { ModernDashboardLayout } from "@/components/ModernDashboardLayout";
@@ -21,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   GraduationCap,
   School,
@@ -121,7 +123,14 @@ export default function TeacherGrading() {
   const [loadingStudents, setLoadingStudents] = useState(false);
   const [loadingGrades, setLoadingGrades] = useState(false);
 
-  const [selectedClassId, setSelectedClassId] = useState<string>("");
+  // Initial selections can be passed via URL search params from the report
+  // card page (?class=…&student=…) so "Edit grades" lands the teacher on
+  // exactly the right student/class without an extra click.
+  const [searchParams] = useSearchParams();
+  const initialClassId = searchParams.get("class") ?? "";
+  const initialStudentId = searchParams.get("student") ?? "";
+
+  const [selectedClassId, setSelectedClassId] = useState<string>(initialClassId);
   const [selectedStudentId, setSelectedStudentId] = useState<string>("");
   const [grid, setGrid] = useState<GridState>({});
 
@@ -262,6 +271,22 @@ export default function TeacherGrading() {
     // avoid refetching when the array reference changes but contents don't.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(gradingSemesters), toast]);
+
+  // On first mount, after students for the URL-provided class have loaded,
+  // pick the URL-provided student. After this initial hydration we let the
+  // student dropdown behave normally (each new class picks resets it).
+  const [hasAppliedUrlStudent, setHasAppliedUrlStudent] = useState(false);
+  useEffect(() => {
+    if (hasAppliedUrlStudent) return;
+    if (!initialStudentId) {
+      setHasAppliedUrlStudent(true);
+      return;
+    }
+    if (students.some((s) => s.id === initialStudentId)) {
+      setSelectedStudentId(initialStudentId);
+      setHasAppliedUrlStudent(true);
+    }
+  }, [students, initialStudentId, hasAppliedUrlStudent]);
 
   // 3. When a class is picked, load its students.
   useEffect(() => {
@@ -612,41 +637,45 @@ export default function TeacherGrading() {
                 <label className="text-xs font-medium text-slate-600 mb-1 block">
                   Class
                 </label>
-                <Select
-                  value={selectedClassId || undefined}
-                  onValueChange={setSelectedClassId}
-                  disabled={loadingClasses}
-                >
-                  <SelectTrigger>
-                    <SelectValue
-                      placeholder={
-                        loadingClasses
-                          ? "Loading classes…"
-                          : classes.length === 0
+                {loadingClasses ? (
+                  <Skeleton className="h-10 w-full" />
+                ) : (
+                  <Select
+                    value={selectedClassId || undefined}
+                    onValueChange={setSelectedClassId}
+                  >
+                    <SelectTrigger>
+                      <SelectValue
+                        placeholder={
+                          classes.length === 0
                             ? "No classes assigned"
                             : "Select a class"
-                      }
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {classes.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {[
-                          c.name,
-                          c.semester && `Sem ${c.semester}`,
-                          c.program,
-                        ]
-                          .filter(Boolean)
-                          .join(" | ")}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {classes.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {[
+                            c.name,
+                            c.semester && `Sem ${c.semester}`,
+                            c.program,
+                          ]
+                            .filter(Boolean)
+                            .join(" | ")}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
               <div>
                 <label className="text-xs font-medium text-slate-600 mb-1 block">
                   Student
                 </label>
+                {selectedClassId && loadingStudents ? (
+                  <Skeleton className="h-10 w-full" />
+                ) : (
                 <Select
                   value={selectedStudentId || undefined}
                   onValueChange={setSelectedStudentId}
@@ -673,6 +702,7 @@ export default function TeacherGrading() {
                     ))}
                   </SelectContent>
                 </Select>
+                )}
               </div>
             </CardContent>
           </Card>

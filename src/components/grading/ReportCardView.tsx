@@ -1,4 +1,5 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   Card,
   CardContent,
@@ -10,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Loader2, Printer, Save } from "lucide-react";
+import { Download, Loader2, Pencil, Save } from "lucide-react";
 import {
   computeFinalGrade,
   computeFinalPercent,
@@ -20,6 +21,7 @@ import {
   SPECIALIZATION_LABELS,
   type Specialization,
 } from "@/data/syllabus";
+import { downloadReportCardPdf } from "@/lib/reportCardPdf";
 
 // Codes for foundation columns (Sem I & II). Order matches Lead's mockup
 // (Screenwriting, Direction, Production, Cine, Sound, Edit).
@@ -54,6 +56,15 @@ interface ReportCardViewProps {
   data: ReportCardData;
   editable?: boolean;
   saving?: boolean;
+  // True when any editable summary field differs from the saved baseline.
+  // Drives the Save button's disabled state so it only lights up after
+  // a real edit.
+  isDirty?: boolean;
+  // When provided in editable mode, the Foundation and Specialisation
+  // section headers show "Edit grades" links pointing at /teacher/grading
+  // with these IDs pre-selected.
+  editClassId?: string;
+  editStudentId?: string;
   // Editable-mode change handlers; only required when editable=true.
   onChange?: (
     field:
@@ -70,9 +81,23 @@ export function ReportCardView({
   data,
   editable = false,
   saving = false,
+  isDirty = false,
+  editClassId,
+  editStudentId,
   onChange,
   onSave,
 }: ReportCardViewProps) {
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownload = async () => {
+    setDownloading(true);
+    try {
+      await downloadReportCardPdf(data);
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   // Look up grades for fast O(1) cell access.
   const gradeByKey = useMemo(() => {
     const m = new Map<string, ReportCardGradeRow>();
@@ -166,8 +191,11 @@ export function ReportCardView({
 
       {/* Foundation table — Sem I & II × 6 subjects, grade letter only. */}
       <Card>
-        <CardHeader className="pb-3">
+        <CardHeader className="pb-3 flex flex-row items-center justify-between">
           <CardTitle className="text-base">Foundation</CardTitle>
+          {editable && editClassId && editStudentId && (
+            <EditGradesLink classId={editClassId} studentId={editStudentId} />
+          )}
         </CardHeader>
         <CardContent className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -201,8 +229,11 @@ export function ReportCardView({
 
       {/* Specialisation table — Sem III-VI × 3 columns + comments. */}
       <Card>
-        <CardHeader className="pb-3">
+        <CardHeader className="pb-3 flex flex-row items-center justify-between">
           <CardTitle className="text-base">Specialisation Semesters</CardTitle>
+          {editable && editClassId && editStudentId && (
+            <EditGradesLink classId={editClassId} studentId={editStudentId} />
+          )}
         </CardHeader>
         <CardContent className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -278,11 +309,30 @@ export function ReportCardView({
           />
 
           {editable && (
-            <div className="flex justify-end pt-2 print:hidden">
+            <div className="flex justify-end gap-2 pt-2 print:hidden">
+              <Button
+                variant="outline"
+                onClick={handleDownload}
+                disabled={downloading}
+                className="text-slate-700"
+              >
+                {downloading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <Download className="h-4 w-4 mr-1" /> Download PDF
+                  </>
+                )}
+              </Button>
               <Button
                 onClick={onSave}
-                disabled={saving}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                disabled={saving || !isDirty}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white disabled:bg-slate-300 disabled:text-slate-500"
+                title={
+                  !isDirty
+                    ? "No changes to save yet"
+                    : "Save the report card"
+                }
               >
                 {saving ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -300,11 +350,17 @@ export function ReportCardView({
       {!editable && (
         <div className="flex justify-end print:hidden">
           <Button
-            variant="outline"
-            onClick={() => window.print()}
-            className="text-slate-700"
+            onClick={handleDownload}
+            disabled={downloading}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white"
           >
-            <Printer className="h-4 w-4 mr-1" /> Print / Save as PDF
+            {downloading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <>
+                <Download className="h-4 w-4 mr-1" /> Download PDF
+              </>
+            )}
           </Button>
         </div>
       )}
@@ -367,6 +423,28 @@ function SummaryField({
         </p>
       )}
     </div>
+  );
+}
+
+function EditGradesLink({
+  classId,
+  studentId,
+}: {
+  classId: string;
+  studentId: string;
+}) {
+  return (
+    <Button
+      asChild
+      variant="ghost"
+      size="sm"
+      className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 print:hidden -my-1"
+    >
+      <Link to={`/teacher/grading?class=${classId}&student=${studentId}`}>
+        <Pencil className="h-3.5 w-3.5 mr-1" />
+        Edit grades
+      </Link>
+    </Button>
   );
 }
 

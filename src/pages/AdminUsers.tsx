@@ -11,8 +11,9 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Checkbox } from "@/components/ui/checkbox"
 import { supabase } from "@/integrations/supabase/client"
-import { Users, UserPlus, Trash2, Edit, Search, GraduationCap, School, Shield, Loader2 } from "lucide-react"
+import { Users, UserPlus, Trash2, Edit, Search, GraduationCap, School, Shield, Loader2, Layers, X } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { ModernDashboardLayout } from "@/components/ModernDashboardLayout"
 import { AdminUsersShimmer } from "@/components/AdminUsersShimmer"
@@ -34,6 +35,11 @@ const AdminUsers = () => {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [filterRole, setFilterRole] = useState<string>("all")
+  const [filterSemester, setFilterSemester] = useState<string>("all")
+  const [filterProgram, setFilterProgram] = useState<string>("all")
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkSemester, setBulkSemester] = useState<string>("")
+  const [isBulkUpdating, setIsBulkUpdating] = useState(false)
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
@@ -295,8 +301,78 @@ const AdminUsers = () => {
       user.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.email.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesRole = filterRole === "all" || user.role === filterRole
-    return matchesSearch && matchesRole
+    const matchesSemester =
+      filterSemester === "all" || String(user.semester ?? "") === filterSemester
+    const matchesProgram =
+      filterProgram === "all" || (user.program ?? "") === filterProgram
+    return matchesSearch && matchesRole && matchesSemester && matchesProgram
   })
+
+  // Only students carry a semester, so selection / bulk actions are scoped to them.
+  const selectableStudents = filteredUsers.filter((u) => u.role === "student")
+  const selectedCount = selectedIds.size
+  const allStudentsSelected =
+    selectableStudents.length > 0 &&
+    selectableStudents.every((s) => selectedIds.has(s.id))
+  const someStudentsSelected =
+    selectableStudents.some((s) => selectedIds.has(s.id)) && !allStudentsSelected
+
+  const toggleSelectOne = (id: string, checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (checked) next.add(id)
+      else next.delete(id)
+      return next
+    })
+  }
+
+  const toggleSelectAll = (checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      selectableStudents.forEach((s) => {
+        if (checked) next.add(s.id)
+        else next.delete(s.id)
+      })
+      return next
+    })
+  }
+
+  const clearSelection = () => setSelectedIds(new Set())
+
+  const handleBulkSemesterChange = async () => {
+    if (!bulkSemester || selectedIds.size === 0 || isBulkUpdating) return
+    setIsBulkUpdating(true)
+    try {
+      const ids = Array.from(selectedIds)
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          semester: Number.parseInt(bulkSemester),
+          updated_at: new Date().toISOString(),
+        })
+        .in("id", ids)
+
+      if (error) throw error
+
+      toast({
+        title: "Success",
+        description: `Moved ${ids.length} student${ids.length > 1 ? "s" : ""} to Semester ${bulkSemester}`,
+      })
+
+      clearSelection()
+      setBulkSemester("")
+      await fetchUsers()
+    } catch (error) {
+      console.error("Error updating semesters in bulk:", error)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update semesters",
+        variant: "destructive",
+      })
+    } finally {
+      setIsBulkUpdating(false)
+    }
+  }
 
   const getRoleBadgeColor = (role: string) => {
     switch (role) {
@@ -684,7 +760,7 @@ const AdminUsers = () => {
                 <h2 className="text-2xl font-bold text-gray-900 mb-6">Users</h2>
 
                 {/* Filters */}
-                <div className="flex gap-4">
+                <div className="flex flex-col lg:flex-row gap-4">
                   <div className="flex-1">
                     <div className="relative">
                       <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
@@ -703,7 +779,7 @@ const AdminUsers = () => {
                     </div>
                   </div>
                   <Select value={filterRole} onValueChange={setFilterRole}>
-                    <SelectTrigger className="w-48 h-12 border-gray-200 focus:border-blue-400 focus:ring-blue-400 bg-white/80 backdrop-blur-sm">
+                    <SelectTrigger className="w-full lg:w-44 h-12 border-gray-200 focus:border-blue-400 focus:ring-blue-400 bg-white/80 backdrop-blur-sm">
                       <SelectValue placeholder="Filter by role" />
                     </SelectTrigger>
                     <SelectContent>
@@ -713,14 +789,104 @@ const AdminUsers = () => {
                       <SelectItem value="admin">Admins</SelectItem>
                     </SelectContent>
                   </Select>
+                  <Select value={filterSemester} onValueChange={setFilterSemester}>
+                    <SelectTrigger className="w-full lg:w-44 h-12 border-gray-200 focus:border-blue-400 focus:ring-blue-400 bg-white/80 backdrop-blur-sm">
+                      <SelectValue placeholder="Filter by semester" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Semesters</SelectItem>
+                      {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => (
+                        <SelectItem key={sem} value={sem.toString()}>
+                          Semester {sem}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={filterProgram} onValueChange={setFilterProgram}>
+                    <SelectTrigger className="w-full lg:w-36 h-12 border-gray-200 focus:border-blue-400 focus:ring-blue-400 bg-white/80 backdrop-blur-sm">
+                      <SelectValue placeholder="Filter by program" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Programs</SelectItem>
+                      {PROGRAM_OPTIONS.map((prog) => (
+                        <SelectItem key={prog} value={prog}>
+                          {prog}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
               <div className="p-6">
+                {/* Bulk action bar — appears when one or more students are selected */}
+                {selectedCount > 0 && (
+                  <div className="mb-4 flex flex-col sm:flex-row sm:items-center gap-3 bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-2xl px-5 py-4 shadow-sm">
+                    <div className="flex items-center gap-2 text-indigo-700 font-semibold">
+                      <Layers className="h-5 w-5" />
+                      {selectedCount} student{selectedCount > 1 ? "s" : ""} selected
+                    </div>
+                    <div className="flex flex-1 flex-col sm:flex-row sm:items-center sm:justify-end gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-gray-600 whitespace-nowrap">Move to</span>
+                        <Select value={bulkSemester} onValueChange={setBulkSemester}>
+                          <SelectTrigger className="w-44 h-10 border-indigo-200 focus:border-indigo-400 focus:ring-indigo-400 bg-white">
+                            <SelectValue placeholder="Select semester" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => (
+                              <SelectItem key={sem} value={sem.toString()}>
+                                Semester {sem}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button
+                        onClick={handleBulkSemesterChange}
+                        disabled={!bulkSemester || isBulkUpdating}
+                        className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white border-0"
+                      >
+                        {isBulkUpdating ? (
+                          <span className="flex items-center gap-2">
+                            <Loader2 className="animate-spin h-4 w-4" />
+                            Updating...
+                          </span>
+                        ) : (
+                          "Change Semester"
+                        )}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={clearSelection}
+                        disabled={isBulkUpdating}
+                        className="border-gray-300 hover:bg-gray-100"
+                      >
+                        <X className="h-4 w-4 mr-1" />
+                        Clear
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
                 <div className="bg-white rounded-2xl shadow-lg overflow-hidden border-0">
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-gradient-to-r from-gray-50 to-blue-50 hover:from-gray-50 hover:to-blue-50 border-0">
+                        <TableHead className="w-12 py-4">
+                          <Checkbox
+                            checked={
+                              allStudentsSelected
+                                ? true
+                                : someStudentsSelected
+                                  ? "indeterminate"
+                                  : false
+                            }
+                            onCheckedChange={(checked) => toggleSelectAll(checked === true)}
+                            disabled={selectableStudents.length === 0}
+                            aria-label="Select all students"
+                          />
+                        </TableHead>
                         <TableHead className="font-semibold text-gray-700 py-4">Name</TableHead>
                         <TableHead className="font-semibold text-gray-700 py-4">Email</TableHead>
                         <TableHead className="font-semibold text-gray-700 py-4">Role</TableHead>
@@ -732,7 +898,20 @@ const AdminUsers = () => {
                     </TableHeader>
                     <TableBody>
                       {filteredUsers.map((user) => (
-                        <TableRow key={user.id} className="hover:bg-blue-50/50 transition-colors duration-200 border-0">
+                        <TableRow
+                          key={user.id}
+                          data-state={selectedIds.has(user.id) ? "selected" : undefined}
+                          className="hover:bg-blue-50/50 data-[state=selected]:bg-indigo-50/60 transition-colors duration-200 border-0"
+                        >
+                          <TableCell className="py-4">
+                            {user.role === "student" ? (
+                              <Checkbox
+                                checked={selectedIds.has(user.id)}
+                                onCheckedChange={(checked) => toggleSelectOne(user.id, checked === true)}
+                                aria-label={`Select ${user.full_name}`}
+                              />
+                            ) : null}
+                          </TableCell>
                           <TableCell className="font-medium text-gray-900 py-4">
                             {editingUser?.id === user.id ? (
                               <Input

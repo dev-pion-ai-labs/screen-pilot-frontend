@@ -138,16 +138,10 @@ export function AppSidebar() {
             description: "Monitor student progress and work",
           },
           {
-            name: "Grading",
-            href: "/teacher/grading",
-            icon: GraduationCap,
-            description: "Grade students and pick comments",
-          },
-          {
             name: "Report Cards",
             href: "/teacher/report-card",
             icon: FileText,
-            description: "View and edit student report cards",
+            description: "View student grades and edit report cards",
           },
         ];
       case "student":

@@ -192,6 +192,36 @@ export default function TeacherReportCard() {
     setReport((prev) => ({ ...prev, [field]: value }));
   };
 
+  // Re-fetch just the student's grades after inline editing so the grade
+  // tables and Final % update — without touching the portfolio/summary fields
+  // the teacher may still be editing.
+  const refreshGrades = async () => {
+    if (!selectedStudentId) return;
+    const { data, error } = await supabase
+      .from("student_grades")
+      .select(
+        "semester, grade, subject:subject_id ( code ), comment:comment_id ( body )",
+      )
+      .eq("student_id", selectedStudentId);
+    if (error) return;
+    type GradeRow = {
+      semester: number;
+      grade: string;
+      subject: { code: string } | null;
+      comment: { body: string } | null;
+    };
+    const mapped: ReportCardGradeRow[] = ((data ?? []) as unknown as GradeRow[])
+      .filter((g): g is GradeRow & { subject: { code: string } } => !!g.subject)
+      .map((g) => ({
+        semester: g.semester,
+        subjectCode: g.subject.code,
+        grade: g.grade as Grade,
+        commentBody: g.comment?.body ?? null,
+      }));
+    setReport((prev) => ({ ...prev, grades: mapped }));
+    setOriginalReport((prev) => ({ ...prev, grades: mapped }));
+  };
+
   const handleSave = async () => {
     if (!selectedStudentId || !teacherId) return;
     setSaving(true);
@@ -343,6 +373,7 @@ export default function TeacherReportCard() {
                 editStudentId={selectedStudentId}
                 onChange={handleChange}
                 onSave={handleSave}
+                onGradesChanged={refreshGrades}
               />
             ))}
         </div>

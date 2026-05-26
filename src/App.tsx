@@ -38,7 +38,6 @@ import Glossary from "./pages/Glossary";
 import ExploreBeyondSyllabus from "./pages/ExploreBeyondSyllabus";
 import TeacherScriptSubmissions from "./pages/TeacherScriptSubmissions";
 import StudentWorkMonitoring from "./pages/StudentWorkMonitoring";
-import TeacherGrading from "./pages/TeacherGrading";
 import TeacherReportCard from "./pages/TeacherReportCard";
 import StudentReportCard from "./pages/StudentReportCard";
 
@@ -74,7 +73,6 @@ const App = () => (
             <Route path="/teacher/script-submissions" element={<TeacherScriptSubmissions />} />
             <Route path="/teacher/students" element={<TeacherStudents />} />
             <Route path="/teacher/student-work" element={<StudentWorkMonitoring />} />
-            <Route path="/teacher/grading" element={<TeacherGrading />} />
             <Route path="/teacher/report-card" element={<TeacherReportCard />} />
             <Route path="/student/report-card" element={<StudentReportCard />} />
             <Route path="/chat" element={<Chat />} />

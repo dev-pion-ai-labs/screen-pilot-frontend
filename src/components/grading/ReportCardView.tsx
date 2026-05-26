@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import {
   Card,
   CardContent,
@@ -11,7 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Download, Loader2, Pencil, Save } from "lucide-react";
+import { Check, Download, Loader2, Pencil, Save } from "lucide-react";
+import { GradeEditor } from "@/components/grading/GradeEditor";
 import {
   computeFinalGrade,
   computeFinalPercent,
@@ -61,8 +61,8 @@ interface ReportCardViewProps {
   // a real edit.
   isDirty?: boolean;
   // When provided in editable mode, the Foundation and Specialisation
-  // section headers show "Edit grades" links pointing at /teacher/grading
-  // with these IDs pre-selected.
+  // section headers show an "Edit grades" toggle that reveals the inline
+  // GradeEditor for this class/student (no navigation away from the page).
   editClassId?: string;
   editStudentId?: string;
   // Editable-mode change handlers; only required when editable=true.
@@ -75,6 +75,9 @@ interface ReportCardViewProps {
     value: string,
   ) => void;
   onSave?: () => void;
+  // Called after grades are edited inline so the parent can re-fetch them and
+  // keep the Final % / grade tables in sync.
+  onGradesChanged?: () => void;
 }
 
 export function ReportCardView({
@@ -86,8 +89,14 @@ export function ReportCardView({
   editStudentId,
   onChange,
   onSave,
+  onGradesChanged,
 }: ReportCardViewProps) {
   const [downloading, setDownloading] = useState(false);
+  // Inline grade-editing toggle. Flipped on by the "Edit grades" buttons in
+  // the Foundation / Specialisation headers; replaces the read-only grade
+  // tables with the GradeEditor until the teacher clicks "Done".
+  const [editingGrades, setEditingGrades] = useState(false);
+  const canEditGrades = editable && !!editClassId && !!editStudentId;
 
   const handleDownload = async () => {
     setDownloading(true);
@@ -189,12 +198,43 @@ export function ReportCardView({
         </CardContent>
       </Card>
 
+      {/* Inline grade + comment editor — replaces the read-only grade tables
+          while the teacher is editing, then folds back when they click Done. */}
+      {canEditGrades && editingGrades && (
+        <Card>
+          <CardHeader className="pb-3 flex flex-row items-center justify-between">
+            <CardTitle className="text-base">Edit grades</CardTitle>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setEditingGrades(false);
+                onGradesChanged?.();
+              }}
+              className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 print:hidden -my-1"
+            >
+              <Check className="h-3.5 w-3.5 mr-1" />
+              Done
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <GradeEditor
+              classId={editClassId!}
+              studentId={editStudentId!}
+              onGradesSaved={onGradesChanged}
+            />
+          </CardContent>
+        </Card>
+      )}
+
       {/* Foundation table — Sem I & II × 6 subjects, grade letter only. */}
+      {!editingGrades && (
+        <>
       <Card>
         <CardHeader className="pb-3 flex flex-row items-center justify-between">
           <CardTitle className="text-base">Foundation</CardTitle>
-          {editable && editClassId && editStudentId && (
-            <EditGradesLink classId={editClassId} studentId={editStudentId} />
+          {canEditGrades && (
+            <EditGradesToggle onClick={() => setEditingGrades(true)} />
           )}
         </CardHeader>
         <CardContent className="overflow-x-auto">
@@ -231,8 +271,8 @@ export function ReportCardView({
       <Card>
         <CardHeader className="pb-3 flex flex-row items-center justify-between">
           <CardTitle className="text-base">Specialisation Semesters</CardTitle>
-          {editable && editClassId && editStudentId && (
-            <EditGradesLink classId={editClassId} studentId={editStudentId} />
+          {canEditGrades && (
+            <EditGradesToggle onClick={() => setEditingGrades(true)} />
           )}
         </CardHeader>
         <CardContent className="overflow-x-auto">
@@ -282,6 +322,8 @@ export function ReportCardView({
           </table>
         </CardContent>
       </Card>
+        </>
+      )}
 
       {/* Final Summary — 3 narrative paragraphs. */}
       <Card>
@@ -426,24 +468,16 @@ function SummaryField({
   );
 }
 
-function EditGradesLink({
-  classId,
-  studentId,
-}: {
-  classId: string;
-  studentId: string;
-}) {
+function EditGradesToggle({ onClick }: { onClick: () => void }) {
   return (
     <Button
-      asChild
       variant="ghost"
       size="sm"
+      onClick={onClick}
       className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 print:hidden -my-1"
     >
-      <Link to={`/teacher/grading?class=${classId}&student=${studentId}`}>
-        <Pencil className="h-3.5 w-3.5 mr-1" />
-        Edit grades
-      </Link>
+      <Pencil className="h-3.5 w-3.5 mr-1" />
+      Edit grades
     </Button>
   );
 }

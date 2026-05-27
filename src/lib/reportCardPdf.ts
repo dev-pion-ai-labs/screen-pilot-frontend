@@ -56,7 +56,7 @@ type RGB = [number, number, number];
 
 async function loadLogoDataUrl(): Promise<string | null> {
   try {
-    const res = await fetch("/full_logo.png");
+    const res = await fetch("/fulllogo.png");
     if (!res.ok) return null;
     const blob = await res.blob();
     return await new Promise((resolve) => {

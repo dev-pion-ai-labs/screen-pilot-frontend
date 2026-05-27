@@ -191,12 +191,19 @@ export function GradeEditor({
   }, [scope, classSemester]);
 
   // Which semesters this editor grades against. Foundation always covers the
-  // full Sem I/II foundation regardless of the class; specialisation grades the
-  // class's own semester.
+  // full Sem I/II foundation regardless of the class. Specialisation covers
+  // every Sem 3+ semester up to and including the class's own semester — so a
+  // Sem 4 class can grade Sem III and Sem IV, but never semesters the class
+  // hasn't reached yet (Sem V/VI).
   const gradingSemesters = useMemo<number[]>(() => {
     if (effectiveScope === "foundation") return [1, 2];
     if (effectiveScope === "specialization") {
-      return classSemester ? [classSemester] : [];
+      if (!classSemester) return [];
+      const sems: number[] = [];
+      for (let s = SPECIALIZATION_MIN_SEMESTER; s <= classSemester; s++) {
+        sems.push(s);
+      }
+      return sems;
     }
     return [];
   }, [effectiveScope, classSemester]);
@@ -545,25 +552,38 @@ export function GradeEditor({
   }
 
   if (gradingSemesters.length === 1) {
-    // Sem 3+ specialisation class — just one semester to grade.
+    // A single semester to grade (e.g. a Sem 3 specialisation class).
     return <div className="mt-2">{renderSemesterPanel(gradingSemesters[0])}</div>;
   }
 
+  // Multiple semesters — one tab each (Sem I/II for foundation, Sem III..N for
+  // a Sem N specialisation class).
   return (
-    <Tabs defaultValue="1" className="w-full">
+    <Tabs defaultValue={String(gradingSemesters[0])} className="w-full">
       <TabsList>
-        <TabsTrigger value="1">Sem I</TabsTrigger>
-        <TabsTrigger value="2">Sem II</TabsTrigger>
+        {gradingSemesters.map((s) => (
+          <TabsTrigger key={s} value={String(s)}>
+            Sem {ROMAN[s] ?? s}
+          </TabsTrigger>
+        ))}
       </TabsList>
-      <TabsContent value="1" className="mt-4">
-        {renderSemesterPanel(1)}
-      </TabsContent>
-      <TabsContent value="2" className="mt-4">
-        {renderSemesterPanel(2)}
-      </TabsContent>
+      {gradingSemesters.map((s) => (
+        <TabsContent key={s} value={String(s)} className="mt-4">
+          {renderSemesterPanel(s)}
+        </TabsContent>
+      ))}
     </Tabs>
   );
 }
+
+const ROMAN: Record<number, string> = {
+  1: "I",
+  2: "II",
+  3: "III",
+  4: "IV",
+  5: "V",
+  6: "VI",
+};
 
 function GradingSkeleton({
   count,

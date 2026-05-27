@@ -316,16 +316,16 @@ export function ReportCardView({
           )}
         </CardHeader>
         <CardContent className="overflow-x-auto p-0">
-          <table className="w-full text-sm">
+          <table className="w-full table-fixed text-sm">
             <thead>
               <tr className="bg-indigo-50/60 text-left text-indigo-700">
-                <th className="py-2.5 px-4 text-xs font-semibold uppercase tracking-wide">
+                <th className="w-28 py-2.5 px-4 text-xs font-semibold uppercase tracking-wide">
                   Semester
                 </th>
                 {FOUNDATION_COLUMNS.map((c) => (
                   <th
                     key={c.code}
-                    className="py-2.5 px-3 text-xs font-semibold uppercase tracking-wide"
+                    className="py-2.5 px-3 text-center text-xs font-semibold uppercase tracking-wide"
                   >
                     {c.label}
                   </th>
@@ -342,7 +342,7 @@ export function ReportCardView({
                     Sem {sem === 1 ? "I" : "II"}
                   </td>
                   {FOUNDATION_COLUMNS.map((c) => (
-                    <td key={c.code} className="py-3 px-3">
+                    <td key={c.code} className="py-3 px-3 text-center">
                       <FoundationGradeCell
                         value={cellGrade(sem, c.code)}
                         comment={cellComment(sem, c.code)}

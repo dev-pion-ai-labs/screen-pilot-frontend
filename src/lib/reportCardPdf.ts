@@ -54,9 +54,6 @@ const GRADE_TEXT: Record<string, RGB> = {
 
 type RGB = [number, number, number];
 
-// Full brand lockup (mark + institution name). Native size 452x379.
-const FULL_LOGO_ASPECT = 452 / 379;
-
 async function loadLogoDataUrl(): Promise<string | null> {
   try {
     const res = await fetch("/full_logo.png");
@@ -91,6 +88,11 @@ const getComment = (
   code: string,
 ) => findRow(grades, semester, code)?.commentBody ?? "";
 
+const hasFoundationComments = (grades: ReportCardGradeRow[]) =>
+  grades.some(
+    (g) => (g.semester === 1 || g.semester === 2) && !!g.commentBody,
+  );
+
 /**
  * Build a polished PDF mirroring Lead's spreadsheet layout.
  * Landscape A4 so the 7-column Specialisation table breathes.
@@ -114,10 +116,30 @@ export async function downloadReportCardPdf(data: ReportCardData) {
   y = getLastY(doc) + 18;
 
   drawFoundationTable(doc, data.grades, margin, y);
-  y = getLastY(doc) + 18;
+  y = getLastY(doc) + 12;
+
+  // Point the reader to the full Sem I & II comments further down the report.
+  if (hasFoundationComments(data.grades)) {
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(8.5);
+    doc.setTextColor(...SLATE_500);
+    doc.text(
+      'Sem I & II subject comments are listed in the "Foundation Comments" section below — scroll down to read them.',
+      margin,
+      y,
+    );
+    y += 14;
+  } else {
+    y += 6;
+  }
 
   drawSpecializationTable(doc, data, margin, y, contentWidth);
   y = getLastY(doc) + 18;
+
+  // Full Sem I & II comments, listed before the summary.
+  if (drawFoundationComments(doc, data.grades, margin, y, contentWidth)) {
+    y = getLastY(doc) + 18;
+  }
 
   // Final Summary may push past the page — addPage if so. We need a healthy
   // chunk for 3 paragraphs + a title (rough 130pt) before the footer.
@@ -146,39 +168,26 @@ function drawBrandedHeader(
   doc.setFillColor(...INDIGO);
   doc.rect(0, 0, pageWidth, 6, "F");
 
-  // Stack: full logo centered (it already carries the institution name), then
-  // the report subtitle below it.
+  // Brand logo centered (replaces the former college-name title — the full
+  // logo already carries the institution name).
+  const logoSize = 80;
   const topPad = 16;
   let cursorY = topPad;
 
-  let renderedLogo = false;
   if (logoDataUrl) {
     try {
-      const logoH = 72;
-      const logoW = logoH * FULL_LOGO_ASPECT;
       doc.addImage(
         logoDataUrl,
         "PNG",
-        (pageWidth - logoW) / 2,
+        (pageWidth - logoSize) / 2,
         cursorY,
-        logoW,
-        logoH,
+        logoSize,
+        logoSize,
       );
-      cursorY += logoH + 8;
-      renderedLogo = true;
+      cursorY += logoSize + 8;
     } catch {
-      /* ignore — fall through to text-only header */
+      /* ignore — logo is optional */
     }
-  }
-
-  // Fallback only: if the logo failed to load, keep the institution name so the
-  // header is never blank.
-  if (!renderedLogo) {
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(20);
-    doc.setTextColor(...SLATE_900);
-    doc.text(COLLEGE_NAME, pageWidth / 2, cursorY + 14, { align: "center" });
-    cursorY += 22;
   }
 
   doc.setFont("helvetica", "normal");
@@ -415,6 +424,81 @@ function drawSpecializationTable(
     // Paint the 3 grade columns (1,2,3) as coloured pills.
     didParseCell: (hook) => paintGradeCell(hook, 1, 3),
   });
+}
+
+// Lists every Sem I & II subject comment in full so the foundation grades
+// aren't just bare letters. Returns false (drawing nothing) when there are no
+// comments to show. autoTable paginates on its own if the list is long.
+function drawFoundationComments(
+  doc: jsPDF,
+  grades: ReportCardGradeRow[],
+  margin: number,
+  y: number,
+  contentWidth: number,
+): boolean {
+  const rows: string[][] = [];
+  for (const sem of [1, 2]) {
+    FOUNDATION_CODES.forEach((code, i) => {
+      const comment = getComment(grades, sem, code);
+      if (!comment) return;
+      rows.push([
+        `Sem ${sem === 1 ? "I" : "II"}`,
+        FOUNDATION_LABELS[i],
+        getGrade(grades, sem, code),
+        comment,
+      ]);
+    });
+  }
+  if (rows.length === 0) return false;
+
+  sectionTitle(doc, "Foundation Comments (Sem I & II)", margin, y);
+
+  const semW = 60;
+  const subjW = 100;
+  const gradeW = 50;
+  const commentW = contentWidth - semW - subjW - gradeW;
+
+  autoTable(doc, {
+    startY: y + 6,
+    theme: "grid",
+    head: [["Semester", "Subject", "Grade", "Comment"]],
+    body: rows,
+    styles: {
+      fontSize: 8.5,
+      cellPadding: 6,
+      valign: "top",
+      lineColor: SLATE_300 as [number, number, number],
+      lineWidth: 0.4,
+    },
+    headStyles: {
+      fillColor: INDIGO as [number, number, number],
+      textColor: 255,
+      fontStyle: "bold",
+      halign: "center",
+    },
+    columnStyles: {
+      0: {
+        cellWidth: semW,
+        fontStyle: "bold",
+        valign: "middle",
+        textColor: SLATE_700 as [number, number, number],
+      },
+      1: {
+        cellWidth: subjW,
+        valign: "middle",
+        textColor: SLATE_700 as [number, number, number],
+      },
+      2: { cellWidth: gradeW, halign: "center", valign: "middle" },
+      3: {
+        cellWidth: commentW,
+        textColor: SLATE_700 as [number, number, number],
+      },
+    },
+    alternateRowStyles: { fillColor: SLATE_100 as [number, number, number] },
+    margin: { left: margin, right: margin },
+    didParseCell: (hook) => paintGradeCell(hook, 2),
+  });
+  return true;
 }
 
 function drawFinalSummary(

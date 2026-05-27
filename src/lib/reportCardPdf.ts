@@ -54,9 +54,12 @@ const GRADE_TEXT: Record<string, RGB> = {
 
 type RGB = [number, number, number];
 
+// Full brand lockup (mark + institution name). Native size 452x379.
+const FULL_LOGO_ASPECT = 452 / 379;
+
 async function loadLogoDataUrl(): Promise<string | null> {
   try {
-    const res = await fetch("/logo.png");
+    const res = await fetch("/full_logo.png");
     if (!res.ok) return null;
     const blob = await res.blob();
     return await new Promise((resolve) => {
@@ -143,32 +146,40 @@ function drawBrandedHeader(
   doc.setFillColor(...INDIGO);
   doc.rect(0, 0, pageWidth, 6, "F");
 
-  // Stack: logo centered, college name below, subtitle below that.
-  const logoSize = 80;
+  // Stack: full logo centered (it already carries the institution name), then
+  // the report subtitle below it.
   const topPad = 16;
   let cursorY = topPad;
 
+  let renderedLogo = false;
   if (logoDataUrl) {
     try {
+      const logoH = 72;
+      const logoW = logoH * FULL_LOGO_ASPECT;
       doc.addImage(
         logoDataUrl,
         "PNG",
-        (pageWidth - logoSize) / 2,
+        (pageWidth - logoW) / 2,
         cursorY,
-        logoSize,
-        logoSize,
+        logoW,
+        logoH,
       );
-      cursorY += logoSize + 8;
+      cursorY += logoH + 8;
+      renderedLogo = true;
     } catch {
       /* ignore — fall through to text-only header */
     }
   }
 
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(20);
-  doc.setTextColor(...SLATE_900);
-  doc.text(COLLEGE_NAME, pageWidth / 2, cursorY + 14, { align: "center" });
-  cursorY += 22;
+  // Fallback only: if the logo failed to load, keep the institution name so the
+  // header is never blank.
+  if (!renderedLogo) {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(20);
+    doc.setTextColor(...SLATE_900);
+    doc.text(COLLEGE_NAME, pageWidth / 2, cursorY + 14, { align: "center" });
+    cursorY += 22;
+  }
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(11);

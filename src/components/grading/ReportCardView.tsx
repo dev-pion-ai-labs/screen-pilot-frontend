@@ -10,7 +10,21 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Check, Download, Loader2, Pencil, Save } from "lucide-react";
+import {
+  Award,
+  Check,
+  ClipboardList,
+  Download,
+  GraduationCap,
+  Loader2,
+  Pencil,
+  Save,
+} from "lucide-react";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
 import { GradeEditor } from "@/components/grading/GradeEditor";
 import {
   computeFinalGrade,
@@ -147,44 +161,65 @@ export function ReportCardView({
   const cellComment = (semester: number, subjectCode: string) =>
     gradeByKey.get(`${semester}:${subjectCode}`)?.commentBody ?? null;
 
+  // Whether any Sem I/II cell carries a comment — drives the "click to read"
+  // hint so we don't promise comments that aren't there.
+  const hasFoundationComments = useMemo(
+    () =>
+      data.grades.some(
+        (g) => (g.semester === 1 || g.semester === 2) && !!g.commentBody,
+      ),
+    [data.grades],
+  );
+
   const specializationCode = data.specialization;
   const specializationLabel = specializationCode
     ? SPECIALIZATION_LABELS[specializationCode]
     : "—";
 
+  const studentInitials =
+    (data.studentName || "")
+      .split(" ")
+      .map((part) => part[0])
+      .filter(Boolean)
+      .slice(0, 2)
+      .join("")
+      .toUpperCase() || "—";
+
   return (
     <div className="space-y-6 print:space-y-3">
       {/* Header card */}
-      <Card>
+      <Card className="overflow-hidden">
+        <div className="h-1.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500" />
         <CardContent className="pt-6">
           <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-            <div>
-              <h2 className="text-xl font-semibold text-slate-900">
-                {data.studentName}
-              </h2>
-              <p className="text-sm text-slate-500">{data.studentEmail}</p>
+            <div className="flex items-center gap-3">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-600 to-purple-600 text-base font-semibold text-white">
+                {studentInitials}
+              </span>
+              <div>
+                <h2 className="text-xl font-semibold text-slate-900">
+                  {data.studentName || "—"}
+                </h2>
+                <p className="text-sm text-slate-500">{data.studentEmail}</p>
+              </div>
             </div>
             <div className="flex flex-wrap gap-3 text-sm">
-              <div className="rounded-md border border-slate-200 px-3 py-2">
-                <div className="text-xs uppercase text-slate-500">
-                  Specialisation
-                </div>
-                <div className="font-medium text-slate-900">
-                  {specializationLabel}
-                </div>
-              </div>
-              <div className="rounded-md border border-slate-200 px-3 py-2">
-                <div className="text-xs uppercase text-slate-500">Final %</div>
-                <div className="font-medium text-slate-900">
-                  {finalPercent == null ? "—" : finalPercent.toFixed(2)}
-                </div>
-              </div>
-              <div className="rounded-md border border-slate-200 px-3 py-2">
-                <div className="text-xs uppercase text-slate-500">
+              <StatChip
+                label="Specialisation"
+                value={specializationLabel}
+                tone="amber"
+              />
+              <StatChip
+                label="Final %"
+                value={finalPercent == null ? "—" : finalPercent.toFixed(2)}
+                tone="indigo"
+              />
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                <div className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
                   Final Grade
                 </div>
-                <div className="font-medium text-slate-900">
-                  {finalGrade ?? "—"}
+                <div className="mt-0.5">
+                  <GradeCell value={finalGrade ?? "—"} />
                 </div>
               </div>
             </div>
@@ -220,9 +255,10 @@ export function ReportCardView({
       {/* Inline grade + comment editor — replaces the read-only grade tables
           while the teacher is editing, then folds back when they click Done. */}
       {canEditGrades && editingScope && (
-        <Card>
-          <CardHeader className="pb-3 flex flex-row items-center justify-between">
-            <CardTitle className="text-base">
+        <Card className="overflow-hidden border-indigo-200">
+          <CardHeader className="pb-3 flex flex-row items-center justify-between border-b border-indigo-100 bg-indigo-50/50 py-3">
+            <CardTitle className="text-base flex items-center gap-2 text-slate-900">
+              <Pencil className="h-4 w-4 text-indigo-600" />
               {editingScope === "foundation"
                 ? "Edit Foundation grades (Sem I & II)"
                 : "Edit Specialisation grades"}
@@ -240,7 +276,7 @@ export function ReportCardView({
               Done
             </Button>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             <GradeEditor
               classId={editClassId!}
               studentId={editStudentId!}
@@ -254,34 +290,65 @@ export function ReportCardView({
       {/* Foundation table — Sem I & II × 6 subjects, grade letter only. */}
       {!editingScope && (
         <>
-      <Card>
-        <CardHeader className="pb-3 flex flex-row items-center justify-between">
-          <CardTitle className="text-base">Foundation</CardTitle>
+      <Card className="overflow-hidden">
+        <CardHeader className="flex flex-row items-start justify-between gap-3 border-b border-indigo-100 bg-indigo-50/50 py-3">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600">
+              <GraduationCap className="h-4 w-4" />
+            </span>
+            <div>
+              <CardTitle className="text-base text-slate-900">
+                Foundation
+              </CardTitle>
+              <p className="text-xs font-normal text-slate-500">
+                Sem I &amp; II — all 6 subjects
+                {hasFoundationComments && (
+                  <span className="print:hidden">
+                    {" "}
+                    · hover a dotted grade to read its comment
+                  </span>
+                )}
+              </p>
+            </div>
+          </div>
           {canEditFoundation && (
             <EditGradesToggle onClick={() => setEditingScope("foundation")} />
           )}
         </CardHeader>
-        <CardContent className="overflow-x-auto">
+        <CardContent className="overflow-x-auto p-0">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-slate-500">
-                <th className="py-2 pr-3 font-medium">Semester</th>
+              <tr className="bg-indigo-50/60 text-left text-indigo-700">
+                <th className="py-2.5 px-4 text-xs font-semibold uppercase tracking-wide">
+                  Semester
+                </th>
                 {FOUNDATION_COLUMNS.map((c) => (
-                  <th key={c.code} className="py-2 pr-3 font-medium">
+                  <th
+                    key={c.code}
+                    className="py-2.5 px-3 text-xs font-semibold uppercase tracking-wide"
+                  >
                     {c.label}
                   </th>
                 ))}
               </tr>
             </thead>
-            <tbody>
-              {[1, 2].map((sem) => (
-                <tr key={sem} className="border-t border-slate-100">
-                  <td className="py-2 pr-3 font-medium text-slate-700">
+            <tbody className="divide-y divide-slate-100">
+              {[1, 2].map((sem, i) => (
+                <tr
+                  key={sem}
+                  className={i % 2 === 1 ? "bg-slate-50/50" : "bg-white"}
+                >
+                  <td className="py-3 px-4 font-semibold text-slate-700 whitespace-nowrap">
                     Sem {sem === 1 ? "I" : "II"}
                   </td>
                   {FOUNDATION_COLUMNS.map((c) => (
-                    <td key={c.code} className="py-2 pr-3">
-                      <GradeCell value={cellGrade(sem, c.code)} />
+                    <td key={c.code} className="py-3 px-3">
+                      <FoundationGradeCell
+                        value={cellGrade(sem, c.code)}
+                        comment={cellComment(sem, c.code)}
+                        subjectLabel={c.label}
+                        semesterLabel={`Sem ${sem === 1 ? "I" : "II"}`}
+                      />
                     </td>
                   ))}
                 </tr>
@@ -292,52 +359,70 @@ export function ReportCardView({
       </Card>
 
       {/* Specialisation table — Sem III-VI × 3 columns + comments. */}
-      <Card>
-        <CardHeader className="pb-3 flex flex-row items-center justify-between">
-          <CardTitle className="text-base">Specialisation Semesters</CardTitle>
+      <Card className="overflow-hidden">
+        <CardHeader className="flex flex-row items-start justify-between gap-3 border-b border-amber-100 bg-amber-50/50 py-3">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 text-amber-600">
+              <Award className="h-4 w-4" />
+            </span>
+            <div>
+              <CardTitle className="text-base text-slate-900">
+                Specialisation Semesters
+              </CardTitle>
+              <p className="text-xs font-normal text-slate-500">
+                Sem III–VI — track + Direction &amp; Production
+              </p>
+            </div>
+          </div>
           {canEditSpecialization && (
             <EditGradesToggle
               onClick={() => setEditingScope("specialization")}
             />
           )}
         </CardHeader>
-        <CardContent className="overflow-x-auto">
+        <CardContent className="overflow-x-auto p-0">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-slate-500">
-                <th className="py-2 pr-3 font-medium">Semester</th>
-                <th className="py-2 pr-3 font-medium">
+              <tr className="bg-amber-50/60 text-left text-amber-800">
+                <th className="py-2.5 px-4 text-xs font-semibold uppercase tracking-wide">
+                  Semester
+                </th>
+                <th className="py-2.5 px-3 text-xs font-semibold uppercase tracking-wide">
                   Specialisation
                   {specializationCode && (
-                    <span className="text-xs text-slate-400 ml-1">
+                    <span className="ml-1 normal-case text-amber-600/80">
                       ({specializationLabel})
                     </span>
                   )}
                 </th>
-                <th className="py-2 pr-3 font-medium">Direction</th>
-                <th className="py-2 pr-3 font-medium">Production</th>
+                <th className="py-2.5 px-3 text-xs font-semibold uppercase tracking-wide">
+                  Direction
+                </th>
+                <th className="py-2.5 px-3 text-xs font-semibold uppercase tracking-wide">
+                  Production
+                </th>
               </tr>
             </thead>
-            <tbody>
-              {[3, 4, 5, 6].map((sem) => {
+            <tbody className="divide-y divide-slate-100">
+              {[3, 4, 5, 6].map((sem, i) => {
                 const specCode = specializationCode ?? "";
                 return (
                   <tr
                     key={sem}
-                    className="border-t border-slate-100 align-top"
+                    className={`align-top ${i % 2 === 1 ? "bg-slate-50/50" : "bg-white"}`}
                   >
-                    <td className="py-3 pr-3 font-medium text-slate-700">
+                    <td className="py-3 px-4 font-semibold text-slate-700 whitespace-nowrap">
                       Sem {romanize(sem)}
                     </td>
-                    <td className="py-3 pr-3">
+                    <td className="py-3 px-3">
                       <GradeCell value={cellGrade(sem, specCode)} />
                       <CommentBody body={cellComment(sem, specCode)} />
                     </td>
-                    <td className="py-3 pr-3">
+                    <td className="py-3 px-3">
                       <GradeCell value={cellGrade(sem, "direction")} />
                       <CommentBody body={cellComment(sem, "direction")} />
                     </td>
-                    <td className="py-3 pr-3">
+                    <td className="py-3 px-3">
                       <GradeCell value={cellGrade(sem, "production")} />
                       <CommentBody body={cellComment(sem, "production")} />
                     </td>
@@ -352,11 +437,23 @@ export function ReportCardView({
       )}
 
       {/* Final Summary — 3 narrative paragraphs. */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Final Summary</CardTitle>
+      <Card className="overflow-hidden">
+        <CardHeader className="border-b border-purple-100 bg-purple-50/50 py-3">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-100 text-purple-600">
+              <ClipboardList className="h-4 w-4" />
+            </span>
+            <div>
+              <CardTitle className="text-base text-slate-900">
+                Final Summary
+              </CardTitle>
+              <p className="text-xs font-normal text-slate-500">
+                Faculty's overall remarks
+              </p>
+            </div>
+          </div>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 pt-6">
           <SummaryField
             label="Creative Comment"
             value={data.creativeComment}
@@ -436,6 +533,34 @@ export function ReportCardView({
   );
 }
 
+// Small labelled stat pill used in the student header. Tone tints the border
+// and background to match the rest of the app (amber = specialisation, indigo
+// = primary metric).
+function StatChip({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: "amber" | "indigo";
+}) {
+  const tones = {
+    amber: { box: "border-amber-200 bg-amber-50", label: "text-amber-700" },
+    indigo: { box: "border-indigo-200 bg-indigo-50", label: "text-indigo-700" },
+  }[tone];
+  return (
+    <div className={`rounded-lg border px-3 py-2 ${tones.box}`}>
+      <div
+        className={`text-[11px] font-medium uppercase tracking-wide ${tones.label}`}
+      >
+        {label}
+      </div>
+      <div className="font-semibold text-slate-900">{value}</div>
+    </div>
+  );
+}
+
 function GradeCell({ value }: { value: string }) {
   if (value === "—")
     return <span className="text-slate-300 font-mono text-sm">—</span>;
@@ -451,6 +576,45 @@ function GradeCell({ value }: { value: string }) {
     >
       {value}
     </Badge>
+  );
+}
+
+// Foundation cell: a grade badge that, when it has a comment, reveals it in a
+// hover card with a small dot affordance. Keeps the compact 6-column grid while
+// making Sem I/II comments reachable on hover (and on keyboard focus).
+function FoundationGradeCell({
+  value,
+  comment,
+  subjectLabel,
+  semesterLabel,
+}: {
+  value: string;
+  comment: string | null;
+  subjectLabel: string;
+  semesterLabel: string;
+}) {
+  // No grade, or graded with no comment — render the plain badge/dash.
+  if (value === "—" || !comment) return <GradeCell value={value} />;
+
+  return (
+    <HoverCard openDelay={120} closeDelay={80}>
+      <HoverCardTrigger asChild>
+        <button
+          type="button"
+          aria-label={`${subjectLabel} ${semesterLabel} comment`}
+          className="relative inline-flex items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+        >
+          <GradeCell value={value} />
+          <span className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-indigo-500 ring-2 ring-white" />
+        </button>
+      </HoverCardTrigger>
+      <HoverCardContent align="start" className="w-80">
+        <div className="text-xs font-medium uppercase text-slate-500">
+          {subjectLabel} · {semesterLabel} · Grade {value}
+        </div>
+        <p className="mt-1.5 text-sm text-slate-700 leading-snug">{comment}</p>
+      </HoverCardContent>
+    </HoverCard>
   );
 }
 

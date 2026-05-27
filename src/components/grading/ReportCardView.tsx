@@ -19,6 +19,7 @@ import {
 } from "@/lib/grading";
 import {
   SPECIALIZATION_LABELS,
+  SPECIALIZATION_MIN_SEMESTER,
   type Specialization,
 } from "@/data/syllabus";
 import { downloadReportCardPdf } from "@/lib/reportCardPdf";
@@ -65,6 +66,12 @@ interface ReportCardViewProps {
   // GradeEditor for this class/student (no navigation away from the page).
   editClassId?: string;
   editStudentId?: string;
+  // Semester of the class being edited. The GradeEditor only grades this
+  // class's own semester, so the "Edit grades" toggle is shown solely on the
+  // matching section: Foundation for Sem 1-2 classes, Specialisation for Sem
+  // 3+ classes. This keeps a Sem 4 teacher, say, from launching the Sem 4
+  // specialisation editor out of the Foundation header.
+  editClassSemester?: number | null;
   // Editable-mode change handlers; only required when editable=true.
   onChange?: (
     field:
@@ -87,16 +94,28 @@ export function ReportCardView({
   isDirty = false,
   editClassId,
   editStudentId,
+  editClassSemester,
   onChange,
   onSave,
   onGradesChanged,
 }: ReportCardViewProps) {
   const [downloading, setDownloading] = useState(false);
-  // Inline grade-editing toggle. Flipped on by the "Edit grades" buttons in
-  // the Foundation / Specialisation headers; replaces the read-only grade
-  // tables with the GradeEditor until the teacher clicks "Done".
-  const [editingGrades, setEditingGrades] = useState(false);
+  // Which section is being edited inline. Set by the "Edit grades" button in
+  // the Foundation / Specialisation header; replaces the read-only grade tables
+  // with the scoped GradeEditor until the teacher clicks "Done". null = not
+  // editing.
+  const [editingScope, setEditingScope] = useState<
+    "foundation" | "specialization" | null
+  >(null);
   const canEditGrades = editable && !!editClassId && !!editStudentId;
+  // Foundation (Sem I & II) can be edited from any class context. The
+  // specialisation editor needs the class's own Sem 3+ semester, so it only
+  // appears when the selected class is a specialisation class.
+  const canEditFoundation = canEditGrades;
+  const canEditSpecialization =
+    canEditGrades &&
+    editClassSemester != null &&
+    editClassSemester >= SPECIALIZATION_MIN_SEMESTER;
 
   const handleDownload = async () => {
     setDownloading(true);
@@ -200,15 +219,19 @@ export function ReportCardView({
 
       {/* Inline grade + comment editor — replaces the read-only grade tables
           while the teacher is editing, then folds back when they click Done. */}
-      {canEditGrades && editingGrades && (
+      {canEditGrades && editingScope && (
         <Card>
           <CardHeader className="pb-3 flex flex-row items-center justify-between">
-            <CardTitle className="text-base">Edit grades</CardTitle>
+            <CardTitle className="text-base">
+              {editingScope === "foundation"
+                ? "Edit Foundation grades (Sem I & II)"
+                : "Edit Specialisation grades"}
+            </CardTitle>
             <Button
               variant="ghost"
               size="sm"
               onClick={() => {
-                setEditingGrades(false);
+                setEditingScope(null);
                 onGradesChanged?.();
               }}
               className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 print:hidden -my-1"
@@ -221,6 +244,7 @@ export function ReportCardView({
             <GradeEditor
               classId={editClassId!}
               studentId={editStudentId!}
+              scope={editingScope}
               onGradesSaved={onGradesChanged}
             />
           </CardContent>
@@ -228,13 +252,13 @@ export function ReportCardView({
       )}
 
       {/* Foundation table — Sem I & II × 6 subjects, grade letter only. */}
-      {!editingGrades && (
+      {!editingScope && (
         <>
       <Card>
         <CardHeader className="pb-3 flex flex-row items-center justify-between">
           <CardTitle className="text-base">Foundation</CardTitle>
-          {canEditGrades && (
-            <EditGradesToggle onClick={() => setEditingGrades(true)} />
+          {canEditFoundation && (
+            <EditGradesToggle onClick={() => setEditingScope("foundation")} />
           )}
         </CardHeader>
         <CardContent className="overflow-x-auto">
@@ -271,8 +295,10 @@ export function ReportCardView({
       <Card>
         <CardHeader className="pb-3 flex flex-row items-center justify-between">
           <CardTitle className="text-base">Specialisation Semesters</CardTitle>
-          {canEditGrades && (
-            <EditGradesToggle onClick={() => setEditingGrades(true)} />
+          {canEditSpecialization && (
+            <EditGradesToggle
+              onClick={() => setEditingScope("specialization")}
+            />
           )}
         </CardHeader>
         <CardContent className="overflow-x-auto">

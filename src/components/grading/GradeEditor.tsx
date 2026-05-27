@@ -75,9 +75,16 @@ type GridState = Record<string, CellState>; // key = `${semester}:${subjectId}`
 const cellKey = (semester: number, subjectId: string) =>
   `${semester}:${subjectId}`;
 
+// Which slice of the report card this editor grades:
+//   "foundation"     → Sem I & II, all 6 foundation subjects (class-independent)
+//   "specialization" → the class's own Sem 3+ semester: spec + Direction + Production
+// Omitted = legacy behaviour: derive the slice from the class's semester.
+type GradingScope = "foundation" | "specialization";
+
 interface GradeEditorProps {
   classId: string;
   studentId: string;
+  scope?: GradingScope;
   // Called after each successful cell save so the surrounding report card can
   // re-fetch grades and keep the Final % / grade tables in sync.
   onGradesSaved?: () => void;
@@ -94,6 +101,7 @@ interface GradeEditorProps {
 export function GradeEditor({
   classId,
   studentId,
+  scope,
   onGradesSaved,
 }: GradeEditorProps) {
   const { profile } = useAuth();
@@ -172,27 +180,39 @@ export function GradeEditor({
     };
   }, [classId, toast]);
 
-  // Which semesters this class is graded against. Sem 1-2 classes always grade
-  // against the full Sem I/II foundation; Sem 3+ classes grade only their own
-  // semester.
-  const gradingSemesters = useMemo<number[]>(() => {
-    if (!classSemester) return [];
-    if (classSemester < SPECIALIZATION_MIN_SEMESTER) return [1, 2];
-    return [classSemester];
-  }, [classSemester]);
+  // Resolve the effective scope: explicit prop wins; otherwise fall back to the
+  // class's semester (legacy callers that don't pass a scope).
+  const effectiveScope = useMemo<GradingScope | null>(() => {
+    if (scope) return scope;
+    if (classSemester == null) return null;
+    return classSemester < SPECIALIZATION_MIN_SEMESTER
+      ? "foundation"
+      : "specialization";
+  }, [scope, classSemester]);
 
-  // Which subject codes are graded for this class. Foundation = the six common
-  // subjects; specialisation = the class's spec + Direction + Production. For a
-  // Sem 3+ class with no specialisation set yet, returns [] so the UI can show
+  // Which semesters this editor grades against. Foundation always covers the
+  // full Sem I/II foundation regardless of the class; specialisation grades the
+  // class's own semester.
+  const gradingSemesters = useMemo<number[]>(() => {
+    if (effectiveScope === "foundation") return [1, 2];
+    if (effectiveScope === "specialization") {
+      return classSemester ? [classSemester] : [];
+    }
+    return [];
+  }, [effectiveScope, classSemester]);
+
+  // Which subject codes are graded. Foundation = the six common subjects;
+  // specialisation = the class's spec + Direction + Production. For a
+  // specialisation scope with no spec set yet, returns [] so the UI can show
   // the "ask admin to set specialisation" guard instead of the grid.
   const gradingSubjectCodes = useMemo<string[]>(() => {
-    if (!classSemester) return [];
-    if (classSemester < SPECIALIZATION_MIN_SEMESTER) {
-      return FOUNDATION_SUBJECT_CODES;
+    if (effectiveScope === "foundation") return FOUNDATION_SUBJECT_CODES;
+    if (effectiveScope === "specialization") {
+      if (!classSpecialization) return [];
+      return [classSpecialization, ...COMMON_SPECIALIZATION_CODES];
     }
-    if (!classSpecialization) return [];
-    return [classSpecialization, ...COMMON_SPECIALIZATION_CODES];
-  }, [classSemester, classSpecialization]);
+    return [];
+  }, [effectiveScope, classSpecialization]);
 
   // Hydrate comment bank for the class's semesters whenever they change.
   useEffect(() => {
@@ -382,7 +402,9 @@ export function GradeEditor({
           cell.grade === cell.savedGrade &&
           cell.commentId === cell.savedCommentId;
         const isSpecializationSubject =
-          !!classSpecialization && subject.code === classSpecialization;
+          effectiveScope === "specialization" &&
+          !!classSpecialization &&
+          subject.code === classSpecialization;
         return (
           <Card key={subject.id} className="border-slate-200">
             <CardContent className="p-4">
@@ -481,12 +503,13 @@ export function GradeEditor({
     </div>
   );
 
-  // Sem 3+ class without a specialisation set — can't grade until an admin
-  // assigns one. Mirror the guard the standalone grading page used to show.
+  // Specialisation scope without a specialisation set — can't grade until an
+  // admin assigns one. Mirror the guard the standalone grading page used to
+  // show. (Foundation scope never needs a specialisation.)
   if (
     !loadingClass &&
+    effectiveScope === "specialization" &&
     classSemester != null &&
-    classSemester >= SPECIALIZATION_MIN_SEMESTER &&
     !classSpecialization
   ) {
     return (

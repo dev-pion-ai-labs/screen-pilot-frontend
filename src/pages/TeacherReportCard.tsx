@@ -176,6 +176,15 @@ export default function TeacherReportCard() {
     [students, selectedStudentId],
   );
 
+  // Semester of the picked class — drives which report-card section
+  // ("Foundation" for Sem 1-2, "Specialisation" for Sem 3+) gets the inline
+  // "Edit grades" toggle, since the GradeEditor only grades this class's
+  // semester.
+  const selectedClassSemester = useMemo(
+    () => classes.find((c) => c.id === selectedClassId)?.semester ?? null,
+    [classes, selectedClassId],
+  );
+
   // Any of the 4 editable fields differ from the last loaded/saved version.
   const isDirty = useMemo(
     () =>
@@ -371,6 +380,7 @@ export default function TeacherReportCard() {
                 isDirty={isDirty}
                 editClassId={selectedClassId}
                 editStudentId={selectedStudentId}
+                editClassSemester={selectedClassSemester}
                 onChange={handleChange}
                 onSave={handleSave}
                 onGradesChanged={refreshGrades}

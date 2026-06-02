@@ -157,7 +157,7 @@ export default function TeacherReportCard() {
       } catch (err) {
         if (!cancelled) {
           toast({
-            title: "Couldn't load report card",
+            title: "Couldn't load academic report",
             description: (err as Error).message,
             variant: "destructive",
           });
@@ -251,7 +251,7 @@ export default function TeacherReportCard() {
       if (error) throw error;
       // Mark current state as the new baseline so isDirty goes false.
       setOriginalReport(report);
-      toast({ title: "Report card saved" });
+      toast({ title: "Academic report saved" });
     } catch (err) {
       toast({
         title: "Save failed",
@@ -273,10 +273,10 @@ export default function TeacherReportCard() {
             </div>
             <div>
               <h1 className="text-2xl font-semibold text-slate-900">
-                Report Cards
+                Academic Reports
               </h1>
               <p className="text-sm text-slate-500">
-                Pick a student to see their full report card with Final % and
+                Pick a student to see their full academic report with Final % and
                 grade, plus the Creative / Technical / Professional summary.
               </p>
             </div>

@@ -38,12 +38,13 @@ import {
 } from "@/data/syllabus";
 import { downloadReportCardPdf } from "@/lib/reportCardPdf";
 
-// Codes for foundation columns (Sem I & II). Order matches Lead's mockup
-// (Screenwriting, Direction, Production, Cine, Sound, Edit).
+// Codes for foundation columns (Sem I & II). Direction and Production are
+// the common subjects and lead the order; Screenwriting and the remaining
+// specialisation tracks follow (per Lead's feedback, 01 Jun 2026).
 export const FOUNDATION_COLUMNS: { code: string; label: string }[] = [
-  { code: "screenwriting", label: "Screenwriting" },
   { code: "direction", label: "Direction" },
   { code: "production", label: "Production" },
+  { code: "screenwriting", label: "Screenwriting" },
   { code: "cinematography", label: "Cine" },
   { code: "sound_design", label: "Sound" },
   { code: "editing", label: "Edit" },
@@ -370,7 +371,7 @@ export function ReportCardView({
                 Specialisation Semesters
               </CardTitle>
               <p className="text-xs font-normal text-slate-500">
-                Sem III–VI — track + Direction &amp; Production
+                Sem III–VI — Direction &amp; Production + track
               </p>
             </div>
           </div>
@@ -388,18 +389,18 @@ export function ReportCardView({
                   Semester
                 </th>
                 <th className="py-2.5 px-3 text-xs font-semibold uppercase tracking-wide">
+                  Direction
+                </th>
+                <th className="py-2.5 px-3 text-xs font-semibold uppercase tracking-wide">
+                  Production
+                </th>
+                <th className="py-2.5 px-3 text-xs font-semibold uppercase tracking-wide">
                   Specialisation
                   {specializationCode && (
                     <span className="ml-1 normal-case text-amber-600/80">
                       ({specializationLabel})
                     </span>
                   )}
-                </th>
-                <th className="py-2.5 px-3 text-xs font-semibold uppercase tracking-wide">
-                  Direction
-                </th>
-                <th className="py-2.5 px-3 text-xs font-semibold uppercase tracking-wide">
-                  Production
                 </th>
               </tr>
             </thead>
@@ -415,16 +416,16 @@ export function ReportCardView({
                       Sem {romanize(sem)}
                     </td>
                     <td className="py-3 px-3">
-                      <GradeCell value={cellGrade(sem, specCode)} />
-                      <CommentBody body={cellComment(sem, specCode)} />
-                    </td>
-                    <td className="py-3 px-3">
                       <GradeCell value={cellGrade(sem, "direction")} />
                       <CommentBody body={cellComment(sem, "direction")} />
                     </td>
                     <td className="py-3 px-3">
                       <GradeCell value={cellGrade(sem, "production")} />
                       <CommentBody body={cellComment(sem, "production")} />
+                    </td>
+                    <td className="py-3 px-3">
+                      <GradeCell value={cellGrade(sem, specCode)} />
+                      <CommentBody body={cellComment(sem, specCode)} />
                     </td>
                   </tr>
                 );
@@ -496,14 +497,14 @@ export function ReportCardView({
                 title={
                   !isDirty
                     ? "No changes to save yet"
-                    : "Save the report card"
+                    : "Save the academic report"
                 }
               >
                 {saving ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <>
-                    <Save className="h-4 w-4 mr-1" /> Save report card
+                    <Save className="h-4 w-4 mr-1" /> Save academic report
                   </>
                 )}
               </Button>

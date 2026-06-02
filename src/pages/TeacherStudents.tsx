@@ -781,7 +781,7 @@ export default function TeacherStudentsPage() {
                                 onClick={() => downloadStudentReport(performance)}
                               >
                                 <Download className="h-4 w-4 mr-1" />
-                                Report Card
+                                Academic Report
                               </Button>
                             </div>
                           </div>

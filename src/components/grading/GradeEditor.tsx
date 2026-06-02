@@ -45,17 +45,19 @@ interface ExistingGrade {
 }
 
 // Sem I & II foundation subjects, in the order they should appear in the grid.
+// Direction and Production (common subjects) lead, then Screenwriting and the
+// remaining specialisation tracks (per Lead's feedback, 01 Jun 2026).
 const FOUNDATION_SUBJECT_CODES = [
-  "screenwriting",
   "direction",
   "production",
+  "screenwriting",
   "cinematography",
   "sound_design",
   "editing",
 ];
 
-// Sem III+ classes grade 3 subjects: the class's specialisation, plus Direction
-// and Production which stay common across all tracks.
+// Sem III+ classes grade 3 subjects: Direction and Production (common across
+// all tracks) come first, then the class's own specialisation.
 const COMMON_SPECIALIZATION_CODES = ["direction", "production"];
 
 // Cell state — what the teacher has selected for one (semester, subject) cell.
@@ -209,14 +211,14 @@ export function GradeEditor({
   }, [effectiveScope, classSemester]);
 
   // Which subject codes are graded. Foundation = the six common subjects;
-  // specialisation = the class's spec + Direction + Production. For a
+  // specialisation = Direction + Production + the class's spec. For a
   // specialisation scope with no spec set yet, returns [] so the UI can show
   // the "ask admin to set specialisation" guard instead of the grid.
   const gradingSubjectCodes = useMemo<string[]>(() => {
     if (effectiveScope === "foundation") return FOUNDATION_SUBJECT_CODES;
     if (effectiveScope === "specialization") {
       if (!classSpecialization) return [];
-      return [classSpecialization, ...COMMON_SPECIALIZATION_CODES];
+      return [...COMMON_SPECIALIZATION_CODES, classSpecialization];
     }
     return [];
   }, [effectiveScope, classSpecialization]);

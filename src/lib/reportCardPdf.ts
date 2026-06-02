@@ -12,19 +12,20 @@ import type {
 
 const COLLEGE_NAME = "ANNAPURNA COLLEGE OF FILM AND MEDIA";
 
-// Foundation column order matches the on-screen view + Lead's spreadsheet.
+// Foundation column order matches the on-screen view. Direction and
+// Production (the common subjects) lead, then Screenwriting and the rest.
 const FOUNDATION_CODES = [
-  "screenwriting",
   "direction",
   "production",
+  "screenwriting",
   "cinematography",
   "sound_design",
   "editing",
 ] as const;
 const FOUNDATION_LABELS = [
-  "Screenwriting",
   "Direction",
   "Production",
+  "Screenwriting",
   "Cine",
   "Sound",
   "Edit",
@@ -153,7 +154,7 @@ export async function downloadReportCardPdf(data: ReportCardData) {
   drawFooter(doc);
 
   const safeName = (data.studentName || "Student").replace(/[\\/:*?"<>|]/g, "");
-  doc.save(`Report Card - ${safeName}.pdf`);
+  doc.save(`Student Academic Report - ${safeName}.pdf`);
 }
 
 // ---------- sections ----------
@@ -193,7 +194,7 @@ function drawBrandedHeader(
   doc.setFont("helvetica", "normal");
   doc.setFontSize(11);
   doc.setTextColor(...SLATE_500);
-  doc.text("Student Report Card", pageWidth / 2, cursorY + 6, {
+  doc.text("Student Academic Report", pageWidth / 2, cursorY + 6, {
     align: "center",
   });
   cursorY += 16;
@@ -361,22 +362,22 @@ function drawSpecializationTable(
     head: [
       [
         "Semester",
-        "Specialisation",
         "Direction",
         "Production",
-        "Specialisation Comment",
+        "Specialisation",
         "Direction Comment",
         "Production Comment",
+        "Specialisation Comment",
       ],
     ],
     body: [3, 4, 5, 6].map((sem, i) => [
       `Sem ${semRoman[i]}`,
-      getGrade(data.grades, sem, specCode),
       getGrade(data.grades, sem, "direction"),
       getGrade(data.grades, sem, "production"),
-      getComment(data.grades, sem, specCode),
+      getGrade(data.grades, sem, specCode),
       getComment(data.grades, sem, "direction"),
       getComment(data.grades, sem, "production"),
+      getComment(data.grades, sem, specCode),
     ]),
     styles: {
       fontSize: 8.5,

@@ -138,10 +138,10 @@ export function AppSidebar() {
             description: "Monitor student progress and work",
           },
           {
-            name: "Report Cards",
+            name: "Academic Reports",
             href: "/teacher/report-card",
             icon: FileText,
-            description: "View student grades and edit report cards",
+            description: "View student grades and edit academic reports",
           },
         ];
       case "student":
@@ -184,7 +184,7 @@ export function AppSidebar() {
             description: "Additional resources",
           },
           {
-            name: "My Report Card",
+            name: "My Academic Report",
             href: "/student/report-card",
             icon: FileText,
             description: "See your final grades and summary",

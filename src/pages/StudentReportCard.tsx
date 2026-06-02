@@ -50,7 +50,7 @@ export default function StudentReportCard() {
       } catch (err) {
         if (!cancelled) {
           toast({
-            title: "Couldn't load your report card",
+            title: "Couldn't load your academic report",
             description: (err as Error).message,
             variant: "destructive",
           });
@@ -74,7 +74,7 @@ export default function StudentReportCard() {
             </div>
             <div>
               <h1 className="text-2xl font-semibold text-slate-900">
-                My Report Card
+                My Academic Report
               </h1>
               <p className="text-sm text-slate-500">
                 Your grades and Final % from every semester, plus the

@@ -28,8 +28,9 @@ for (const r of source) {
   srcCount[r.subject] = (srcCount[r.subject] || 0) + 1;
 }
 
-let all = [];
+const bySubject = new Map();
 const problems = [];
+let total = 0;
 for (const s of SUBJECTS) {
   const file = path.join(refinedDir, `${s.code}.json`);
   if (!fs.existsSync(file)) {
@@ -38,9 +39,7 @@ for (const s of SUBJECTS) {
   }
   const rows = JSON.parse(fs.readFileSync(file, "utf8"));
   if (rows.length !== s.expect) {
-    problems.push(
-      `${s.code}: expected ${s.expect} rows, got ${rows.length}`,
-    );
+    problems.push(`${s.code}: expected ${s.expect} rows, got ${rows.length}`);
   }
   if (srcCount[s.code] !== rows.length) {
     problems.push(
@@ -51,73 +50,58 @@ for (const s of SUBJECTS) {
     if (!r.refined || !r.refined.trim()) {
       problems.push(`${s.code} sem${r.semester} ${r.grade}: empty refined`);
     }
-    if (r.refined && r.refined.trim() === (r.original || "").trim() && r.grade !== "A") {
-      // Non-A rows identical to original is suspicious (not a hard fail).
-    }
-    all.push({ ...r, _subjectName: s.name, _order: s.order });
   }
+  // Stable sort within the subject: Semester, then grade A-D
+  // (phrasing order preserved by stable sort).
+  const sorted = rows
+    .map((r, i) => ({ r, i }))
+    .sort(
+      (a, b) =>
+        a.r.semester - b.r.semester ||
+        GRADE_ORDER[a.r.grade] - GRADE_ORDER[b.r.grade] ||
+        a.i - b.i,
+    )
+    .map((x) => x.r);
+  bySubject.set(s, sorted);
+  total += sorted.length;
 }
-
-// Stable sort: Semester, then subject display order, then grade A-D.
-// (Within a group the file's phrasing order is preserved by stable sort.)
-all = all
-  .map((r, i) => ({ r, i }))
-  .sort((a, b) => {
-    const ra = a.r, rb = b.r;
-    return (
-      ra.semester - rb.semester ||
-      ra._order - rb._order ||
-      GRADE_ORDER[ra.grade] - GRADE_ORDER[rb.grade] ||
-      a.i - b.i
-    );
-  })
-  .map((x) => x.r);
 
 if (problems.length) {
   console.log("INTEGRITY PROBLEMS:");
   for (const p of problems) console.log("  - " + p);
 } else {
-  console.log("Integrity OK. Total rows:", all.length);
+  console.log("Integrity OK. Total rows:", total);
 }
-
-// Build worksheet rows (header + data).
-const aoa = [
-  [
-    "Semester",
-    "Subject",
-    "Grade",
-    "Current Comment",
-    "Refined Comment (proposed)",
-  ],
-];
-for (const r of all) {
-  aoa.push([
-    `Sem ${ROMAN[r.semester]}`,
-    r._subjectName,
-    r.grade,
-    r.original,
-    r.refined,
-  ]);
-}
-
-const ws = XLSX.utils.aoa_to_sheet(aoa);
-ws["!cols"] = [
-  { wch: 10 },
-  { wch: 16 },
-  { wch: 7 },
-  { wch: 70 },
-  { wch: 80 },
-];
-ws["!freeze"] = { xSplit: 0, ySplit: 1 };
-ws["!autofilter"] = { ref: `A1:E${aoa.length}` };
 
 const wb = XLSX.utils.book_new();
-XLSX.utils.book_append_sheet(wb, ws, "Comment Bank (Refined)");
+
+// One worksheet (tab) per subject — Semester, Grade, Current, Refined.
+for (const s of SUBJECTS) {
+  const rows = bySubject.get(s) || [];
+  const aoa = [["Semester", "Grade", "Current Comment", "Refined Comment (proposed)"]];
+  for (const r of rows) {
+    aoa.push([`Sem ${ROMAN[r.semester]}`, r.grade, r.original, r.refined]);
+  }
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"] = [{ wch: 10 }, { wch: 7 }, { wch: 75 }, { wch: 85 }];
+  ws["!freeze"] = { xSplit: 0, ySplit: 1 };
+  ws["!autofilter"] = { ref: `A1:D${aoa.length}` };
+  // Tab name must be <=31 chars and free of : \ / ? * [ ]
+  XLSX.utils.book_append_sheet(wb, ws, s.name.slice(0, 31));
+}
 
 const outName = "ACFM_Academic_Report_Comment_Bank_Refined.xlsx";
 const outPath = path.join(root, outName);
 XLSX.writeFile(wb, outPath);
-console.log("Wrote", outPath, "with", all.length, "data rows.");
+console.log(
+  "Wrote",
+  outPath,
+  "with",
+  wb.SheetNames.length,
+  "subject tabs,",
+  total,
+  "total rows.",
+);
 
 // Also drop a copy on the Desktop for easy sending.
 try {

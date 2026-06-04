@@ -18,6 +18,7 @@ import {
   type Specialization,
   SPECIALIZATION_MIN_SEMESTER,
 } from "@/data/syllabus";
+import { gradableSubjectCodes } from "@/lib/grading";
 
 interface Teacher {
   id: string;
@@ -43,6 +44,8 @@ interface Class {
   specialization: Specialization | null;
   teachers: Teacher[];
   students: Student[];
+  // teacherId -> subject codes that teacher may grade in this class.
+  teacherSubjects: Record<string, string[]>;
   createdAt: string;
 }
 
@@ -50,6 +53,9 @@ const AdminAssignClass = () => {
   const [classes, setClasses] = useState<Class[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
+  // Subject reference list (id <-> code) for translating the per-teacher
+  // subject-code selection into class_teacher_subjects rows.
+  const [subjects, setSubjects] = useState<{ id: string; code: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingClass, setEditingClass] = useState<Class | null>(null);
 
@@ -62,13 +68,32 @@ const AdminAssignClass = () => {
   const [selectedSpecialization, setSelectedSpecialization] =
     useState<Specialization | null>(null);
   const [selectedTeachers, setSelectedTeachers] = useState<Teacher[]>([]);
+  const [teacherSubjects, setTeacherSubjects] = useState<
+    Record<string, string[]>
+  >({});
   const [selectedStudents, setSelectedStudents] = useState<Student[]>([]);
 
   useEffect(() => {
     fetchTeachers();
     fetchStudents();
+    fetchSubjects();
     fetchClasses();
   }, []);
+
+  const fetchSubjects = async () => {
+    const { data, error } = await supabase
+      .from("subjects")
+      .select("id, code");
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to load subjects",
+        variant: "destructive",
+      });
+      return;
+    }
+    setSubjects((data || []) as { id: string; code: string }[]);
+  };
 
   const fetchTeachers = async () => {
     const { data, error } = await supabase
@@ -123,6 +148,10 @@ const AdminAssignClass = () => {
           teacher_id,
           profiles (id, full_name, email, program)
         ),
+        class_teacher_subjects (
+          teacher_id,
+          subjects (code)
+        ),
         class_students (
           student_id,
           profiles (id, full_name, email, semester, program)
@@ -139,19 +168,91 @@ const AdminAssignClass = () => {
       return;
     }
 
-    const formatted: Class[] = (data || []).map((c: any) => ({
-      id: c.id,
-      name: c.name,
-      semester: c.semester,
-      program: c.program ?? null,
-      specialization: c.specialization ?? null,
-      createdAt: c.created_at,
-      teachers: c.class_teachers.map((t: any) => t.profiles),
-      students: c.class_students.map((s: any) => s.profiles),
-    }));
+    type RawClassRow = {
+      id: string;
+      name: string;
+      semester: number;
+      program: string | null;
+      specialization: string | null;
+      created_at: string;
+      class_teachers: { teacher_id: string; profiles: Teacher }[];
+      class_teacher_subjects: {
+        teacher_id: string;
+        subjects: { code: string } | null;
+      }[];
+      class_students: { student_id: string; profiles: Student }[];
+    };
+
+    const formatted: Class[] = ((data || []) as unknown as RawClassRow[]).map(
+      (c) => {
+        // Group the per-teacher subject rows into { teacherId: code[] }.
+        const teacherSubjectMap: Record<string, string[]> = {};
+        (c.class_teacher_subjects ?? []).forEach((row) => {
+          const code = row.subjects?.code;
+          if (!code) return;
+          (teacherSubjectMap[row.teacher_id] ??= []).push(code);
+        });
+        return {
+          id: c.id,
+          name: c.name,
+          semester: c.semester,
+          program: (c.program ?? null) as Program | null,
+          specialization: (c.specialization ?? null) as Specialization | null,
+          createdAt: c.created_at,
+          teachers: c.class_teachers.map((t) => t.profiles),
+          students: c.class_students.map((s) => s.profiles),
+          teacherSubjects: teacherSubjectMap,
+        };
+      },
+    );
 
     setClasses(formatted);
     setLoading(false);
+  };
+
+  // Replace a class's per-teacher subject assignments with the current
+  // selection. Delete-then-insert is safe: no other table references these rows.
+  const persistTeacherSubjects = async (
+    classId: string,
+    semester: number,
+    specialization: Specialization | null,
+  ) => {
+    const validCodes = new Set(gradableSubjectCodes(semester, specialization));
+    const codeToId = new Map(subjects.map((s) => [s.code, s.id]));
+
+    const rows: {
+      class_id: string;
+      teacher_id: string;
+      subject_id: string;
+    }[] = [];
+    for (const teacher of selectedTeachers) {
+      const codes = (teacherSubjects[teacher.id] ?? []).filter((c) =>
+        validCodes.has(c),
+      );
+      for (const code of codes) {
+        const subjectId = codeToId.get(code);
+        if (subjectId) {
+          rows.push({
+            class_id: classId,
+            teacher_id: teacher.id,
+            subject_id: subjectId,
+          });
+        }
+      }
+    }
+
+    const { error: delError } = await supabase
+      .from("class_teacher_subjects")
+      .delete()
+      .eq("class_id", classId);
+    if (delError) throw delError;
+
+    if (rows.length > 0) {
+      const { error: insError } = await supabase
+        .from("class_teacher_subjects")
+        .insert(rows);
+      if (insError) throw insError;
+    }
   };
 
   const handleAddClass = async () => {
@@ -246,7 +347,14 @@ const AdminAssignClass = () => {
         if (studentInsertError) throw studentInsertError;
       }
 
-      // 4. Update local state
+      // 4. Persist per-teacher subject restrictions for this class.
+      await persistTeacherSubjects(
+        classId,
+        selectedSemester,
+        specializationToSave,
+      );
+
+      // 5. Update local state
       const newClass: Class = {
         id: classId,
         name: newClassName,
@@ -255,6 +363,9 @@ const AdminAssignClass = () => {
         specialization: specializationToSave,
         teachers: selectedTeachers,
         students: selectedStudents,
+        teacherSubjects: Object.fromEntries(
+          selectedTeachers.map((t) => [t.id, teacherSubjects[t.id] ?? []]),
+        ),
         createdAt: classData.created_at,
       };
 
@@ -397,7 +508,14 @@ const AdminAssignClass = () => {
         if (addStudentError) throw addStudentError;
       }
 
-      // 4. Refresh from DB so local state matches what the server holds
+      // 4. Replace per-teacher subject restrictions for this class.
+      await persistTeacherSubjects(
+        editingClass.id,
+        selectedSemester,
+        specializationToSave,
+      );
+
+      // 5. Refresh from DB so local state matches what the server holds
       //    (avoids the "looks updated but isn't" pitfall after a partial
       //    failure on retry).
       await fetchClasses();
@@ -447,6 +565,7 @@ const AdminAssignClass = () => {
     setSelectedProgram("BA");
     setSelectedSpecialization(null);
     setSelectedTeachers([]);
+    setTeacherSubjects({});
     setSelectedStudents([]);
   };
 
@@ -457,6 +576,7 @@ const AdminAssignClass = () => {
     setSelectedProgram(classItem.program ?? "BA");
     setSelectedSpecialization(classItem.specialization);
     setSelectedTeachers(classItem.teachers);
+    setTeacherSubjects(classItem.teacherSubjects ?? {});
     setSelectedStudents(classItem.students);
     setIsEditDialogOpen(true);
   };
@@ -514,6 +634,8 @@ const AdminAssignClass = () => {
             setSelectedSpecialization={setSelectedSpecialization}
             selectedTeachers={selectedTeachers}
             setSelectedTeachers={setSelectedTeachers}
+            teacherSubjects={teacherSubjects}
+            setTeacherSubjects={setTeacherSubjects}
             selectedStudents={selectedStudents}
             setSelectedStudents={setSelectedStudents}
             teachers={teachers}
@@ -536,6 +658,8 @@ const AdminAssignClass = () => {
             setSelectedSpecialization={setSelectedSpecialization}
             selectedTeachers={selectedTeachers}
             setSelectedTeachers={setSelectedTeachers}
+            teacherSubjects={teacherSubjects}
+            setTeacherSubjects={setTeacherSubjects}
             selectedStudents={selectedStudents}
             setSelectedStudents={setSelectedStudents}
             teachers={teachers}

@@ -2,7 +2,59 @@
 // ACFM_Final_Working_System.xlsx so the in-app report card matches what
 // the school's spreadsheet would produce for the same grades.
 
+import {
+  SPECIALIZATION_MIN_SEMESTER,
+  type Specialization,
+} from "@/data/syllabus";
+
 export type Grade = "A" | "B" | "C" | "D";
+
+// Sem I & II foundation subjects, in display order. Direction and Production
+// (common subjects) lead, then Screenwriting and the remaining specialisation
+// tracks (per Lead's feedback, 01 Jun 2026).
+export const FOUNDATION_SUBJECT_CODES = [
+  "direction",
+  "production",
+  "screenwriting",
+  "cinematography",
+  "sound_design",
+  "editing",
+] as const;
+
+// Sem III+ classes grade Direction + Production (common across all tracks)
+// followed by the class's own specialisation.
+export const COMMON_SPECIALIZATION_CODES = ["direction", "production"] as const;
+
+// Display labels for subject codes — used by pickers that only know the code.
+export const SUBJECT_LABELS: Record<string, string> = {
+  direction: "Direction",
+  production: "Production",
+  screenwriting: "Screenwriting",
+  cinematography: "Cinematography",
+  sound_design: "Sound Design",
+  editing: "Editing",
+  vfx: "VFX",
+};
+
+/**
+ * Subject codes graded for a class, in display order. Single source of truth
+ * shared by the grading grid and the admin subject-assignment picker so they
+ * never disagree on which subjects a class has.
+ *   Sem 1-2  → the six foundation subjects
+ *   Sem 3+   → Direction + Production + the class's specialisation
+ *             (just the two common subjects until a specialisation is set)
+ */
+export function gradableSubjectCodes(
+  semester: number | null,
+  specialization: Specialization | string | null,
+): string[] {
+  if (semester == null) return [];
+  if (semester < SPECIALIZATION_MIN_SEMESTER) {
+    return [...FOUNDATION_SUBJECT_CODES];
+  }
+  if (!specialization) return [...COMMON_SPECIALIZATION_CODES];
+  return [...COMMON_SPECIALIZATION_CODES, specialization];
+}
 
 // Per-cell weights used in the Excel formula:
 //   pct = (A*4 + B*3 + C*2 + D*1) / cell_count * 25

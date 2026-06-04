@@ -33,6 +33,7 @@ import {
   type Program,
   type Specialization,
 } from "@/data/syllabus";
+import { gradableSubjectCodes, SUBJECT_LABELS } from "@/lib/grading";
 
 interface Teacher {
   id: string;
@@ -66,6 +67,9 @@ interface AdminClassDialogProps {
   setSelectedSpecialization: (spec: Specialization | null) => void;
   selectedTeachers: Teacher[];
   setSelectedTeachers: (teachers: Teacher[]) => void;
+  // Per-teacher subject restriction: teacherId -> subject codes they may grade.
+  teacherSubjects: Record<string, string[]>;
+  setTeacherSubjects: (next: Record<string, string[]>) => void;
   selectedStudents: Student[];
   setSelectedStudents: (students: Student[]) => void;
   teachers: Teacher[];
@@ -382,6 +386,8 @@ export const AdminClassDialog = ({
   setSelectedSpecialization,
   selectedTeachers,
   setSelectedTeachers,
+  teacherSubjects,
+  setTeacherSubjects,
   selectedStudents,
   setSelectedStudents,
   teachers,
@@ -389,6 +395,26 @@ export const AdminClassDialog = ({
   onResetForm,
 }: AdminClassDialogProps) => {
   const needsSpecialization = selectedSemester >= SPECIALIZATION_MIN_SEMESTER;
+
+  // Subjects this class grades, given its semester + specialisation. Each
+  // selected teacher is restricted to a subset of these.
+  const gradableSubjects = gradableSubjectCodes(
+    selectedSemester,
+    selectedSpecialization,
+  ).map((code) => ({ code, label: SUBJECT_LABELS[code] ?? code }));
+
+  const toggleTeacherSubject = (
+    teacherId: string,
+    code: string,
+    checked: boolean,
+  ) => {
+    const current = teacherSubjects[teacherId] ?? [];
+    const next = checked
+      ? [...current, code]
+      : current.filter((c) => c !== code);
+    setTeacherSubjects({ ...teacherSubjects, [teacherId]: next });
+  };
+
   const [isTeacherModalOpen, setIsTeacherModalOpen] = useState(false);
   const [isStudentModalOpen, setIsStudentModalOpen] = useState(false);
   const [tempSelectedTeachers, setTempSelectedTeachers] = useState<string[]>([]);
@@ -583,6 +609,69 @@ export const AdminClassDialog = ({
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+            )}
+
+            {selectedTeachers.length > 0 && (
+              <div className="space-y-4">
+                <Label className="text-lg font-semibold text-gray-700">
+                  Subjects each teacher can grade
+                </Label>
+                <p className="text-sm text-gray-500 -mt-1">
+                  Each faculty can only enter and lock marks for the subjects you
+                  tick here. Direction and Production are common; the rest are
+                  specialisation subjects.
+                </p>
+                {gradableSubjects.length === 0 ? (
+                  <p className="text-sm text-amber-600">
+                    Pick a semester
+                    {needsSpecialization ? " and specialisation" : ""} first to
+                    choose subjects.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {selectedTeachers.map((teacher) => {
+                      const assigned = teacherSubjects[teacher.id] ?? [];
+                      return (
+                        <div
+                          key={teacher.id}
+                          className="rounded-xl border-2 border-gray-100 p-4"
+                        >
+                          <p className="font-medium text-gray-900">
+                            {teacher.full_name}
+                          </p>
+                          <div className="flex flex-wrap gap-x-5 gap-y-2 mt-3">
+                            {gradableSubjects.map((subject) => (
+                              <label
+                                key={subject.code}
+                                className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer"
+                              >
+                                <Checkbox
+                                  checked={assigned.includes(subject.code)}
+                                  onCheckedChange={(checked) =>
+                                    toggleTeacherSubject(
+                                      teacher.id,
+                                      subject.code,
+                                      checked as boolean,
+                                    )
+                                  }
+                                  className="w-4 h-4"
+                                />
+                                {subject.label}
+                              </label>
+                            ))}
+                          </div>
+                          {assigned.length === 0 && (
+                            <p className="text-xs text-amber-600 mt-2">
+                              No subjects assigned — this teacher won't be able to
+                              grade anyone in this class.
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
 

@@ -13,11 +13,15 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Loader2, Save, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Loader2, Save, CheckCircle2, AlertTriangle, Lock, LockOpen } from "lucide-react";
 import {
   SPECIALIZATION_MIN_SEMESTER,
   type Specialization,
 } from "@/data/syllabus";
+import {
+  FOUNDATION_SUBJECT_CODES,
+  COMMON_SPECIALIZATION_CODES,
+} from "@/lib/grading";
 
 type Grade = "A" | "B" | "C" | "D";
 const GRADES: Grade[] = ["A", "B", "C", "D"];
@@ -42,34 +46,25 @@ interface ExistingGrade {
   semester: number;
   grade: string;
   comment_id: string;
+  locked: boolean;
 }
 
-// Sem I & II foundation subjects, in the order they should appear in the grid.
-// Direction and Production (common subjects) lead, then Screenwriting and the
-// remaining specialisation tracks (per Lead's feedback, 01 Jun 2026).
-const FOUNDATION_SUBJECT_CODES = [
-  "direction",
-  "production",
-  "screenwriting",
-  "cinematography",
-  "sound_design",
-  "editing",
-];
-
-// Sem III+ classes grade 3 subjects: Direction and Production (common across
-// all tracks) come first, then the class's own specialisation.
-const COMMON_SPECIALIZATION_CODES = ["direction", "production"];
+// FOUNDATION_SUBJECT_CODES and COMMON_SPECIALIZATION_CODES are imported from
+// @/lib/grading so the grid and the admin subject-assignment picker stay in
+// sync on which subjects belong to a class.
 
 // Cell state — what the teacher has selected for one (semester, subject) cell.
 // savedGrade / savedCommentId track what's persisted, so the button can show
 // "Saved" while the current selection matches and "Save" the moment the user
-// picks a different grade or comment.
+// picks a different grade or comment. `locked` mirrors the persisted lock flag:
+// a saved grade auto-locks, after which only an admin can unlock/edit it.
 interface CellState {
   grade: Grade | "";
   commentId: string;
   saving: boolean;
   savedGrade: Grade | "";
   savedCommentId: string;
+  locked: boolean;
 }
 
 type GridState = Record<string, CellState>; // key = `${semester}:${subjectId}`
@@ -109,16 +104,28 @@ export function GradeEditor({
   const { profile } = useAuth();
   const { toast } = useToast();
   const teacherId = profile?.id;
+  const isAdmin = profile?.role === "admin";
 
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [commentBank, setCommentBank] = useState<Comment[]>([]);
   const [classSemester, setClassSemester] = useState<number | null>(null);
   const [classSpecialization, setClassSpecialization] =
     useState<Specialization | null>(null);
+  // Subject ids the current (non-admin) user may grade in this class. Admins
+  // grade everything, so this set is only consulted for teachers.
+  const [assignedSubjectIds, setAssignedSubjectIds] = useState<Set<string>>(
+    new Set(),
+  );
   const [loadingRefData, setLoadingRefData] = useState(true);
   const [loadingClass, setLoadingClass] = useState(true);
+  const [loadingAssignments, setLoadingAssignments] = useState(true);
   const [loadingGrades, setLoadingGrades] = useState(false);
   const [grid, setGrid] = useState<GridState>({});
+
+  // Whether the current user may edit a given subject's cell at all (ignores
+  // the per-cell lock, which is handled separately).
+  const canEditSubject = (subjectId: string) =>
+    isAdmin || assignedSubjectIds.has(subjectId);
 
   // 1. Load the subjects reference list once.
   useEffect(() => {
@@ -181,6 +188,45 @@ export function GradeEditor({
       cancelled = true;
     };
   }, [classId, toast]);
+
+  // 2b. Load which subjects the current user is assigned to grade in this class.
+  // Admins skip this — they may grade any subject.
+  useEffect(() => {
+    if (!classId || !teacherId) return;
+    if (isAdmin) {
+      setAssignedSubjectIds(new Set());
+      setLoadingAssignments(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setLoadingAssignments(true);
+      try {
+        const { data, error } = await supabase
+          .from("class_teacher_subjects")
+          .select("subject_id")
+          .eq("class_id", classId)
+          .eq("teacher_id", teacherId);
+        if (cancelled) return;
+        if (error) throw error;
+        setAssignedSubjectIds(
+          new Set((data ?? []).map((r) => r.subject_id as string)),
+        );
+      } catch (err) {
+        if (!cancelled)
+          toast({
+            title: "Couldn't load your subject assignments",
+            description: (err as Error).message,
+            variant: "destructive",
+          });
+      } finally {
+        if (!cancelled) setLoadingAssignments(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [classId, teacherId, isAdmin, toast]);
 
   // Resolve the effective scope: explicit prop wins; otherwise fall back to the
   // class's semester (legacy callers that don't pass a scope).
@@ -268,7 +314,7 @@ export function GradeEditor({
       try {
         const { data, error } = await supabase
           .from("student_grades")
-          .select("subject_id, semester, grade, comment_id")
+          .select("subject_id, semester, grade, comment_id, locked")
           .eq("student_id", studentId)
           .in("semester", gradingSemesters);
         if (error) throw error;
@@ -281,6 +327,7 @@ export function GradeEditor({
             saving: false,
             savedGrade: row.grade as Grade,
             savedCommentId: row.comment_id,
+            locked: !!row.locked,
           };
         });
         setGrid(next);
@@ -321,6 +368,14 @@ export function GradeEditor({
     return map;
   }, [commentBank]);
 
+  // Comment body by id — used to render the saved comment as static text on
+  // read-only (locked / not-assigned) cells.
+  const commentById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of commentBank) map.set(c.id, c.body);
+    return map;
+  }, [commentBank]);
+
   const getCell = (semester: number, subjectId: string): CellState =>
     grid[cellKey(semester, subjectId)] ?? {
       grade: "",
@@ -328,6 +383,7 @@ export function GradeEditor({
       saving: false,
       savedGrade: "",
       savedCommentId: "",
+      locked: false,
     };
 
   const updateCell = (
@@ -386,12 +442,39 @@ export function GradeEditor({
         saving: false,
         savedGrade: cell.grade,
         savedCommentId: cell.commentId,
+        // Teacher writes auto-lock server-side; reflect that immediately. Admin
+        // writes keep the row's current lock state.
+        locked: isAdmin ? cell.locked : true,
       });
       onGradesSaved?.();
     } catch (err) {
       updateCell(semester, subjectId, { saving: false });
       toast({
         title: "Save failed",
+        description: friendlyGradeError(err as Error),
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Admin-only: clear the lock so the assigned teacher can re-grade the cell.
+  const unlockCell = async (semester: number, subjectId: string) => {
+    if (!studentId) return;
+    updateCell(semester, subjectId, { saving: true });
+    try {
+      const { error } = await supabase
+        .from("student_grades")
+        .update({ locked: false })
+        .eq("student_id", studentId)
+        .eq("semester", semester)
+        .eq("subject_id", subjectId);
+      if (error) throw error;
+      updateCell(semester, subjectId, { saving: false, locked: false });
+      toast({ title: "Grade unlocked" });
+    } catch (err) {
+      updateCell(semester, subjectId, { saving: false });
+      toast({
+        title: "Couldn't unlock grade",
         description: (err as Error).message,
         variant: "destructive",
       });
@@ -414,18 +497,68 @@ export function GradeEditor({
           effectiveScope === "specialization" &&
           !!classSpecialization &&
           subject.code === classSpecialization;
+        const hasSavedGrade =
+          cell.savedGrade !== "" && cell.savedCommentId !== "";
+        const mine = canEditSubject(subject.id);
+        // A non-admin can't touch a locked grade or another faculty's subject.
+        const readOnly = !mine || (cell.locked && !isAdmin);
+
+        const specBadge = isSpecializationSubject && (
+          <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800 border border-amber-200">
+            Specialisation
+          </span>
+        );
+
+        // Read-only card: another faculty's subject, or a locked grade. Render
+        // the saved grade + comment as static text so it's still visible.
+        if (readOnly) {
+          const reason = !mine
+            ? "Assigned to another faculty"
+            : "Locked — ask an admin to unlock";
+          return (
+            <Card key={subject.id} className="border-slate-200 bg-slate-50/60">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h4 className="font-medium text-slate-900">{subject.name}</h4>
+                  {specBadge}
+                  <span className="inline-flex items-center gap-1 rounded-full bg-slate-200 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+                    <Lock className="h-3 w-3" /> {reason}
+                  </span>
+                </div>
+                {hasSavedGrade ? (
+                  <p className="mt-2 text-sm text-slate-700">
+                    <span className="font-semibold">
+                      Grade {cell.savedGrade}
+                    </span>
+                    {" — "}
+                    {commentById.get(cell.savedCommentId) ?? ""}
+                  </p>
+                ) : (
+                  <p className="mt-2 text-sm italic text-slate-400">
+                    Not yet graded
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          );
+        }
+
+        // Editable card — the current user's subject (unlocked), or any subject
+        // for an admin. Admins additionally get an Unlock control on locked
+        // cells to hand grading back to the assigned teacher.
         return (
           <Card key={subject.id} className="border-slate-200">
             <CardContent className="p-4">
               <div className="flex items-start justify-between gap-4 mb-3">
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <h4 className="font-medium text-slate-900">
                       {subject.name}
                     </h4>
-                    {isSpecializationSubject && (
-                      <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800 border border-amber-200">
-                        Specialisation
+                    {specBadge}
+                    {isAdmin && cell.locked && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-slate-200 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+                        <Lock className="h-3 w-3" /> Locked
                       </span>
                     )}
                   </div>
@@ -434,6 +567,17 @@ export function GradeEditor({
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
+                  {isAdmin && cell.locked && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => unlockCell(semester, subject.id)}
+                      disabled={cell.saving}
+                    >
+                      <LockOpen className="h-4 w-4 mr-1" />
+                      Unlock
+                    </Button>
+                  )}
                   <Select
                     value={cell.grade || undefined}
                     onValueChange={(v) =>
@@ -542,7 +686,7 @@ export function GradeEditor({
     );
   }
 
-  if (loadingRefData || loadingClass || loadingGrades) {
+  if (loadingRefData || loadingClass || loadingAssignments || loadingGrades) {
     // Mirror the real layout (3 cards for spec / 6 for foundation) so the grid
     // doesn't flash empty-state placeholders before the real data hydrates.
     return (
@@ -586,6 +730,17 @@ const ROMAN: Record<number, string> = {
   5: "V",
   6: "VI",
 };
+
+// Turn a raw Postgres/RLS error into something a teacher can act on. A blocked
+// write trips row-level security (code 42501), which means either the subject
+// isn't assigned to them or the grade is locked.
+function friendlyGradeError(err: Error & { code?: string }): string {
+  const msg = err.message ?? "";
+  if (err.code === "42501" || /row-level security|policy/i.test(msg)) {
+    return "You can only edit grades for your assigned subjects, and only while they're unlocked. Ask an admin if you need this changed.";
+  }
+  return msg;
+}
 
 function GradingSkeleton({
   count,

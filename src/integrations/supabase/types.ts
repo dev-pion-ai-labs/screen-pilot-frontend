@@ -208,6 +208,52 @@ export type Database = {
           },
         ]
       }
+      class_teacher_subjects: {
+        Row: {
+          id: string
+          class_id: string
+          teacher_id: string
+          subject_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          class_id: string
+          teacher_id: string
+          subject_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          class_id?: string
+          teacher_id?: string
+          subject_id?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "class_teacher_subjects_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "class_teacher_subjects_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "class_teacher_subjects_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       class_students: {
         Row: {
           id: string
@@ -539,6 +585,9 @@ export type Database = {
           grade: string
           comment_id: string
           teacher_id: string | null
+          locked: boolean
+          locked_at: string | null
+          locked_by: string | null
           created_at: string
           updated_at: string
         }
@@ -550,6 +599,9 @@ export type Database = {
           grade: string
           comment_id: string
           teacher_id?: string | null
+          locked?: boolean
+          locked_at?: string | null
+          locked_by?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -561,6 +613,9 @@ export type Database = {
           grade?: string
           comment_id?: string
           teacher_id?: string | null
+          locked?: boolean
+          locked_at?: string | null
+          locked_by?: string | null
           created_at?: string
           updated_at?: string
         }

@@ -57,6 +57,9 @@ const AdminAssignClass = () => {
   // subject-code selection into class_teacher_subjects rows.
   const [subjects, setSubjects] = useState<{ id: string; code: string }[]>([]);
   const [loading, setLoading] = useState(true);
+  // True while an add/edit class submission is in flight, so the dialog's
+  // submit button can show a spinner and stay disabled until it resolves.
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingClass, setEditingClass] = useState<Class | null>(null);
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -302,6 +305,7 @@ const AdminAssignClass = () => {
         ? selectedSpecialization
         : null;
 
+    setIsSubmitting(true);
     try {
       // 1. Create class in DB
       const { data: classData, error: classError } = await supabase
@@ -385,6 +389,8 @@ const AdminAssignClass = () => {
         description: "Failed to create class",
         variant: "destructive",
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -436,6 +442,7 @@ const AdminAssignClass = () => {
         ? selectedSpecialization
         : null;
 
+    setIsSubmitting(true);
     try {
       // 1. Update class details
       const { error: classError } = await supabase
@@ -535,6 +542,8 @@ const AdminAssignClass = () => {
         description: "Failed to update class",
         variant: "destructive",
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -623,6 +632,7 @@ const AdminAssignClass = () => {
             isOpen={isAddDialogOpen}
             onClose={() => setIsAddDialogOpen(false)}
             onSubmit={handleAddClass} // ✅ Add handler
+            isSubmitting={isSubmitting}
             mode="add"
             className={newClassName}
             setClassName={setNewClassName}
@@ -647,6 +657,7 @@ const AdminAssignClass = () => {
             isOpen={isEditDialogOpen}
             onClose={closeEditDialog} // ✅ Proper close handler
             onSubmit={handleEditClass} // ✅ Separate edit handler
+            isSubmitting={isSubmitting}
             mode="edit"
             className={newClassName}
             setClassName={setNewClassName}

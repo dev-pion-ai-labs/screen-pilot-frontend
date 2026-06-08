@@ -24,6 +24,7 @@ import {
   UserPlus,
   GraduationCap,
   Search,
+  Loader2,
 } from "lucide-react";
 import {
   PROGRAM_OPTIONS,
@@ -56,6 +57,9 @@ interface AdminClassDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: () => void;
+  // When true the submit button shows a spinner and is disabled while the
+  // add/edit request is in flight.
+  isSubmitting?: boolean;
   mode: "add" | "edit";
   className: string;
   setClassName: (name: string) => void;
@@ -375,6 +379,7 @@ export const AdminClassDialog = ({
   isOpen,
   onClose,
   onSubmit,
+  isSubmitting = false,
   mode,
   className,
   setClassName,
@@ -724,15 +729,24 @@ export const AdminClassDialog = ({
               <Button
                 variant="outline"
                 onClick={handleClose}
+                disabled={isSubmitting}
                 className="px-8 py-3 text-lg rounded-xl"
               >
                 Cancel
               </Button>
               <Button
                 onClick={onSubmit}
-                className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 px-8 py-3 text-lg rounded-xl"
+                disabled={isSubmitting}
+                className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 px-8 py-3 text-lg rounded-xl disabled:opacity-70"
               >
-                {mode === "add" ? "Create Class" : "Update Class"}
+                {isSubmitting ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="animate-spin h-5 w-5" />
+                    {mode === "add" ? "Creating..." : "Updating..."}
+                  </span>
+                ) : (
+                  mode === "add" ? "Create Class" : "Update Class"
+                )}
               </Button>
             </div>
           </div>
